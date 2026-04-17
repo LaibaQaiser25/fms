@@ -1,18 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getAllInvoices,
-  getInvoice,
-  createInvoice,
-  deleteInvoice,
-  getClientInvoices
-} = require('../controllers/InvoiceController');
+const InvoiceController = require('../controllers/InvoiceController');
 
-// Routes
-router.get('/', getAllInvoices);
-router.get('/:id', getInvoice);
-router.post('/', createInvoice);
-router.delete('/:id', deleteInvoice);
-router.get('/client/:name', getClientInvoices);
+// Get all invoices
+router.get('/', InvoiceController.getAllInvoices);
+
+// Get pending payments
+router.get('/pending/list', InvoiceController.getPendingPayments);
+
+// Record a payment
+router.post('/payment', InvoiceController.recordPayment);
+
+// Get invoices for a customer
+router.get('/customer/:customer_id', InvoiceController.getCustomerInvoices);
+
+// Get invoice by number
+router.get('/number/:invoice_no', InvoiceController.getInvoiceByNumber);
+
+// Get single invoice
+router.get('/:id', InvoiceController.getInvoice);
 
 module.exports = router;

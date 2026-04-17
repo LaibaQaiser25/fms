@@ -18,24 +18,34 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
-        <p className="text-gray-600 text-xs uppercase tracking-widest px-4 mb-2 font-semibold">Invoice Management</p>
+        {/* Dashboard */}
+        <p className="text-gray-600 text-xs uppercase tracking-widest px-4 mb-2 font-semibold">Main</p>
         <NavLink to="/" end className={link}>
-          <span className="text-lg">🧾</span> Invoices
-        </NavLink>
-        <NavLink to="/create" className={link}>
-          <span className="text-lg">➕</span> New Invoice
+          <span className="text-lg">📊</span> Dashboard
         </NavLink>
         <div className="border-t border-white/10 my-3" />
 
-        <p className="text-gray-600 text-xs uppercase tracking-widest px-4 mb-2 font-semibold">Stock Management</p>
+        {/* Sales & Ledger */}
+        <p className="text-gray-600 text-xs uppercase tracking-widest px-4 mb-2 font-semibold">Sales & Finance</p>
+        <NavLink to="/ledger" className={link}>
+          <span className="text-lg">📒</span> Customer Ledger
+        </NavLink>
+        <NavLink to="/invoices" className={link}>
+          <span className="text-lg">🧾</span> Invoices
+        </NavLink>
+        <div className="border-t border-white/10 my-3" />
+
+        {/* Production & Stock */}
+        <p className="text-gray-600 text-xs uppercase tracking-widest px-4 mb-2 font-semibold">Operations</p>
+        <NavLink to="/production" className={link}>
+          <span className="text-lg">🏭</span> Production
+        </NavLink>
         <NavLink to="/stock" className={link}>
           <span className="text-lg">📦</span> Stock
         </NavLink>
-        <NavLink to="/ledger" className={link}>
-          <span className="text-lg">📒</span> Ledger
-        </NavLink>
         <div className="border-t border-white/10 my-3" />
 
+        {/* Finance Module */}
         <p className="text-gray-600 text-xs uppercase tracking-widest px-4 mb-2 font-semibold">Finance Module</p>
         <NavLink to="/expenses" className={link}>
           <span className="text-lg">💰</span> Expenses
@@ -45,6 +55,7 @@ export default function Sidebar() {
         </NavLink>
         <div className="border-t border-white/10 my-3" />
 
+        {/* HR Module */}
         <p className="text-gray-600 text-xs uppercase tracking-widest px-4 mb-2 font-semibold">HR Module</p>
         <NavLink to="/employees" className={link}>
           <span className="text-lg">👥</span> Employees

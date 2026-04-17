@@ -1,16 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getAllCustomers,
-  addCredit,
-  getCustomerLedger,
-  deleteCustomer
-} = require('../controllers/LedgerController');
+const CustomerLedgerController = require('../controllers/CustomerLedgerController');
 
-// Routes
-router.get('/', getAllCustomers);          // GET all customers grouped
-router.post('/credit', addCredit);         // POST credit + receipt
-router.get('/customer/:name', getCustomerLedger); // GET ledger entries by customer
-router.delete('/customer/:name', deleteCustomer); // DELETE customer ledger + invoices
+// Get full ledger
+router.get('/', CustomerLedgerController.getFullLedger);
+
+// Get ledger summary
+router.get('/summary/all', CustomerLedgerController.getLedgerSummary);
+
+// Get outstanding debts
+router.get('/debts/outstanding', CustomerLedgerController.getOutstandingDebts);
+
+// Add manual ledger entry
+router.post('/', CustomerLedgerController.addLedgerEntry);
+
+// Get customer ledger history
+router.get('/customer/:customer_id', CustomerLedgerController.getCustomerLedgerHistory);
 
 module.exports = router;

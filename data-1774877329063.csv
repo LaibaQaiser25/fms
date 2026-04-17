@@ -1,0 +1,10 @@
+"column_name","data_type","is_nullable","column_default"
+"id","integer","NO","nextval('stock_id_seq'::regclass)"
+"name","character varying","NO",NULL
+"unit_price","numeric","NO",NULL
+"quantity","integer","YES","0"
+"category","character varying","YES",NULL
+"size","character varying","YES",NULL
+"extra","text","YES",NULL
+"created_at","timestamp without time zone","YES","now()"
+"minimum_stock","integer","YES","10"

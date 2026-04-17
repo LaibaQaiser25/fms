@@ -1,120 +1,266 @@
 const pool = require('../db/pool');
 
-// GET all invoices
-exports.getAllInvoices = async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM invoices ORDER BY created_at DESC');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+class InvoiceController {
+  /**
+   * Get all invoices for a customer
+   * GET /api/invoices/customer/:customer_id
+   */
+  static async getCustomerInvoices(req, res) {
+    try {
+      const { customer_id } = req.params;
 
-// GET one invoice with items
-exports.getInvoice = async (req, res) => {
-  try {
-    const invoice = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
-    const items = await pool.query('SELECT * FROM invoice_items WHERE invoice_id = $1', [req.params.id]);
-    res.json({ ...invoice.rows[0], items: items.rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// POST create invoice
-exports.createInvoice = async (req, res) => {
-  const { client_name, phone, address, items } = req.body;
-
-  try {
-    const lastInv = await pool.query("SELECT invoice_no FROM invoices ORDER BY id DESC LIMIT 1");
-    const lastNum = lastInv.rows[0] ? parseInt(lastInv.rows[0].invoice_no.split('-')[1]) : 0;
-    const invoice_no = `INV-${String(lastNum + 1).padStart(5, '0')}`;
-    const total = items.reduce((sum, i) => sum + (Number(i.price) * Number(i.quantity || 1)), 0);
-
-    const inv = await pool.query(
-      `INSERT INTO invoices (invoice_no, client_name, phone, address, total)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [invoice_no, client_name, phone, address, total]
-    );
-
-    const invId = inv.rows[0].id;
-
-    for (const item of items) {
-      await pool.query(
-        'INSERT INTO invoice_items (invoice_id, description, price, quantity) VALUES ($1, $2, $3, $4)',
-        [invId, item.description, item.price, item.quantity || 1]
+      const result = await pool.query(
+        `SELECT * FROM invoices 
+         WHERE customer_id = $1 
+         ORDER BY created_at DESC`,
+        [customer_id]
       );
 
-      if (item.stock_id) {
-        await pool.query(
-          'UPDATE stock SET quantity = quantity - $1 WHERE id = $2',
-          [item.quantity || 1, item.stock_id]
-        );
-      }
+      res.json({
+        success: true,
+        data: result.rows
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching customer invoices:', error);
+      res.status(500).json({ error: error.message });
     }
-
-    await pool.query(
-      `INSERT INTO ledger (customer_name, invoice_id, invoice_no, debit, credit)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [client_name, invId, invoice_no, total, 0]
-    );
-
-    res.status(201).json(inv.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
-};
 
-// DELETE invoice
-exports.deleteInvoice = async (req, res) => {
-  try {
-    await pool.query('DELETE FROM invoices WHERE id = $1', [req.params.id]);
-    res.json({ message: 'Invoice deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  /**
+   * Get single invoice with items
+   * GET /api/invoices/:id
+   */
+  static async getInvoice(req, res) {
+    try {
+      const { id } = req.params;
+
+      const invoiceResult = await pool.query(
+        'SELECT * FROM invoices WHERE id = $1',
+        [id]
+      );
+
+      if (invoiceResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Invoice not found' });
+      }
+
+      const itemsResult = await pool.query(
+        'SELECT * FROM invoice_items WHERE invoice_id = $1',
+        [id]
+      );
+
+      res.json({
+        success: true,
+        data: {
+          invoice: invoiceResult.rows[0],
+          items: itemsResult.rows
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching invoice:', error);
+      res.status(500).json({ error: error.message });
+    }
   }
-};
 
-// GET invoices for a client
-exports.getClientInvoices = async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM invoices WHERE client_name ILIKE $1 ORDER BY created_at DESC`,
-      [req.params.name]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  /**
+   * Get invoice by invoice number
+   * GET /api/invoices/number/:invoice_no
+   */
+  static async getInvoiceByNumber(req, res) {
+    try {
+      const { invoice_no } = req.params;
+
+      const invoiceResult = await pool.query(
+        'SELECT * FROM invoices WHERE invoice_no = $1',
+        [invoice_no]
+      );
+
+      if (invoiceResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Invoice not found' });
+      }
+
+      const itemsResult = await pool.query(
+        'SELECT * FROM invoice_items WHERE invoice_id = $1',
+        [invoiceResult.rows[0].id]
+      );
+
+      res.json({
+        success: true,
+        data: {
+          invoice: invoiceResult.rows[0],
+          items: itemsResult.rows
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching invoice:', error);
+      res.status(500).json({ error: error.message });
+    }
   }
-};
 
-// Helper: update invoice status
-exports.updateInvoiceStatus = async (invoiceId) => {
-  const inv = await pool.query(
-    'SELECT total, created_at, client_name FROM invoices WHERE id = $1',
-    [invoiceId]
-  );
-  if (!inv.rows[0]) return;
+  /**
+   * Record a payment and create payment receipt invoice
+   * POST /api/invoices/payment
+   * Body: { customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, note }
+   */
+  static async recordPayment(req, res) {
+    const client = await pool.connect();
+    try {
+      const { customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, note } = req.body;
 
-  const { total, created_at, client_name } = inv.rows[0];
+      if (!customer_id || !payment_amount) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
 
-  const led = await pool.query(
-    'SELECT SUM(credit) as total_credit, SUM(debit) as total_debit FROM ledger WHERE customer_name ILIKE $1',
-    [client_name]
-  );
+      await client.query('BEGIN');
 
-  const totalDebit = Number(led.rows[0]?.total_debit || 0);
-  const totalCredit = Number(led.rows[0]?.total_credit || 0);
-  const daysOld = (Date.now() - new Date(created_at)) / (1000 * 60 * 60 * 24);
+      // 1. Record payment
+      await client.query(
+        `INSERT INTO payment_records (customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [customer_id, customer_name, sale_id || null, invoice_id || null, payment_amount, payment_type, note]
+      );
 
-  let status = 'unpaid';
-  if (totalCredit >= totalDebit) status = 'paid';
-  else if (totalCredit > 0) status = 'partial';
-  else if (daysOld > 30) status = 'overdue';
+      // 2. Update original invoice status
+      if (invoice_id) {
+        const invoiceResult = await client.query(
+          'SELECT * FROM invoices WHERE id = $1',
+          [invoice_id]
+        );
 
-  await pool.query(
-    'UPDATE invoices SET status = $1 WHERE id = $2',
-    [status, invoiceId]
-  );
-  return status;
-};
+        if (invoiceResult.rows.length > 0) {
+          const invoice = invoiceResult.rows[0];
+          const newOutstandingDebt = invoice.outstanding_debt - payment_amount;
+          let newStatus = 'paid';
+
+          if (newOutstandingDebt > 0) {
+            newStatus = 'partial';
+          }
+
+          await client.query(
+            'UPDATE invoices SET outstanding_debt = $1, status = $2, updated_at = NOW() WHERE id = $3',
+            [Math.max(0, newOutstandingDebt), newStatus, invoice_id]
+          );
+        }
+      }
+
+      // 3. Create payment receipt invoice
+      const receiptInvoiceNoResult = await client.query(
+        'SELECT COUNT(*) FROM invoices WHERE customer_id = $1',
+        [customer_id]
+      );
+      const receiptInvoiceNo = `INV-${customer_name.substring(0, 3).toUpperCase()}-${receiptInvoiceNoResult.rows[0].count + 1}`;
+
+      const paymentReceiptResult = await client.query(
+        `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, total_amount, advance_paid, outstanding_debt, invoice_type, status)
+         VALUES ($1, $2, $3, $4, $5, 0, 0, 'payment_receipt', 'paid')
+         RETURNING *`,
+        [receiptInvoiceNo, sale_id || null, customer_id, customer_name, payment_amount]
+      );
+
+      // 4. Update ledger
+      await client.query(
+        `INSERT INTO customer_ledger (customer_id, customer_name, invoice_id, debit, credit, transaction_type, note)
+         VALUES ($1, $2, $3, 0, $4, 'payment', $5)`,
+        [customer_id, customer_name, paymentReceiptResult.rows[0].id, payment_amount, `Payment received: ${payment_type}`]
+      );
+
+      // 5. Update sale balance if applicable
+      if (sale_id) {
+        const saleResult = await client.query(
+          'SELECT balance FROM sales WHERE id = $1',
+          [sale_id]
+        );
+
+        if (saleResult.rows.length > 0) {
+          const newBalance = saleResult.rows[0].balance - payment_amount;
+          const newSaleStatus = newBalance <= 0 ? 'ready' : 'pending';
+
+          await client.query(
+            'UPDATE sales SET balance = $1, updated_at = NOW() WHERE id = $2',
+            [Math.max(0, newBalance), sale_id]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        success: true,
+        message: 'Payment recorded successfully',
+        data: {
+          receipt: paymentReceiptResult.rows[0]
+        }
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('❌ Error recording payment:', error);
+      res.status(500).json({ error: error.message });
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Get all invoices with pagination
+   * GET /api/invoices?page=1&limit=10
+   */
+  static async getAllInvoices(req, res) {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+      const offset = (page - 1) * limit;
+
+      const result = await pool.query(
+        `SELECT * FROM invoices ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      );
+
+      const countResult = await pool.query('SELECT COUNT(*) FROM invoices');
+      const total = parseInt(countResult.rows[0].count);
+
+      res.json({
+        success: true,
+        data: result.rows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: total,
+          pages: Math.ceil(total / limit)
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching invoices:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Get pending payments (unpaid/partial invoices)
+   * GET /api/invoices/pending/list
+   */
+  static async getPendingPayments(req, res) {
+    try {
+      const result = await pool.query(
+        `SELECT 
+          id, invoice_no, customer_name, total_amount, advance_paid, outstanding_debt, status, created_at
+         FROM invoices 
+         WHERE status IN ('unpaid', 'partial')
+         ORDER BY created_at DESC`
+      );
+
+      res.json({
+        success: true,
+        data: result.rows
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching pending payments:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+}
+
+module.exports = InvoiceController;

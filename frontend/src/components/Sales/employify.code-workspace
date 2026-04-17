@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../../../../../employify"
+		},
+		{
+			"path": "../../../.."
+		},
+		{
+			"path": "../../../../../../lpages"
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "angela",
+		"claudeCode.useTerminal": true
+	}
+}

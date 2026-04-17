@@ -51,10 +51,10 @@ export default function InvoicePDF({ invoice }) {
             <tr key={item.id}>
               <td style={pdf.td}>{i + 1}.</td>
               <td style={pdf.td}>{item.description}</td>
-              <td style={pdf.td}>${Number(item.price).toFixed(0)}</td>
+              <td style={pdf.td}>pkr{Number(item.price).toFixed(0)}</td>
               <td style={pdf.td}>{item.quantity || 1}</td>
               <td style={{ ...pdf.td, textAlign: 'right' }}>
-                ${(Number(item.price) * Number(item.quantity || 1)).toFixed(0)}
+                pkr{(Number(item.price) * Number(item.quantity || 1)).toFixed(0)}
               </td>
             </tr>
           ))}
@@ -64,7 +64,7 @@ export default function InvoicePDF({ invoice }) {
               Total
             </td>
             <td style={{ ...pdf.td, textAlign: 'right', fontWeight: 800, borderBottom: 'none' }}>
-              ${(invoice.items || []).reduce((sum, i) => sum + (Number(i.price) * Number(i.quantity || 1)), 0).toFixed(0)}
+              pkr{(invoice.items || []).reduce((sum, i) => sum + (Number(i.price) * Number(i.quantity || 1)), 0).toFixed(0)}
             </td>
           </tr>
 
@@ -74,7 +74,7 @@ export default function InvoicePDF({ invoice }) {
       {/* Total */}
       <div style={pdf.totalRow}>
         <span style={pdf.totalLabel}>Total</span>
-        <span style={pdf.totalAmount}>${Number(invoice.total).toFixed(0)}</span>
+        <span style={pdf.totalAmount}>pkr{Number(invoice.total).toFixed(0)}</span>
       </div>
 
       {/* Bank */}
@@ -105,19 +105,19 @@ export default function InvoicePDF({ invoice }) {
             <div style={{ padding: '0.7rem 1rem', borderRight: '1px solid #eee' }}>
               <div style={{ color: '#888', marginBottom: 2 }}>Total Invoiced</div>
               <div style={{ fontWeight: 800, color: '#111' }}>
-                ${invoice.balance.totalDebit.toFixed(0)}
+                pkr{invoice.balance.totalDebit.toFixed(0)}
               </div>
             </div>
             <div style={{ padding: '0.7rem 1rem', borderRight: '1px solid #eee' }}>
               <div style={{ color: '#888', marginBottom: 2 }}>Amount Paid</div>
               <div style={{ fontWeight: 800, color: '#16a34a' }}>
-                ${invoice.balance.totalCredit.toFixed(0)}
+                pkr{invoice.balance.totalCredit.toFixed(0)}
               </div>
             </div>
             <div style={{ padding: '0.7rem 1rem' }}>
               <div style={{ color: '#888', marginBottom: 2 }}>Outstanding Debt</div>
               <div style={{ fontWeight: 800, color: invoice.balance.debt > 0 ? '#dc2626' : '#16a34a' }}>
-                ${invoice.balance.debt.toFixed(0)}
+                pkr{invoice.balance.debt.toFixed(0)}
               </div>
             </div>
           </div>

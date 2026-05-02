@@ -10,7 +10,6 @@ function ProductionList() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [limit] = useState(10);
-
   useEffect(() => {
     fetchData();
   }, [filter, page]);

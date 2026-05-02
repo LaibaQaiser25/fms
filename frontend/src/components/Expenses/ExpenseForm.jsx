@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Select, Alert } from '../shared/UIComponents';
-import { expenseAPI } from '../../services/apiService';
+import expenseAPI from '../../api/expenseApi';
 
 const ExpenseForm = ({ isOpen, onClose, onSubmit, expense, categories }) => {
   const [formData, setFormData] = useState({

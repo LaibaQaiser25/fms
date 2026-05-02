@@ -1,0 +1,113 @@
+import PublicLayout from '../layouts/PublicLayout';
+import { Users, Award, Zap } from 'lucide-react';
+
+export default function AboutPage() {
+  const team = [
+    { name: 'Muhammad Zahid', role: 'Founder & CEO', image: '👨‍💼' },
+    { name: 'Ahmed Hassan', role: 'Engineering Director', image: '👨‍🔧' },
+    { name: 'Fatima Khan', role: 'Operations Manager', image: '👩‍💼' },
+    { name: 'Ali Raza', role: 'Quality Lead', image: '👨‍🏭' },
+  ];
+
+  return (
+    <PublicLayout>
+      {/* Hero Section */}
+      <div className="bg-blue-900 text-white py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <h1 className="text-4xl font-bold mb-4">About Bin-Zahid & Partners</h1>
+          <p className="text-xl text-blue-100">Building Dreams with Precision</p>
+        </div>
+      </div>
+
+      {/* Company Description */}
+      <div className="py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl font-bold mb-6 text-gray-900">Our Story</h2>
+              <p className="text-gray-600 mb-4">
+                Founded in 2005, Bin-Zahid & Partners has been at the forefront of precast concrete manufacturing in South Asia. What started as a small operation has grown into a leading supplier of innovative precast solutions.
+              </p>
+              <p className="text-gray-600 mb-4">
+                Our commitment to quality, innovation, and customer satisfaction has made us the trusted partner for construction projects of all scales.
+              </p>
+              <p className="text-gray-600">
+                Today, we employ over 200 skilled professionals and operate state-of-the-art manufacturing facilities across multiple regions.
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-blue-100 to-green-100 rounded-lg h-80 flex items-center justify-center overflow-hidden">
+  <img 
+    src="../pic3.jpg" 
+    alt="19 Years of Excellence" 
+    className="w-full h-full object-cover rounded-lg"
+  />
+</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Section */}
+      <div className="bg-gray-50 py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid md:grid-cols-4 gap-8">
+            {[
+              { number: '1000+', label: 'Projects Completed' },
+              { number: '500+', label: 'Active Clients' },
+              { number: '19', label: 'Years in Business' },
+              { number: '200+', label: 'Expert Staff' },
+            ].map((stat, i) => (
+              <div key={i} className="text-center">
+                <div className="text-4xl font-bold text-green-600 mb-2">{stat.number}</div>
+                <p className="text-gray-600">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Values Section */}
+      <div className="py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12">Our Values</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-lg shadow">
+              <Award className="text-blue-600 mb-4" size={32} />
+              <h3 className="text-xl font-bold mb-3">Quality First</h3>
+              <p className="text-gray-600">Every product undergoes rigorous testing to meet international standards.</p>
+            </div>
+            <div className="bg-white p-8 rounded-lg shadow">
+              <Zap className="text-green-600 mb-4" size={32} />
+              <h3 className="text-xl font-bold mb-3">Innovation</h3>
+              <p className="text-gray-600">We invest in R&D to create cutting-edge precast solutions.</p>
+            </div>
+            <div className="bg-white p-8 rounded-lg shadow">
+              <Users className="text-blue-700 mb-4" size={32} />
+              <h3 className="text-xl font-bold mb-3">Customer Focus</h3>
+              <p className="text-gray-600">Your success is our success - we're committed to excellence.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Team Section */}
+      <div className="bg-gray-50 py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12">Leadership Team</h2>
+          <div className="grid md:grid-cols-4 gap-8">
+            {team.map((member, i) => (
+              <div key={i} className="bg-white rounded-lg overflow-hidden shadow text-center">
+                <div className="bg-gradient-to-br from-blue-100 to-green-100 py-12 text-5xl">
+                  {member.image}
+                </div>
+                <div className="p-6">
+                  <h3 className="font-bold text-lg mb-1">{member.name}</h3>
+                  <p className="text-green-600 font-semibold text-sm">{member.role}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PublicLayout>
+  );
+}

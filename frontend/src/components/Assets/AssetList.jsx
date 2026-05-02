@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Select, Alert, Table, Pagination, FilterBar } from '../shared/UIComponents';
-import { assetAPI } from '../../services/apiService';
+import assetAPI from '../../api/assetApi';
 import AssetForm from './AssetForm';
 
 const AssetList = () => {
@@ -94,8 +94,8 @@ const AssetList = () => {
   const columns = [
     { key: 'name', label: 'Asset Name' },
     { key: 'category_name', label: 'Category' },
-    { key: 'purchase_cost', label: 'Purchase Cost', render: (val) => `₹${parseFloat(val).toFixed(2)}` },
-    { key: 'current_value', label: 'Current Value', render: (val) => `₹${parseFloat(val).toFixed(2)}` },
+    { key: 'purchase_cost', label: 'Purchase Cost', render: (val) => `PKR ${parseFloat(val).toFixed(2)}` },
+    { key: 'current_value', label: 'Current Value', render: (val) => `PKR ${parseFloat(val).toFixed(2)}` },
     { key: 'status', label: 'Status', render: (val) => <span className={`px-2 py-1 rounded text-sm ${val === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{val}</span> },
   ];
 

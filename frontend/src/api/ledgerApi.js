@@ -7,7 +7,7 @@ export const getAllLedger        = (page = 1, limit = 10)        =>
 export const getCustomerLedger   = (customerId)       => 
   axios.get(`${BASE}/ledger/customer/${customerId}`);
 export const addCredit           = (data)       => 
-  axios.post(`${BASE}/ledger/credit`, data);
+  axios.post(`${BASE}/ledger`, data);
 export const deleteCustomer      = (name)       => 
   axios.delete(`${BASE}/ledger/customer/${name}`);
 

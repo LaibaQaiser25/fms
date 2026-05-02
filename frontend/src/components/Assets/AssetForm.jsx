@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Select, Alert } from '../shared/UIComponents';
-import { assetAPI } from '../../services/apiService';
+import assetAPI from '../../api/assetApi';
 
 const AssetForm = ({ isOpen, onClose, onSubmit, asset, categories }) => {
   const [formData, setFormData] = useState({

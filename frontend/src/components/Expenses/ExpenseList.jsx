@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Select, Alert, Table, Pagination, FilterBar } from '../shared/UIComponents';
-import { expenseAPI } from '../../services/apiService';
+import expenseAPI from '../../api/expenseApi';
 import ExpenseForm from './ExpenseForm';
 
 const ExpenseList = () => {
@@ -93,7 +93,7 @@ const ExpenseList = () => {
   const columns = [
     { key: 'category_name', label: 'Category' },
     { key: 'description', label: 'Description' },
-    { key: 'amount', label: 'Amount', render: (val) => `₹${parseFloat(val).toFixed(2)}` },
+    { key: 'amount', label: 'Amount', render: (val) => `PKR ${parseFloat(val).toFixed(2)}` },
     { key: 'date', label: 'Date', render: (val) => new Date(val).toLocaleDateString() },
   ];
 

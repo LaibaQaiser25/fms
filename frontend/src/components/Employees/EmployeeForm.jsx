@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Select, Alert } from '../shared/UIComponents';
-import { employeeAPI } from '../../services/apiService';
+import employeeAPI from '../../api/employeeApi';
 
 const EmployeeForm = ({ isOpen, onClose, onSubmit, employee, employeeTypes }) => {
   const [formData, setFormData] = useState({

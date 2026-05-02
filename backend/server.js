@@ -11,6 +11,8 @@ const employeeRoutes = require('./routes/employees');
 const salesRoutes = require('./routes/sales');
 const customersRoutes = require('./routes/customers');
 const productionRoutes = require('./routes/production');
+const nlpSearch = require('./routes/nlp-search');
+
 
 const app = express();
 
@@ -35,6 +37,9 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/customers', customersRoutes);
 app.use('/api/production', productionRoutes);
+
+//nlp
+app.use('/api/nlp', nlpSearch);
 
 app.listen(process.env.PORT || 5000, () =>
      { console.log('🚀 Server running on port ' + (process.env.PORT || 5000)); });

@@ -1,6 +1,16 @@
 const pool = require('../db/pool');
+const crypto = require('crypto');
 
 class InvoiceController {
+  /**
+   * Generate a truly unique ID with timestamp + random + counter
+   */
+  static generateUniqueId(prefix) {
+    const timestamp = Date.now();
+    const random = crypto.randomBytes(4).toString('hex').substring(0, 6);
+    return `${prefix}-${timestamp}-${random}`;
+  }
+
   /**
    * Get all invoices for a customer
    * GET /api/invoices/customer/:customer_id
@@ -146,11 +156,7 @@ class InvoiceController {
       }
 
       // 3. Create payment receipt invoice
-      const receiptInvoiceNoResult = await client.query(
-        'SELECT COUNT(*) FROM invoices WHERE customer_id = $1',
-        [customer_id]
-      );
-      const receiptInvoiceNo = `INV-${customer_name.substring(0, 3).toUpperCase()}-${receiptInvoiceNoResult.rows[0].count + 1}`;
+      const receiptInvoiceNo = InvoiceController.generateUniqueId(`INV-${customer_name.substring(0, 3).toUpperCase()}`);
 
       const paymentReceiptResult = await client.query(
         `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, total_amount, advance_paid, outstanding_debt, invoice_type, status)

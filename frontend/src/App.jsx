@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import Analytics from './components/Analytics';
@@ -21,9 +24,10 @@ import ContactPage from './pages/ContactPage';
 
 function App() {
   return (
+    <AuthProvider>
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+        {/* Public Routes - Accessible to everyone */}
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/services" element={<ServicesPage />} />
@@ -31,30 +35,23 @@ function App() {
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/contact" element={<ContactPage />} />
 
-        {/* Dashboard Routes */}
-        <Route element={<Layout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/analytics" element={<Analytics />} />
-          
-          {/* Invoice Routes */}
-          <Route path="/invoices" element={<InvoiceList />} />
-          
-          {/* Stock Routes */}
-          <Route path="/stock" element={<StockManager />} />
-          
-          {/* Ledger & Production Routes */}
-          <Route path="/ledger" element={<CustomerLedger />} />
-          <Route path="/production" element={<ProductionList />} />
-          
-          {/* Finance Routes */}
-          <Route path="/expenses" element={<ExpenseList />} />
-          <Route path="/assets" element={<AssetList />} />
-          
-          {/* HR Routes */}
-          <Route path="/employees" element={<EmployeeList />} />
+        {/* Protected Routes - Require authentication */}
+        <Route element={<ProtectedRoute allowedRoles={['owner', 'manager']} />}>
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/invoices" element={<InvoiceList />} />
+            <Route path="/stock" element={<StockManager />} />
+            <Route path="/ledger" element={<CustomerLedger />} />
+            <Route path="/production" element={<ProductionList />} />
+            <Route path="/expenses" element={<ExpenseList />} />
+            <Route path="/assets" element={<AssetList />} />
+            <Route path="/employees" element={<EmployeeList />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
+    </AuthProvider>
   );
 }
 

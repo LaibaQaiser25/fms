@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const pool = require('../db'); // your pg pool
+const { Pool } = require('pg');
+const Groq = require('groq-sdk');
+require('dotenv').config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const SCHEMA_CONTEXT = `
 You are a PostgreSQL expert for a factory management system.
@@ -35,22 +37,29 @@ router.post('/nlp-search', async (req, res) => {
   if (!query) return res.status(400).json({ error: 'Query required' });
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const result = await model.generateContent(`${SCHEMA_CONTEXT}\n\nUser query: "${query}"`);
-    let sql = result.response.text().trim();
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: SCHEMA_CONTEXT },
+        { role: 'user', content: `User query: "${query}"` }
+      ],
+      temperature: 0.1
+    });
 
-    // clean up if model wraps in markdown
+    let sql = completion.choices[0].message.content.trim();
     sql = sql.replace(/```sql|```/gi, '').trim();
+
+    console.log('✅ Generated SQL:', sql);
 
     if (!sql.toUpperCase().startsWith('SELECT')) {
       return res.status(400).json({ error: 'Only SELECT queries allowed' });
     }
 
     const dbResult = await pool.query(sql);
-    res.json({ sql, data: dbResult.rows });
+    res.json({ sql, data: dbResult.rows, rowCount: dbResult.rows.length });
 
   } catch (err) {
-    console.error(err);
+    console.error('❌ NLP Search Error:', err.message);
     res.status(500).json({ error: 'Search failed', details: err.message });
   }
 });

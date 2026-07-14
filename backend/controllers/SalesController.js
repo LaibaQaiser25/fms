@@ -1,6 +1,17 @@
 const pool = require('../db/pool');
+const crypto = require('crypto');
+const { sendWhatsApp } = require('../services/whatsappService');
 
 class SalesController {
+  /**
+   * Generate a truly unique ID with timestamp + random + counter
+   */
+  static generateUniqueId(prefix) {
+    const timestamp = Date.now();
+    const random = crypto.randomBytes(4).toString('hex').substring(0, 6);
+    return `${prefix}-${timestamp}-${random}`;
+  }
+
   /**
    * Create a new sale with invoice and ledger entry
    * POST /api/sales
@@ -18,14 +29,11 @@ class SalesController {
       await client.query('BEGIN');
 
       // 1. Generate unique sale number
-      const saleNoResult = await client.query(
-        'SELECT COUNT(*) FROM sales'
-      );
-      const saleNo = `SALE-${Date.now()}-${saleNoResult.rows[0].count + 1}`;
+      const saleNo = SalesController.generateUniqueId('SALE');
 
       // 2. Create sale record
       const balance = total_amount - (advance_paid || 0);
-      
+
       // Check if items are in stock to determine status
       let status = 'ready'; // Default to ready
       for (const item of items) {
@@ -69,11 +77,7 @@ class SalesController {
       }
 
       // 4. Create Proforma Invoice
-      const invoiceNoResult = await client.query(
-        'SELECT COUNT(*) FROM invoices WHERE customer_id = $1',
-        [customer_id]
-      );
-      const invoiceNo = `INV-${customer_name.substring(0, 3).toUpperCase()}-${invoiceNoResult.rows[0].count + 1}`;
+      const invoiceNo = SalesController.generateUniqueId('INV');
 
       const invoiceResult = await client.query(
         `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status)
@@ -102,6 +106,28 @@ class SalesController {
       );
 
       await client.query('COMMIT');
+
+      // Check low stock after sale
+      const lowStock = await client.query(
+        `SELECT name, quantity, minimum_stock 
+   FROM stock 
+   WHERE quantity <= COALESCE(minimum_stock, 10)`
+      );
+      if (lowStock.rows.length > 0) {
+        let msg = '⚠️ *Low Stock After Sale*\n\n';
+        lowStock.rows.forEach(item => {
+          msg += `• ${item.name}: ${item.quantity} units left\n`;
+        });
+        await sendWhatsApp(msg);
+      }
+
+      // Check outstanding balance
+      if (balance > 0) {
+        await sendWhatsApp(
+          `💰 *New Outstanding Debt*\n\n• Customer: ${customer_name}\n• Amount: Rs.${balance}\n• Invoice: ${invoiceNo}`
+        );
+      }
+
 
       res.status(201).json({
         success: true,

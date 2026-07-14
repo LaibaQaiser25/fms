@@ -1,13 +1,17 @@
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
 import { Outlet } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext } from 'react';
 import * as salesApi from '../api/salesApi';
+
+export const AlertRefreshContext = createContext();
 
 export default function Layout() {
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchSQL, setSearchSQL] = useState('');
 
   useEffect(() => {
     fetchAlerts();
@@ -45,16 +49,63 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
-      <DashboardHeader
-        allAlerts={allAlerts}
-        showAlertsDropdown={showAlertsDropdown}
-        setShowAlertsDropdown={setShowAlertsDropdown}
-      />
-      <main className="ml-56 flex-1 p-6 min-h-screen" style={{ paddingTop: '76px' }}>
-        <Outlet />
-      </main>
-    </div>
+    <AlertRefreshContext.Provider value={{ fetchAlerts, pendingPayments, lowStockAlerts }}>
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <DashboardHeader
+          allAlerts={allAlerts}
+          showAlertsDropdown={showAlertsDropdown}
+          setShowAlertsDropdown={setShowAlertsDropdown}
+          setSearchResults={setSearchResults}
+          setSearchSQL={setSearchSQL}
+          refreshTrigger={{ pendingPayments, lowStockAlerts }}
+        />
+        <main className="ml-56 flex-1 p-6 min-h-screen" style={{ paddingTop: '76px' }}>
+          {searchResults && (
+            <div className="mb-6 bg-white rounded-lg shadow p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-semibold text-gray-700">Search Results</h2>
+                <button
+                  onClick={() => { setSearchResults(null); setSearchSQL(''); }}
+                  className="text-sm text-red-400 hover:text-red-600"
+                >
+                  ✕ Clear
+                </button>
+              </div>
+              {searchSQL && (
+                <code className="block text-xs text-gray-400 mb-3 bg-gray-50 p-2 rounded">
+                  {searchSQL}
+                </code>
+              )}
+              {searchResults.length === 0 ? (
+                <p className="text-gray-400 text-sm">No results found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+                      <tr>
+                        {Object.keys(searchResults[0]).map(k => (
+                          <th key={k} className="px-4 py-2">{k.replace(/_/g, ' ')}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {searchResults.map((row, i) => (
+                        <tr key={i} className="border-t hover:bg-gray-50">
+                          {Object.values(row).map((v, j) => (
+                            <td key={j} className="px-4 py-2">{v ?? '-'}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+          <Outlet context={{ refreshTrigger: { pendingPayments, lowStockAlerts } }} />
+        </main>
+      </div>
+    </AlertRefreshContext.Provider>
   );
 }

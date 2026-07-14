@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import LoginModal from '../components/LoginModal';
+import LoginModal from '../components/Login';
 
 export default function PublicLayout({ children }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);

@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { X, AlertCircle, CheckCircle } from 'lucide-react';
 import * as customersApi from '../../api/customersApi';
 import * as ledgerApi from '../../api/ledgerApi';
+import * as productionApi from '../../api/productionApi';
+import AddProductionDirect from '../Sales/AddProductionDirect';
+import { AlertRefreshContext } from '../Layout';
 
 function AddPaymentModal({ onClose }) {
+  const alertRefresh = useContext(AlertRefreshContext);
+  const [showProductionModal, setShowProductionModal] = useState(false);
   // Customer Search
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState([]);
@@ -95,8 +100,25 @@ function AddPaymentModal({ onClose }) {
         note: paymentNote || 'Payment received'
       });
 
+      // Update outstanding debt immediately
+      const newOutstandingDebt = outstandingDebt - amount;
+      setOutstandingDebt(newOutstandingDebt);
+      setTotalCredit(totalCredit + amount);
+
+      // Refresh alerts in header
+      alertRefresh?.fetchAlerts();
+
       alert('✅ Payment recorded successfully!');
-      onClose();
+      
+      // Ask if user wants to add production order
+      const addProduction = window.confirm('Would you like to create a production order?');
+      if (addProduction) {
+        setShowProductionModal(true);
+        setPaymentAmount('');
+        setPaymentNote('');
+      } else {
+        onClose();
+      }
     } catch (err) {
       console.error('❌ Error:', err.response?.data || err.message);
       alert('❌ Error: ' + (err.response?.data?.error || err.message));
@@ -258,6 +280,21 @@ function AddPaymentModal({ onClose }) {
           </div>
         )}
       </div>
+
+      {/* Production Modal */}
+      {showProductionModal && (
+        <AddProductionDirect
+          onClose={() => {
+            setShowProductionModal(false);
+            onClose();
+          }}
+          onSuccess={() => {
+            setShowProductionModal(false);
+            onClose();
+            alertRefresh?.fetchAlerts?.();
+          }}
+        />
+      )}
     </div>
   );
 }

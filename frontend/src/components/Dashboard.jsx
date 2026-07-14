@@ -1,13 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Bell, ShoppingCart, Package, BarChart3, AlertCircle } from 'lucide-react';
 import NewSaleModal from './Sales/NewSaleModal';
+import NewPurchaseModal from './Purchases/NewPurchaseModal';
 import AddPaymentModal from './Payments/AddPaymentModal';
+import AddProductionDirect from './Sales/AddProductionDirect';
 import * as salesApi from '../api/salesApi';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useOutletContext } from 'react-router-dom';
+import { AlertRefreshContext } from './Layout';
 
 function Dashboard() {
+  const alertRefresh = useContext(AlertRefreshContext);
+  const outletContext = useOutletContext();
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
+  const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [showAddProductionModal, setShowAddProductionModal] = useState(false);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [salesSummary, setSalesSummary] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
@@ -17,7 +24,7 @@ function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [outletContext?.refreshTrigger?.pendingPayments]);
 
   const fetchDashboardData = async () => {
     try {
@@ -74,14 +81,14 @@ function Dashboard() {
             New Sale
           </button>
          <button
-  // onClick={() => navigate('/purchases/new')}
+  onClick={() => setShowNewPurchaseModal(true)}
   className="flex items-center justify-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
 >
   <Package className="w-5 h-5" />
   New Purchase
 </button>
           <button
-            onClick={() => console.log('Production click - will navigate to production form')}
+            onClick={() => setShowAddProductionModal(true)}
             className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold"
           >
             <Package className="w-5 h-5" />
@@ -193,7 +200,19 @@ function Dashboard() {
         <NewSaleModal
           onClose={() => {
             setShowNewSaleModal(false);
-            fetchDashboardData(); // Refresh data after sale
+          }}
+        />
+      )}
+
+      {/* New Purchase Modal */}
+      {showNewPurchaseModal && (
+        <NewPurchaseModal
+          onClose={() => {
+            setShowNewPurchaseModal(false);
+          }}
+          onSuccess={() => {
+            setShowNewPurchaseModal(false);
+            fetchDashboardData();
           }}
         />
       )}
@@ -203,7 +222,19 @@ function Dashboard() {
         <AddPaymentModal
           onClose={() => {
             setShowAddPaymentModal(false);
-            fetchDashboardData(); // Refresh data after payment
+          }}
+        />
+      )}
+
+      {/* Add Production Modal */}
+      {showAddProductionModal && (
+        <AddProductionDirect
+          onClose={() => {
+            setShowAddProductionModal(false);
+          }}
+          onSuccess={() => {
+            setShowAddProductionModal(false);
+            alertRefresh?.fetchAlerts?.();
           }}
         />
       )}

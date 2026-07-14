@@ -17,7 +17,7 @@ export default function InvoicePDF({ invoice }) {
         <div style={pdf.company}>
           <div style={pdf.logo}>❯❯</div>
           <strong>Bin-Zahid & Partners</strong>
-          <div>123 Anywhere St., Any City, ST 12345</div>
+          <div>Ittefaq Builders</div>
           <div>Tel: +123-456-7890</div>
         </div>
       </div>

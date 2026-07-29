@@ -3,7 +3,7 @@ import { X, AlertCircle } from 'lucide-react';
 import * as customersApi from '../../api/customersApi';
 import * as stockApi from '../../api/stockApi';
 import * as salesApi from '../../api/salesApi';
-import AddProductionForm from './AddProductionForm';
+import AddProductionForm from '../AddProductionForm';
 import { AlertRefreshContext } from '../Layout';
 
 function NewSaleModal({ onClose }) {

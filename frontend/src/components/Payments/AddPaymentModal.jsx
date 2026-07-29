@@ -3,7 +3,7 @@ import { X, AlertCircle, CheckCircle } from 'lucide-react';
 import * as customersApi from '../../api/customersApi';
 import * as ledgerApi from '../../api/ledgerApi';
 import * as productionApi from '../../api/productionApi';
-import AddProductionDirect from '../Sales/AddProductionDirect';
+import AddProductionDirect from '../AddProductionDirect';
 import { AlertRefreshContext } from '../Layout';
 
 function AddPaymentModal({ onClose }) {

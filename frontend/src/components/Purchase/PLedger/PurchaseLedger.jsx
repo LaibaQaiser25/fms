@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, History, Trash2 } from 'lucide-react';
-import * as ledgerApi from '../api/ledgerApi';
-import * as invoiceApi from '../api/invoiceApi';
-import InvoiceModal from './Invoices/InvoiceModal';
-import LedgerHistoryModal from './Ledger/LedgerHistoryModal';
+import { FileText, History } from 'lucide-react';
+import * as purchaseLedgerApi from '../../../api/purchaseLedgerApi';
+import * as purchaseInvoiceApi from '../../../api/purchaseInvoiceApi';
+import PurchaseInvoiceModal from '../PInvoices/PInvoiceModal';
+import PurchaseLedgerHistoryModal from './PurchaseLedgerHistoryModal';
 
-function CustomerLedger() {
+function PurchaseLedger() {
   const [ledger, setLedger] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -13,7 +13,7 @@ function CustomerLedger() {
   const [limit] = useState(10);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [selectedSellerId, setSelectedSellerId] = useState(null);
   const [showLedgerHistory, setShowLedgerHistory] = useState(false);
 
   useEffect(() => {
@@ -23,11 +23,11 @@ function CustomerLedger() {
   const fetchLedger = async () => {
     try {
       setLoading(true);
-      const response = await ledgerApi.getAllLedger(page, limit);
+      const response = await purchaseLedgerApi.getAllPurchaseLedger(page, limit);
       setLedger(response.data.data || []);
       setTotal(response.data.pagination?.total || 0);
     } catch (error) {
-      console.error('Error fetching ledger:', error);
+      console.error('Error fetching purchase ledger:', error);
     } finally {
       setLoading(false);
     }
@@ -42,17 +42,15 @@ function CustomerLedger() {
 
   const totalPages = Math.ceil(total / limit);
 
-  const handleShowRecord = (customerId) => {
-    setSelectedCustomerId(customerId);
+  const handleShowRecord = (sellerId) => {
+    setSelectedSellerId(sellerId);
     setShowLedgerHistory(true);
   };
 
-  const handleShowInvoices = async (customerId) => {
-    // This should show a list of invoices, we'll implement a simpler version
-    setSelectedCustomerId(customerId);
-    // Get recent invoice for this customer
+  const handleShowInvoices = async (sellerId) => {
+    setSelectedSellerId(sellerId);
     try {
-      const response = await invoiceApi.getCustomerInvoices(customerId);
+      const response = await purchaseInvoiceApi.getSellerInvoices(sellerId);
       if (response.data.data && response.data.data.length > 0) {
         setSelectedInvoiceId(response.data.data[0].id);
         setShowInvoiceModal(true);
@@ -66,8 +64,8 @@ function CustomerLedger() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 px-8 py-6">
-        <h1 className="text-3xl font-bold text-gray-800">Customer Ledger</h1>
-        <p className="text-gray-600 mt-2">Track all customer transactions, payments, and outstanding debts</p>
+        <h1 className="text-3xl font-bold text-gray-800">Purchase Ledger</h1>
+        <p className="text-gray-600 mt-2">Track all seller transactions, payments, and outstanding payables</p>
       </div>
 
       {/* Content */}
@@ -79,7 +77,7 @@ function CustomerLedger() {
           </div>
         ) : ledger.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-            <p className="text-gray-600">No customer transactions yet</p>
+            <p className="text-gray-600">No seller transactions yet</p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -88,7 +86,7 @@ function CustomerLedger() {
                 <thead className="bg-gray-100 border-b border-gray-200">
                   <tr>
                     <th className="py-3 px-6 text-left font-semibold text-gray-700">#</th>
-                    <th className="py-3 px-6 text-left font-semibold text-gray-700">Customer Name</th>
+                    <th className="py-3 px-6 text-left font-semibold text-gray-700">Seller Name</th>
                     <th className="py-3 px-6 text-right font-semibold text-gray-700">Debit (pkr)</th>
                     <th className="py-3 px-6 text-right font-semibold text-gray-700">Credit (pkr)</th>
                     <th className="py-3 px-6 text-right font-semibold text-gray-700">Debt (pkr)</th>
@@ -101,7 +99,7 @@ function CustomerLedger() {
                     <tr key={entry.id} className="hover:bg-gray-50 transition">
                       <td className="py-4 px-6 text-gray-700 font-semibold">{(page - 1) * limit + idx + 1}</td>
                       <td className="py-4 px-6">
-                        <p className="font-semibold text-gray-800">{entry.customer_name}</p>
+                        <p className="font-semibold text-gray-800">{entry.seller_name}</p>
                         <p className="text-xs text-gray-600">{entry.phone || 'N/A'}</p>
                       </td>
                       <td className="py-4 px-6 text-right text-gray-700 font-semibold">
@@ -143,7 +141,7 @@ function CustomerLedger() {
             {totalPages > 1 && (
               <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
                 <p className="text-sm text-gray-600">
-                  Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} customers
+                  Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} sellers
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -172,15 +170,15 @@ function CustomerLedger() {
 
       {/* Modals */}
       {showInvoiceModal && selectedInvoiceId && (
-        <InvoiceModal
+        <PurchaseInvoiceModal
           invoiceId={selectedInvoiceId}
           onClose={() => setShowInvoiceModal(false)}
         />
       )}
 
-      {showLedgerHistory && selectedCustomerId && (
-        <LedgerHistoryModal
-          customerId={selectedCustomerId}
+      {showLedgerHistory && selectedSellerId && (
+        <PurchaseLedgerHistoryModal
+          sellerId={selectedSellerId}
           onClose={() => setShowLedgerHistory(false)}
         />
       )}
@@ -188,4 +186,4 @@ function CustomerLedger() {
   );
 }
 
-export default CustomerLedger;
+export default PurchaseLedger;

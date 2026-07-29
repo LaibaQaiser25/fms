@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import * as ledgerApi from '../../api/ledgerApi';
+import * as purchaseLedgerApi from '../../../api/purchaseLedgerApi';
 
-function LedgerHistoryModal({ customerId, onClose }) {
+function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
   const [ledgerData, setLedgerData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchLedgerHistory();
-  }, [customerId]);
+  }, [sellerId]);
 
   const fetchLedgerHistory = async () => {
     try {
       setLoading(true);
-      const response = await ledgerApi.getCustomerLedgerHistory(customerId);
+      const response = await purchaseLedgerApi.getSellerLedgerHistory(sellerId);
       setLedgerData(response.data.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Error loading ledger');
@@ -74,7 +74,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
     );
   }
 
-  const { customer, history, summary } = ledgerData;
+  const { seller, history, summary } = ledgerData;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -83,7 +83,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Ledger History</h2>
-            <p className="text-sm text-gray-600">{customer?.name}</p>
+            <p className="text-sm text-gray-600">{seller?.name}</p>
           </div>
           <button
             onClick={onClose}
@@ -114,7 +114,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
         {/* Ledger Transactions */}
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Transaction History</h3>
-          
+
           {history && history.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -140,7 +140,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
                       </td>
                       <td className="py-3 px-4 text-sm">
                         <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                          entry.transaction_type === 'sale'
+                          entry.transaction_type === 'purchase'
                             ? 'bg-blue-100 text-blue-800'
                             : entry.transaction_type === 'payment'
                             ? 'bg-green-100 text-green-800'
@@ -187,4 +187,4 @@ function LedgerHistoryModal({ customerId, onClose }) {
   );
 }
 
-export default LedgerHistoryModal;
+export default PurchaseLedgerHistoryModal;

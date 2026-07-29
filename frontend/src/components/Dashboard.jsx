@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Bell, ShoppingCart, Package, BarChart3, AlertCircle } from 'lucide-react';
 import NewSaleModal from './Sales/NewSaleModal';
-import NewPurchaseModal from './Purchases/NewPurchaseModal';
+import NewPurchaseModal from './Purchase/NewPurchaseModal';
 import AddPaymentModal from './Payments/AddPaymentModal';
-import AddProductionDirect from './Sales/AddProductionDirect';
+import AddProductionDirect from './AddProductionDirect';
 import * as salesApi from '../api/salesApi';
 import { NavLink, Link, useOutletContext } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';

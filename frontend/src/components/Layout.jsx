@@ -3,13 +3,15 @@ import DashboardHeader from './DashboardHeader';
 import { Outlet } from 'react-router-dom';
 import { useState, useEffect, createContext } from 'react';
 import * as salesApi from '../api/salesApi';
+import * as purchaseApi from '../api/purchaseApi';
 
 export const AlertRefreshContext = createContext();
 
 export default function Layout() {
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
-  const [pendingPayments, setPendingPayments] = useState([]);
+  const [pendingPayments, setPendingPayments] = useState([]);       // owed TO us (customers)
+  const [payablePayments, setPayablePayments] = useState([]);       // owed BY us (sellers)
   const [searchResults, setSearchResults] = useState(null);
   const [searchSQL, setSearchSQL] = useState('');
 
@@ -19,10 +21,17 @@ export default function Layout() {
 
   const fetchAlerts = async () => {
     try {
-      const response = await salesApi.getDashboardData();
-      const { lowStockAlerts, pendingPayments } = response.data.data;
+      const [salesResponse, purchaseResponse] = await Promise.all([
+        salesApi.getDashboardData(),
+        purchaseApi.getDashboardData()
+      ]);
+
+      const { lowStockAlerts, pendingPayments } = salesResponse.data.data;
+      const { pendingPayments: payablePayments } = purchaseResponse.data.data;
+
       setLowStockAlerts(lowStockAlerts || []);
       setPendingPayments(pendingPayments || []);
+      setPayablePayments(payablePayments || []);
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
@@ -45,11 +54,16 @@ export default function Layout() {
       type: 'payment',
       message: `${payment.customer_name} - Outstanding Debt: ${formatCurrency(payment.outstanding_debt)}`,
       severity: 'alert'
+    })),
+    ...payablePayments.slice(0, 5).map(payment => ({
+      type: 'payable',
+      message: `Owed to ${payment.seller_name} - ${formatCurrency(payment.outstanding_debt)}`,
+      severity: 'alert'
     }))
   ];
 
   return (
-    <AlertRefreshContext.Provider value={{ fetchAlerts, pendingPayments, lowStockAlerts }}>
+    <AlertRefreshContext.Provider value={{ fetchAlerts, pendingPayments, lowStockAlerts, payablePayments }}>
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar />
         <DashboardHeader
@@ -58,7 +72,7 @@ export default function Layout() {
           setShowAlertsDropdown={setShowAlertsDropdown}
           setSearchResults={setSearchResults}
           setSearchSQL={setSearchSQL}
-          refreshTrigger={{ pendingPayments, lowStockAlerts }}
+          refreshTrigger={{ pendingPayments, lowStockAlerts, payablePayments }}
         />
         <main className="ml-56 flex-1 p-6 min-h-screen" style={{ paddingTop: '76px' }}>
           {searchResults && (
@@ -103,7 +117,7 @@ export default function Layout() {
               )}
             </div>
           )}
-          <Outlet context={{ refreshTrigger: { pendingPayments, lowStockAlerts } }} />
+          <Outlet context={{ refreshTrigger: { pendingPayments, lowStockAlerts, payablePayments } }} />
         </main>
       </div>
     </AlertRefreshContext.Provider>

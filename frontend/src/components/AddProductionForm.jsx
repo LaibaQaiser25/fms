@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import * as productionApi from '../../api/productionApi';
+import * as productionApi from '../api/productionApi';
 
 function AddProductionForm({ item, onClose, onSubmit }) {
   const [notes, setNotes] = useState('');

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Printer, Download, List } from 'lucide-react';
-import * as invoiceApi from '../../api/invoiceApi';
+import * as invoiceApi from '../../../api/invoiceApi';
 
 function InvoiceModal({ invoiceId, onClose }) {
   const [invoice, setInvoice] = useState(null);

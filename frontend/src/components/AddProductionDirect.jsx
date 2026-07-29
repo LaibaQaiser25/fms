@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import * as productionApi from '../../api/productionApi';
-import * as stockApi from '../../api/stockApi';
+import * as productionApi from '../api/productionApi';
+import * as stockApi from '../api/stockApi';
 
 function AddProductionDirect({ onClose, onSuccess }) {
   const [stockList, setStockList] = useState([]);

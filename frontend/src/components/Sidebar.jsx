@@ -27,6 +27,9 @@ export default function Sidebar() {
         <NavLink to="/ledger" className={link}>
           <span className="text-lg">📒</span> Customer Ledger
         </NavLink>
+        <NavLink to="/purchase-ledger" className={link}>
+          <span className="text-lg">📗</span> Purchase Ledger
+        </NavLink>
         <div className="border-t border-white/10 my-3" />
 
         {/* Production & Stock */}

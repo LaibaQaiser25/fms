@@ -5,8 +5,8 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "gogogobismillah": "node server.js",
-    "migratevhooo-bismillah": "node-pg-migrate up -m db/migrations",
+    "start": "node server.js",
+    "migrate": "node-pg-migrate up -m db/migrations",
     "migratedownbro": "node-pg-migrate down -m db/migrations"
   },
   "keywords": [],

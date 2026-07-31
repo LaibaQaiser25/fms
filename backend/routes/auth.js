@@ -1,9 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const pool = require('../db/pool');
 
 const bcrypt = require('bcrypt');
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+});
 
 const hashPassword = async (password) => {
   return await bcrypt.hash(password, 10);
@@ -17,7 +26,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 const TOKEN_EXPIRY = '24h';
 
 // POST /auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', authRateLimiter, async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
 
@@ -28,6 +37,15 @@ router.post('/register', async (req, res) => {
 
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // DB check constraint (users_role_check) only allows exactly 'Owner' / 'Manager'
+    const ALLOWED_ROLES = ['Owner', 'Manager'];
+    const requestedRole = role
+      ? ALLOWED_ROLES.find((r) => r.toLowerCase() === String(role).toLowerCase())
+      : 'Manager';
+    if (!requestedRole) {
+      return res.status(400).json({ error: `Role must be one of: ${ALLOWED_ROLES.join(', ')}` });
     }
 
     // Check if user exists
@@ -41,10 +59,10 @@ router.post('/register', async (req, res) => {
     }
 
     // Hash password and insert user
-    const hashedPassword = hashPassword(password);
+    const hashedPassword = await hashPassword(password);
     const result = await pool.query(
       'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role',
-      [username, email, hashedPassword, role || 'manager']
+      [username, email, hashedPassword, requestedRole]
     );
 
     const user = result.rows[0];
@@ -66,7 +84,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     const identifier = username?.trim();
@@ -93,7 +111,7 @@ router.post('/login', async (req, res) => {
     console.log('✅ User found:', username);
 
     // Check password
-    if (!comparePassword(password, user.password_hash)) {
+    if (!(await comparePassword(password, user.password_hash))) {
       console.log('❌ Invalid password for user:', username);
       return res.status(401).json({ error: 'Invalid username or password' });
     }

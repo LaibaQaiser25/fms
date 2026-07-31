@@ -1,23 +1,21 @@
-import axios from 'axios';
-
-const BASE = 'http://localhost:5000/api';
+import http from './http';
 
 // Add to production queue
-export const addToQueue = (data) => axios.post(`${BASE}/production`, data);
+export const addToQueue = (data) => http.post(`/production`, data);
 
 // Get production queue
 export const getQueue = (status = '', page = 1, limit = 10) =>
-  axios.get(`${BASE}/production?status=${status}&page=${page}&limit=${limit}`);
+  http.get(`/production?status=${status}&page=${page}&limit=${limit}`);
 
 // Get single production item
-export const getProductionItem = (id) => axios.get(`${BASE}/production/${id}`);
+export const getProductionItem = (id) => http.get(`/production/${id}`);
 
 // Update production status
 export const updateProductionStatus = (id, status) =>
-  axios.put(`${BASE}/production/${id}/status`, { status });
+  http.put(`/production/${id}/status`, { status });
 
 // Get production statistics
-export const getStats = () => axios.get(`${BASE}/production/stats/overview`);
+export const getStats = () => http.get(`/production/stats/overview`);
 
 // Get today's production schedule
-export const getTodaySchedule = () => axios.get(`${BASE}/production/today/schedule`);
+export const getTodaySchedule = () => http.get(`/production/today/schedule`);

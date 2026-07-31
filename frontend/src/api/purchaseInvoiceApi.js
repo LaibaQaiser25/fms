@@ -1,61 +1,37 @@
-// import axios from 'axios';
-
-// const BASE = 'http://localhost:5000/api';
-
-// export const getAllPurchaseInvoices = (page = 1, limit = 10) =>
-//   axios.get(`${BASE}/purchase-invoices?page=${page}&limit=${limit}`);
-
-// export const getPurchaseInvoice = (id) => axios.get(`${BASE}/purchase-invoices/${id}`);
-
-// export const getSellerInvoices = (sellerId) =>
-//   axios.get(`${BASE}/purchase-invoices/seller/${sellerId}`);
-
-// export const getPurchaseInvoiceByNumber = (invoiceNo) =>
-//   axios.get(`${BASE}/purchase-invoices/number/${invoiceNo}`);
-
-// export const recordPayment = (data) =>
-//   axios.post(`${BASE}/purchase-invoices/payment`, data);
-
-// export const getPendingPayments = () =>
-//   axios.get(`${BASE}/purchase-invoices/pending/list`);
-
-
-import axios from 'axios';
-
-const BASE = 'http://localhost:5000/api';
+import http from './http';
 
 // ─── Legacy-style functions (mirror the old getAllInvoices/createInvoice/
 // deleteInvoice/getClientInvoices set in invoiceApi.js). Like their sales
 // counterparts, createInvoice, deleteInvoice, and getClientInvoices call
 // routes that don't exist on PurchaseInvoiceController — see SETUP_NOTES. ───
 export const getAllInvoices = (page = 1, limit = 10) =>
-  axios.get(`${BASE}/purchase-invoices?page=${page}&limit=${limit}`);
+  http.get(`/purchase-invoices?page=${page}&limit=${limit}`);
 
 // NOTE: legacy endpoint — no matching POST '/' route in purchaseInvoices.js
 export const createInvoice = (data) =>
-  axios.post(`${BASE}/purchase-invoices`, data);
+  http.post(`/purchase-invoices`, data);
 
 // NOTE: legacy endpoint — no matching DELETE '/:id' route in purchaseInvoices.js
 export const deleteInvoice = (id) =>
-  axios.delete(`${BASE}/purchase-invoices/${id}`);
+  http.delete(`/purchase-invoices/${id}`);
 
 // NOTE: legacy endpoint, name-based lookup — no matching route in purchaseInvoices.js
 export const getClientInvoices = (name) =>
-  axios.get(`${BASE}/purchase-invoices/client/${name}`);
+  http.get(`/purchase-invoices/client/${name}`);
 
 export const getAllPurchaseInvoices = (page = 1, limit = 10) =>
-  axios.get(`${BASE}/purchase-invoices?page=${page}&limit=${limit}`);
+  http.get(`/purchase-invoices?page=${page}&limit=${limit}`);
 
-export const getPurchaseInvoice = (id) => axios.get(`${BASE}/purchase-invoices/${id}`);
+export const getPurchaseInvoice = (id) => http.get(`/purchase-invoices/${id}`);
 
 export const getSellerInvoices = (sellerId) =>
-  axios.get(`${BASE}/purchase-invoices/seller/${sellerId}`);
+  http.get(`/purchase-invoices/seller/${sellerId}`);
 
 export const getPurchaseInvoiceByNumber = (invoiceNo) =>
-  axios.get(`${BASE}/purchase-invoices/number/${invoiceNo}`);
+  http.get(`/purchase-invoices/number/${invoiceNo}`);
 
 export const recordPayment = (data) =>
-  axios.post(`${BASE}/purchase-invoices/payment`, data);
+  http.post(`/purchase-invoices/payment`, data);
 
 export const getPendingPayments = () =>
-  axios.get(`${BASE}/purchase-invoices/pending/list`);
+  http.get(`/purchase-invoices/pending/list`);

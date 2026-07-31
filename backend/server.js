@@ -16,6 +16,7 @@ const purchaseLedgerRoutes = require('./routes/purchaseLedger');
 const customersRoutes = require('./routes/customers');
 const productionRoutes = require('./routes/production');
 const authRoutes = require('./routes/auth');
+const authMiddleware = require('./middleware/authMiddleware');
 const { startCronJobs } = require('./services/cronJobs');
 
 
@@ -42,6 +43,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Auth routes
 app.use('/auth', authRoutes);
+
+// Every /api/* route requires a valid JWT from here on
+app.use('/api', authMiddleware);
 
 // Legacy routes
 app.use('/api/invoices', invoiceRoutes);

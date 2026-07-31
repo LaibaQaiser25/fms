@@ -5,6 +5,7 @@
  */
 
 require('dotenv').config();
+const bcrypt = require('bcrypt');
 const pool = require('../db/pool');
 
 const initAuth = async () => {
@@ -31,17 +32,16 @@ const initAuth = async () => {
     );
 
     if (result.rows.length === 0) {
-      // Use basic hashing for demo
-      const hashedPassword = Buffer.from('password123').toString('base64');
-      
+      const hashedPassword = await bcrypt.hash('password123', 10);
+
       await pool.query(
         'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4)',
-        ['admin', 'admin@binzahid.com', hashedPassword, 'owner']
+        ['admin', 'admin@binzahid.com', hashedPassword, 'Owner']
       );
       console.log('✅ Demo user created:');
       console.log('   Username: admin');
       console.log('   Password: password123');
-      console.log('   Role: owner');
+      console.log('   Role: Owner');
       console.log('   Email: admin@binzahid.com');
     } else {
       console.log('✅ Demo user already exists');

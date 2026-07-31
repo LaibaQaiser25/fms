@@ -1,25 +1,23 @@
-import axios from 'axios';
+import http from './http';
 
-const BASE = 'http://localhost:5000/api';
-
-export const getAllLedger        = (page = 1, limit = 10)        => 
-  axios.get(`${BASE}/ledger?page=${page}&limit=${limit}`);
-export const getCustomerLedger   = (customerId)       => 
-  axios.get(`${BASE}/ledger/customer/${customerId}`);
-export const addCredit           = (data)       => 
-  axios.post(`${BASE}/ledger`, data);
-export const deleteCustomer      = (name)       => 
-  axios.delete(`${BASE}/ledger/customer/${name}`);
+export const getAllLedger        = (page = 1, limit = 10)        =>
+  http.get(`/ledger?page=${page}&limit=${limit}`);
+export const getCustomerLedger   = (customerId)       =>
+  http.get(`/ledger/customer/${customerId}`);
+export const addCredit           = (data)       =>
+  http.post(`/ledger`, data);
+export const deleteCustomer      = (name)       =>
+  http.delete(`/ledger/customer/${name}`);
 
 // New methods for dashboard
 export const getLedgerSummary = ()=>
-  axios.get(`${BASE}/ledger/summary/all`);
+  http.get(`/ledger/summary/all`);
 
 export const getOutstandingDebts = () =>
-  axios.get(`${BASE}/ledger/debts/outstanding`);
+  http.get(`/ledger/debts/outstanding`);
 
 export const addLedgerEntry = (data) =>
-  axios.post(`${BASE}/ledger`, data);
+  http.post(`/ledger`, data);
 
 export const getCustomerLedgerHistory = (customerId) =>
-  axios.get(`${BASE}/ledger/customer/${customerId}`);
+  http.get(`/ledger/customer/${customerId}`);

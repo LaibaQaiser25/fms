@@ -70,10 +70,13 @@ import Analytics from './components/Analytics';
 import StockManager from './components/StockManager';
 import CustomerLedger from './components/Sales/Ledger/CustomerLedger';
 import PurchaseLedger from './components/Purchase/PLedger/PurchaseLedger';
+import RawMaterialsList from './components/RawMaterials/RawMaterialsList';
 import ProductionList from './components/ProductionList';
 import ExpenseList from './components/Expenses/ExpenseList';
 import AssetList from './components/Assets/AssetList';
 import EmployeeList from './components/Employees/EmployeeList';
+import Cashbook from './components/Cashbook';
+import Reports from './components/Reports';
 
 // Public Pages
 import HomePage from './pages/HomePage';
@@ -104,10 +107,13 @@ function App() {
             <Route path="/stock" element={<StockManager />} />
             <Route path="/ledger" element={<CustomerLedger />} />
             <Route path="/purchase-ledger" element={<PurchaseLedger />} />
+            <Route path="/raw-materials" element={<RawMaterialsList />} />
             <Route path="/production" element={<ProductionList />} />
             <Route path="/expenses" element={<ExpenseList />} />
             <Route path="/assets" element={<AssetList />} />
             <Route path="/employees" element={<EmployeeList />} />
+            <Route path="/cashbook" element={<Cashbook />} />
+            <Route path="/reports" element={<Reports />} />
           </Route>
         </Route>
       </Routes>

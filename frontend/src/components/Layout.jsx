@@ -4,14 +4,17 @@ import { Outlet } from 'react-router-dom';
 import { useState, useEffect, createContext } from 'react';
 import * as salesApi from '../api/salesApi';
 import * as purchaseApi from '../api/purchaseApi';
+import * as rawMaterialsApi from '../api/rawMaterialsApi';
 
 export const AlertRefreshContext = createContext();
 
 export default function Layout() {
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);       // owed TO us (customers)
   const [payablePayments, setPayablePayments] = useState([]);       // owed BY us (sellers)
+  const [lowStockRawMaterials, setLowStockRawMaterials] = useState([]);
   const [searchResults, setSearchResults] = useState(null);
   const [searchSQL, setSearchSQL] = useState('');
 
@@ -21,9 +24,10 @@ export default function Layout() {
 
   const fetchAlerts = async () => {
     try {
-      const [salesResponse, purchaseResponse] = await Promise.all([
+      const [salesResponse, purchaseResponse, rawMaterialsResponse] = await Promise.all([
         salesApi.getDashboardData(),
-        purchaseApi.getDashboardData()
+        purchaseApi.getDashboardData(),
+        rawMaterialsApi.getLowStockRawMaterials()
       ]);
 
       const { lowStockAlerts, pendingPayments } = salesResponse.data.data;
@@ -32,6 +36,7 @@ export default function Layout() {
       setLowStockAlerts(lowStockAlerts || []);
       setPendingPayments(pendingPayments || []);
       setPayablePayments(payablePayments || []);
+      setLowStockRawMaterials(rawMaterialsResponse.data.data || []);
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
@@ -59,22 +64,33 @@ export default function Layout() {
       type: 'payable',
       message: `Owed to ${payment.seller_name} - ${formatCurrency(payment.outstanding_debt)}`,
       severity: 'alert'
+    })),
+    ...lowStockRawMaterials.map(material => ({
+      type: 'raw-material',
+      message: `${material.name} - Low raw material (${material.quantity}${material.unit || ''})`,
+      severity: 'warning'
     }))
   ];
 
   return (
-    <AlertRefreshContext.Provider value={{ fetchAlerts, pendingPayments, lowStockAlerts, payablePayments }}>
+    <AlertRefreshContext.Provider value={{ fetchAlerts, pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials }}>
       <div className="flex min-h-screen bg-gray-50">
-        <Sidebar />
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
+        />
         <DashboardHeader
           allAlerts={allAlerts}
           showAlertsDropdown={showAlertsDropdown}
           setShowAlertsDropdown={setShowAlertsDropdown}
           setSearchResults={setSearchResults}
           setSearchSQL={setSearchSQL}
-          refreshTrigger={{ pendingPayments, lowStockAlerts, payablePayments }}
+          refreshTrigger={{ pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials }}
         />
-        <main className="ml-56 flex-1 p-6 min-h-screen" style={{ paddingTop: '76px' }}>
+        <main
+          className={`flex-1 p-6 min-h-screen transition-[margin] duration-300 ease-in-out ${sidebarCollapsed ? 'ml-20' : 'ml-56'}`}
+          style={{ paddingTop: '101px' }}
+        >
           {searchResults && (
             <div className="mb-6 bg-white rounded-lg shadow p-4">
               <div className="flex justify-between items-center mb-3">
@@ -117,7 +133,7 @@ export default function Layout() {
               )}
             </div>
           )}
-          <Outlet context={{ refreshTrigger: { pendingPayments, lowStockAlerts, payablePayments } }} />
+          <Outlet context={{ refreshTrigger: { pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials } }} />
         </main>
       </div>
     </AlertRefreshContext.Provider>

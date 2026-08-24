@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Bell, ShoppingCart, Package, BarChart3, AlertCircle } from 'lucide-react';
 import NewSaleModal from './Sales/NewSaleModal';
 import NewPurchaseModal from './Purchase/NewPurchaseModal';
 import AddPaymentModal from './Payments/AddPaymentModal';
+import PurchasePaymentModal from './Payments/PurchasePaymentModal';
 import AddProductionDirect from './AddProductionDirect';
 import * as salesApi from '../api/salesApi';
 import { NavLink, Link, useOutletContext } from 'react-router-dom';
@@ -14,6 +15,9 @@ function Dashboard() {
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
   const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [showPurchasePaymentModal, setShowPurchasePaymentModal] = useState(false);
+  const [showPaymentPopover, setShowPaymentPopover] = useState(false);
+  const paymentPopoverTimeout = useRef(null);
   const [showAddProductionModal, setShowAddProductionModal] = useState(false);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [salesSummary, setSalesSummary] = useState(null);
@@ -45,6 +49,20 @@ function Dashboard() {
     }
   };
 
+  const openPaymentPopover = () => {
+    if (paymentPopoverTimeout.current) {
+      clearTimeout(paymentPopoverTimeout.current);
+      paymentPopoverTimeout.current = null;
+    }
+    setShowPaymentPopover(true);
+  };
+
+  const closePaymentPopoverWithDelay = () => {
+    paymentPopoverTimeout.current = setTimeout(() => {
+      setShowPaymentPopover(false);
+    }, 200);
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-PK', {
       style: 'currency',
@@ -66,7 +84,7 @@ function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col" style={{ paddingTop: '76px' }}>
+    <div className="min-h-screen bg-white flex flex-col">
         {/* Header */}            
 
 
@@ -94,13 +112,53 @@ function Dashboard() {
             <Package className="w-5 h-5" />
             New Production
           </button>
-          <button
-            onClick={() => setShowAddPaymentModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
+          <div
+            className="relative"
+            onMouseEnter={openPaymentPopover}
+            onMouseLeave={closePaymentPopoverWithDelay}
           >
-            <BarChart3 className="w-5 h-5" />
-            Add Payment
-          </button>
+            <button
+              onClick={() => setShowPaymentPopover(prev => !prev)}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
+            >
+              <BarChart3 className="w-5 h-5" />
+              Add Payment
+            </button>
+
+            {showPaymentPopover && (
+              <div
+                className="absolute top-full left-0 right-0 pt-2 z-30"
+                onMouseEnter={openPaymentPopover}
+                onMouseLeave={closePaymentPopoverWithDelay}
+              >
+                <div className="relative p-2 rounded-xl bg-white border border-gray-200 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.28)] flex flex-col gap-1.5">
+                  {/* pointer */}
+                  <span className="absolute -top-[7px] left-7 w-3 h-3 rotate-45 bg-white border-l border-t border-gray-200 rounded-tl-sm" />
+
+                  <button
+                    onClick={() => {
+                      setShowPaymentPopover(false);
+                      setShowAddPaymentModal(true);
+                    }}
+                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Sale Payment
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPaymentPopover(false);
+                      setShowPurchasePaymentModal(true);
+                    }}
+                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
+                  >
+                    <Package className="w-4 h-4" />
+                    Purchase Payment
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -222,6 +280,15 @@ function Dashboard() {
         <AddPaymentModal
           onClose={() => {
             setShowAddPaymentModal(false);
+          }}
+        />
+      )}
+
+      {/* Purchase Payment Modal */}
+      {showPurchasePaymentModal && (
+        <PurchasePaymentModal
+          onClose={() => {
+            setShowPurchasePaymentModal(false);
           }}
         />
       )}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import * as productionApi from '../api/productionApi';
+import { capitalizeFirstLetter } from '../utils/text';
 
 function AddProductionForm({ item, onClose, onSubmit }) {
   const [notes, setNotes] = useState('');
@@ -23,7 +24,7 @@ function AddProductionForm({ item, onClose, onSubmit }) {
 
       const response = await productionApi.addToQueue(productionData);
       console.log('Added to production:', response.data);
-      onSubmit(productionData);
+      onSubmit({ ...productionData, id: response.data?.data?.id });
       onClose();
     } catch (err) {
       setError(err.response?.data?.error || 'Error adding to production');
@@ -79,7 +80,7 @@ function AddProductionForm({ item, onClose, onSubmit }) {
             <label className="block text-sm font-semibold text-gray-700 mb-2">Notes / Instructions</label>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => setNotes(capitalizeFirstLetter(e.target.value))}
               placeholder="Add any special instructions for production..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
               rows="3"

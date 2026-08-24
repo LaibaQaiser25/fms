@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import * as productionApi from '../api/productionApi';
 import * as stockApi from '../api/stockApi';
+import { capitalizeFirstLetter } from '../utils/text';
 
 function AddProductionDirect({ onClose, onSuccess }) {
   const [stockList, setStockList] = useState([]);
@@ -44,7 +45,7 @@ function AddProductionDirect({ onClose, onSuccess }) {
     const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: value
+      [name]: (name === 'notes' || name === 'product_name') ? capitalizeFirstLetter(value) : value
     });
   };
 

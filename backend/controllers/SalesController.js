@@ -26,34 +26,53 @@ class SalesController {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
+      // Validate total_amount matches the sum of item amounts (boundary check on client input)
+      const computedTotal = items.reduce(
+        (sum, item) => sum + (Number(item.quantity) * Number(item.unit_price)),
+        0
+      );
+      if (Math.abs(computedTotal - Number(total_amount)) > 0.01) {
+        return res.status(400).json({ error: 'total_amount does not match sum of item amounts' });
+      }
+
+      // An advance above the total produces a negative balance, an invoice
+      // marked paid, and a negative debt in the ledger
+      const advance = Number(advance_paid) || 0;
+      if (advance < 0 || advance > Number(total_amount) + 0.01) {
+        return res.status(400).json({ error: 'advance_paid must be between 0 and total_amount' });
+      }
+
       await client.query('BEGIN');
 
       // 1. Generate unique sale number
       const saleNo = SalesController.generateUniqueId('SALE');
 
       // 2. Create sale record
-      const balance = total_amount - (advance_paid || 0);
+      const balance = Number(total_amount) - advance;
 
-      // Check if items are in stock to determine status
+      // Check each item independently so one short item doesn't block stock
+      // decrement for items that are actually in stock
       let status = 'ready'; // Default to ready
       for (const item of items) {
-        if (item.stock_id) {
+        let needsProduction = item.from_production === true;
+        if (!needsProduction && item.stock_id) {
           const stockResult = await client.query(
-            'SELECT quantity FROM stock WHERE id = $1',
+            'SELECT quantity FROM stock WHERE id = $1 FOR UPDATE',
             [item.stock_id]
           );
           if (stockResult.rows.length > 0 && stockResult.rows[0].quantity < item.quantity) {
-            status = 'pending'; // Needs production
-            break;
+            needsProduction = true;
           }
         }
+        item._needsProduction = needsProduction;
+        if (needsProduction) status = 'pending'; // Needs production
       }
 
       const saleResult = await client.query(
         `INSERT INTO sales (sale_no, customer_id, customer_name, phone, address, total_amount, advance_paid, balance, payment_type, status, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
-        [saleNo, customer_id, customer_name, phone, address, total_amount, advance_paid || 0, balance, payment_type, status, notes]
+        [saleNo, customer_id, customer_name, phone, address, total_amount, advance, balance, payment_type, status, notes]
       );
 
       const saleId = saleResult.rows[0].id;
@@ -67,23 +86,33 @@ class SalesController {
           [saleId, item.stock_id || null, item.product_name, item.quantity, item.unit_price, itemAmount]
         );
 
-        // Reduce stock if available
-        if (item.stock_id && status === 'ready') {
+        // Reduce stock only for this specific item if it's actually fulfilled from stock
+        if (item.stock_id && !item._needsProduction) {
           await client.query(
             'UPDATE stock SET quantity = quantity - $1 WHERE id = $2',
             [item.quantity, item.stock_id]
+          );
+        }
+
+        // Link the production queue entry (created client-side before the sale
+        // existed) back to this sale now that we have a sale id
+        if (item._needsProduction && item.production_queue_id) {
+          await client.query(
+            'UPDATE production_queue SET sale_id = $1 WHERE id = $2 AND sale_id IS NULL',
+            [saleId, item.production_queue_id]
           );
         }
       }
 
       // 4. Create Proforma Invoice
       const invoiceNo = SalesController.generateUniqueId('INV');
+      const invoiceStatus = balance <= 0 ? 'paid' : (advance > 0 ? 'partial' : 'unpaid');
 
       const invoiceResult = await client.query(
         `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'proforma', 'unpaid')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'proforma', $10)
          RETURNING *`,
-        [invoiceNo, saleId, customer_id, customer_name, phone, address, total_amount, advance_paid || 0, balance]
+        [invoiceNo, saleId, customer_id, customer_name, phone, address, total_amount, advance, balance, invoiceStatus]
       );
 
       const invoiceId = invoiceResult.rows[0].id;
@@ -102,23 +131,27 @@ class SalesController {
       await client.query(
         `INSERT INTO customer_ledger (customer_id, customer_name, invoice_id, invoice_no, debit, credit, debt, transaction_type, note)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'sale', 'New sale created')`,
-        [customer_id, customer_name, invoiceId, invoiceNo, total_amount, advance_paid || 0, balance]
+        [customer_id, customer_name, invoiceId, invoiceNo, total_amount, advance, balance]
       );
 
       await client.query('COMMIT');
 
-      // Check low stock after sale
-      const lowStock = await client.query(
-        `SELECT name, quantity, minimum_stock 
-   FROM stock 
-   WHERE quantity <= COALESCE(minimum_stock, 10)`
-      );
-      if (lowStock.rows.length > 0) {
-        let msg = '⚠️ *Low Stock After Sale*\n\n';
-        lowStock.rows.forEach(item => {
-          msg += `• ${item.name}: ${item.quantity} units left\n`;
-        });
-        await sendWhatsApp(msg);
+      // Check low stock after sale, scoped to items actually sold in this sale
+      const stockIds = items.filter(item => item.stock_id).map(item => item.stock_id);
+      if (stockIds.length > 0) {
+        const lowStock = await pool.query(
+          `SELECT name, quantity, minimum_stock
+     FROM stock
+     WHERE id = ANY($1::int[]) AND quantity <= COALESCE(minimum_stock, 10)`,
+          [stockIds]
+        );
+        if (lowStock.rows.length > 0) {
+          let msg = '⚠️ *Low Stock After Sale*\n\n';
+          lowStock.rows.forEach(item => {
+            msg += `• ${item.name}: ${item.quantity} units left\n`;
+          });
+          await sendWhatsApp(msg);
+        }
       }
 
       // Check outstanding balance

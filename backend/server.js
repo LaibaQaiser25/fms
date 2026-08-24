@@ -15,6 +15,9 @@ const purchaseInvoiceRoutes = require('./routes/purchaseInvoices');
 const purchaseLedgerRoutes = require('./routes/purchaseLedger');
 const customersRoutes = require('./routes/customers');
 const productionRoutes = require('./routes/production');
+const rawMaterialsRoutes = require('./routes/rawMaterials');
+const rawMaterialConsumptionRoutes = require('./routes/rawMaterialConsumption');
+const cashbookRoutes = require('./routes/cashbook');
 const authRoutes = require('./routes/auth');
 const authMiddleware = require('./middleware/authMiddleware');
 const { startCronJobs } = require('./services/cronJobs');
@@ -66,6 +69,9 @@ app.use('/api/purchase-invoices', purchaseInvoiceRoutes);
 app.use('/api/purchase-ledger', purchaseLedgerRoutes);
 app.use('/api/customers', customersRoutes);
 app.use('/api/production', productionRoutes);
+app.use('/api/raw-materials', rawMaterialsRoutes);
+app.use('/api/raw-material-consumption', rawMaterialConsumptionRoutes);
+app.use('/api/cashbook', cashbookRoutes);
 
 startCronJobs(); // Start the cron jobs when the server starts
 

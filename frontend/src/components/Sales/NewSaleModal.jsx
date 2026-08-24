@@ -5,6 +5,7 @@ import * as stockApi from '../../api/stockApi';
 import * as salesApi from '../../api/salesApi';
 import AddProductionForm from '../AddProductionForm';
 import { AlertRefreshContext } from '../Layout';
+import { capitalizeFirstLetter } from '../../utils/text';
 
 function NewSaleModal({ onClose }) {
   const alertRefresh = useContext(AlertRefreshContext);
@@ -50,8 +51,9 @@ function NewSaleModal({ onClose }) {
 
   // Customer search and selection
   const handleCustomerSearch = async (value) => {
-    setCustomerSearch(value);
-    setCustomerName(value);
+    const capitalizedValue = capitalizeFirstLetter(value);
+    setCustomerSearch(capitalizedValue);
+    setCustomerName(capitalizedValue);
     setSelectedCustomer(null); // reset selected when typing again
     if (value.length > 0) {
       try {
@@ -108,7 +110,7 @@ function NewSaleModal({ onClose }) {
   // Item handling
   const handleDescriptionChange = async (index, value) => {
     const newItems = [...items];
-    newItems[index].description = value;
+    newItems[index].description = capitalizeFirstLetter(value);
     setItems(newItems);
 
     // Search suggestions - show all items including zero-stock
@@ -203,7 +205,8 @@ function NewSaleModal({ onClose }) {
         quantity: productionData.required_quantity || 1,
         availableQty: 0, // Out of stock, but will be produced
         stock_id: productionItemToAdd.stock_id,
-        from_production: true // Mark this as coming from production queue
+        from_production: true, // Mark this as coming from production queue
+        production_queue_id: productionData.id
       };
       setItems(newItems);
       setPendingItemIndex(null);
@@ -262,7 +265,9 @@ function NewSaleModal({ onClose }) {
           product_name: i.description,
           quantity: Number(i.quantity),
           unit_price: Number(i.price),
-          description: i.description
+          description: i.description,
+          from_production: !!i.from_production,
+          production_queue_id: i.production_queue_id || null
         })),
         total_amount: total,
         advance_paid: advance,
@@ -354,7 +359,7 @@ function NewSaleModal({ onClose }) {
                   <input className={`${inp}`} placeholder="Phone"
                     value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
                   <input className={`${inp}`} placeholder="Address"
-                    value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} />
+                    value={customerAddress} onChange={e => setCustomerAddress(capitalizeFirstLetter(e.target.value))} />
                 </div>
               </div>
 
@@ -421,6 +426,7 @@ function NewSaleModal({ onClose }) {
                         type="number"
                         value={item.price}
                         onChange={e => updateItem(i, 'price', e.target.value)}
+                        onWheel={e => e.target.blur()}
                       />
 
                       {/* Quantity */}
@@ -434,6 +440,7 @@ function NewSaleModal({ onClose }) {
                         min="1"
                         value={item.quantity}
                         onChange={e => updateItem(i, 'quantity', e.target.value)}
+                        onWheel={e => e.target.blur()}
                       />
 
                       {items.length > 1 &&
@@ -544,6 +551,7 @@ function NewSaleModal({ onClose }) {
                     placeholder="0"
                     value={advancePaid}
                     onChange={e => setAdvancePaid(e.target.value)}
+                    onWheel={e => e.target.blur()}
                     className={inp}
                     min="0"
                     max={total}

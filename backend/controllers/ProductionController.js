@@ -145,7 +145,7 @@ class ProductionController {
       if (status === 'completed' && productionItem.stock_id) {
         // Add completed quantity to stock
         await client.query(
-          'UPDATE stock SET quantity = quantity + $1, updated_at = NOW() WHERE id = $2',
+          'UPDATE stock SET quantity = quantity + $1 WHERE id = $2',
           [productionItem.required_quantity, productionItem.stock_id]
         );
 

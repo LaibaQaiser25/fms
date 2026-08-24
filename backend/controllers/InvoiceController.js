@@ -110,6 +110,74 @@ class InvoiceController {
   }
 
   /**
+   * Apply a payment to a customer's open invoices, oldest first.
+   *
+   * AddPaymentModal.jsx pays against the customer's total ledger debt and sends
+   * no invoice_id, so the allocation has to happen here — otherwise
+   * invoices.outstanding_debt / invoices.status and the linked sales.balance
+   * never move after the sale is created, and every paid invoice keeps showing
+   * up in the pending-payments list and the nightly debt alert.
+   *
+   * Runs inside the caller's transaction. When invoice_id is supplied only that
+   * invoice is touched. Returns what it applied plus the first invoice consumed,
+   * used to stamp payment_records so the payment stays traceable.
+   */
+  static async applyPaymentToInvoices(client, customerId, invoiceId, amount) {
+    const targets = invoiceId
+      ? await client.query(
+          'SELECT id, sale_id, outstanding_debt FROM invoices WHERE id = $1 FOR UPDATE',
+          [invoiceId]
+        )
+      : await client.query(
+          `SELECT id, sale_id, outstanding_debt FROM invoices
+            WHERE customer_id = $1
+              AND status IN ('unpaid', 'partial')
+              AND invoice_type <> 'payment_receipt'
+            ORDER BY created_at ASC
+            FOR UPDATE`,
+          [customerId]
+        );
+
+    let remaining = amount;
+    const allocations = [];
+
+    for (const invoice of targets.rows) {
+      if (remaining <= 0) break;
+
+      const debt = Number(invoice.outstanding_debt) || 0;
+      if (debt <= 0) continue;
+
+      const applied = Math.min(remaining, debt);
+      const newDebt = debt - applied;
+      remaining -= applied;
+
+      await client.query(
+        'UPDATE invoices SET outstanding_debt = $1, status = $2 WHERE id = $3',
+        [newDebt, newDebt > 0 ? 'partial' : 'paid', invoice.id]
+      );
+
+      // Keep the sale's balance in step with its invoice. Note: sales.status
+      // tracks production/fulfillment ('pending' = awaiting production), not
+      // payment state, so it is intentionally left untouched.
+      if (invoice.sale_id) {
+        await client.query(
+          'UPDATE sales SET balance = GREATEST(balance - $1, 0), updated_at = NOW() WHERE id = $2',
+          [applied, invoice.sale_id]
+        );
+      }
+
+      allocations.push({ invoice_id: invoice.id, sale_id: invoice.sale_id, applied });
+    }
+
+    return {
+      allocations,
+      primaryInvoiceId: allocations.length > 0 ? allocations[0].invoice_id : null,
+      primarySaleId: allocations.length > 0 ? allocations[0].sale_id : null,
+      unallocated: remaining
+    };
+  }
+
+  /**
    * Record a payment and create payment receipt invoice
    * POST /api/invoices/payment
    * Body: { customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, note }
@@ -123,71 +191,69 @@ class InvoiceController {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
+      // AddPaymentModal checks this too, but the endpoint is reachable without it
+      const amount = Number(payment_amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'payment_amount must be a positive number' });
+      }
+
       await client.query('BEGIN');
 
-      // 1. Record payment
+      // Outstanding debt comes from the ledger (debit - credit) — the same
+      // figure AddPaymentModal shows the user before they submit.
+      const debtResult = await client.query(
+        `SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS outstanding
+           FROM customer_ledger WHERE customer_id = $1`,
+        [customer_id]
+      );
+      const outstanding = Number(debtResult.rows[0].outstanding) || 0;
+
+      if (amount > outstanding + 0.01) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `Payment amount exceeds outstanding debt of ${outstanding.toFixed(2)}`
+        });
+      }
+
+      // 1. Apply the payment to the customer's open invoices (oldest first)
+      const { allocations, primaryInvoiceId, primarySaleId } =
+        await InvoiceController.applyPaymentToInvoices(client, customer_id, invoice_id, amount);
+
+      const linkedInvoiceId = invoice_id || primaryInvoiceId;
+      const linkedSaleId = sale_id || primarySaleId;
+
+      // 2. Record payment, linked to whichever invoice/sale it landed on
       await client.query(
         `INSERT INTO payment_records (customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [customer_id, customer_name, sale_id || null, invoice_id || null, payment_amount, payment_type, note]
+        [customer_id, customer_name, linkedSaleId, linkedInvoiceId, amount, payment_type, note]
       );
 
-      // 2. Update original invoice status
-      if (invoice_id) {
-        const invoiceResult = await client.query(
-          'SELECT * FROM invoices WHERE id = $1',
-          [invoice_id]
-        );
-
-        if (invoiceResult.rows.length > 0) {
-          const invoice = invoiceResult.rows[0];
-          const newOutstandingDebt = invoice.outstanding_debt - payment_amount;
-          let newStatus = 'paid';
-
-          if (newOutstandingDebt > 0) {
-            newStatus = 'partial';
-          }
-
-          await client.query(
-            'UPDATE invoices SET outstanding_debt = $1, status = $2, updated_at = NOW() WHERE id = $3',
-            [Math.max(0, newOutstandingDebt), newStatus, invoice_id]
-          );
-        }
-      }
-
       // 3. Create payment receipt invoice
-      const receiptInvoiceNo = InvoiceController.generateUniqueId(`INV-${customer_name.substring(0, 3).toUpperCase()}`);
+      const namePrefix = (customer_name || 'CUST').substring(0, 3).toUpperCase();
+      const receiptInvoiceNo = InvoiceController.generateUniqueId(`INV-${namePrefix}`);
 
       const paymentReceiptResult = await client.query(
         `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, total_amount, advance_paid, outstanding_debt, invoice_type, status)
          VALUES ($1, $2, $3, $4, $5, 0, 0, 'payment_receipt', 'paid')
          RETURNING *`,
-        [receiptInvoiceNo, sale_id || null, customer_id, customer_name, payment_amount]
+        [receiptInvoiceNo, linkedSaleId, customer_id, customer_name, amount]
       );
 
       // 4. Update ledger
       await client.query(
         `INSERT INTO customer_ledger (customer_id, customer_name, invoice_id, debit, credit, transaction_type, note)
          VALUES ($1, $2, $3, 0, $4, 'payment', $5)`,
-        [customer_id, customer_name, paymentReceiptResult.rows[0].id, payment_amount, `Payment received: ${payment_type}`]
+        [customer_id, customer_name, paymentReceiptResult.rows[0].id, amount, `Payment received: ${payment_type}`]
       );
 
-      // 5. Update sale balance if applicable
-      if (sale_id) {
-        const saleResult = await client.query(
-          'SELECT balance FROM sales WHERE id = $1',
-          [sale_id]
+      // 5. Fall back to the caller-supplied sale when no invoice was allocated
+      //    (nothing open to apply against, e.g. a legacy row)
+      if (sale_id && allocations.length === 0) {
+        await client.query(
+          'UPDATE sales SET balance = GREATEST(balance - $1, 0), updated_at = NOW() WHERE id = $2',
+          [amount, sale_id]
         );
-
-        if (saleResult.rows.length > 0) {
-          const newBalance = saleResult.rows[0].balance - payment_amount;
-          const newSaleStatus = newBalance <= 0 ? 'ready' : 'pending';
-
-          await client.query(
-            'UPDATE sales SET balance = $1, updated_at = NOW() WHERE id = $2',
-            [Math.max(0, newBalance), sale_id]
-          );
-        }
       }
 
       await client.query('COMMIT');
@@ -196,7 +262,8 @@ class InvoiceController {
         success: true,
         message: 'Payment recorded successfully',
         data: {
-          receipt: paymentReceiptResult.rows[0]
+          receipt: paymentReceiptResult.rows[0],
+          allocations
         }
       });
 

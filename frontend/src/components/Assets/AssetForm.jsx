@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Select, Alert } from '../shared/UIComponents';
 import assetAPI from '../../api/assetApi';
+import { capitalizeFirstLetter } from '../../utils/text';
 
 const AssetForm = ({ isOpen, onClose, onSubmit, asset, categories }) => {
   const [formData, setFormData] = useState({
@@ -48,7 +49,8 @@ const AssetForm = ({ isOpen, onClose, onSubmit, asset, categories }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const nextValue = name === 'description' ? capitalizeFirstLetter(value) : value;
+    setFormData({ ...formData, [name]: nextValue });
   };
 
   const handleSubmit = async (e) => {

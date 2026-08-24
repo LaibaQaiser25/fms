@@ -2,8 +2,10 @@ import React, { useState, useEffect, useContext } from 'react';
 import { X } from 'lucide-react';
 import * as sellersApi from '../../api/sellersApi';
 import * as stockApi from '../../api/stockApi';
+import * as rawMaterialsApi from '../../api/rawMaterialsApi';
 import * as purchaseApi from '../../api/purchaseApi';
 import { AlertRefreshContext } from '../Layout';
+import { capitalizeFirstLetter } from '../../utils/text';
 
 function NewPurchaseModal({ onClose }) {
   const alertRefresh = useContext(AlertRefreshContext);
@@ -21,7 +23,7 @@ function NewPurchaseModal({ onClose }) {
   const [type, setType] = useState('');
 
   // Purchase Items
-  const [items, setItems] = useState([{ description: '', price: '', quantity: '', stock_id: null }]);
+  const [items, setItems] = useState([{ description: '', price: '', quantity: '', stock_id: null, raw_material_id: null, unit: '' }]);
   const [suggestions, setSuggestions] = useState({});
   const [stockList, setStockList] = useState([]);
 
@@ -49,8 +51,9 @@ function NewPurchaseModal({ onClose }) {
 
   // Seller search and selection
   const handleSellerSearch = async (value) => {
-    setSellerSearch(value);
-    setSellerName(value);
+    const capitalizedValue = capitalizeFirstLetter(value);
+    setSellerSearch(capitalizedValue);
+    setSellerName(capitalizedValue);
     setSelectedSeller(null); // reset selected when typing again
     if (value.length > 0) {
       try {
@@ -107,34 +110,56 @@ function NewPurchaseModal({ onClose }) {
   // Item handling
   const handleDescriptionChange = async (index, value) => {
     const newItems = [...items];
-    newItems[index].description = value;
+    newItems[index].description = capitalizeFirstLetter(value);
     newItems[index].stock_id = null;
+    newItems[index].raw_material_id = null;
     setItems(newItems);
 
-    // Search suggestions from existing stock (to restock known products)
+    // Search suggestions — existing stock for stock-ready, raw materials otherwise
     if (value.length > 0) {
       try {
-        const response = await stockApi.searchStock(value);
-        setSuggestions({
-          ...suggestions,
-          [index]: response.data || []
-        });
+        if (category === 'raw-material') {
+          const response = await rawMaterialsApi.searchRawMaterials(value);
+          setSuggestions({
+            ...suggestions,
+            [index]: response.data.data || []
+          });
+        } else {
+          const response = await stockApi.searchStock(value);
+          setSuggestions({
+            ...suggestions,
+            [index]: response.data || []
+          });
+        }
       } catch (error) {
-        console.error('Error searching stock:', error);
+        console.error('Error searching items:', error);
       }
     } else {
       setSuggestions({ ...suggestions, [index]: [] });
     }
   };
 
-  const selectSuggestion = (index, stock) => {
+  const selectSuggestion = (index, suggestion) => {
     const newItems = [...items];
-    newItems[index] = {
-      description: stock.name,
-      price: stock.unit_price || '',
-      quantity: newItems[index].quantity || 1,
-      stock_id: stock.id
-    };
+    if (category === 'raw-material') {
+      newItems[index] = {
+        description: suggestion.name,
+        price: suggestion.unit_price || '',
+        quantity: newItems[index].quantity || 1,
+        stock_id: null,
+        raw_material_id: suggestion.id,
+        unit: suggestion.unit || ''
+      };
+    } else {
+      newItems[index] = {
+        description: suggestion.name,
+        price: suggestion.unit_price || '',
+        quantity: newItems[index].quantity || 1,
+        stock_id: suggestion.id,
+        raw_material_id: null,
+        unit: ''
+      };
+    }
     setItems(newItems);
     setSuggestions({ ...suggestions, [index]: [] });
   };
@@ -146,12 +171,12 @@ function NewPurchaseModal({ onClose }) {
   };
 
   const addItem = () => {
-    setItems([...items, { description: '', price: '', quantity: '', stock_id: null }]);
+    setItems([...items, { description: '', price: '', quantity: '', stock_id: null, raw_material_id: null, unit: '' }]);
   };
 
   const removeItem = (index) => {
     const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems.length > 0 ? newItems : [{ description: '', price: '', quantity: '', stock_id: null }]);
+    setItems(newItems.length > 0 ? newItems : [{ description: '', price: '', quantity: '', stock_id: null, raw_material_id: null, unit: '' }]);
   };
 
   // Calculate totals
@@ -187,6 +212,8 @@ function NewPurchaseModal({ onClose }) {
         type: type || null,
         items: validItems.map(i => ({
           stock_id: i.stock_id,
+          raw_material_id: i.raw_material_id,
+          unit: i.unit || null,
           product_name: i.description,
           quantity: Number(i.quantity),
           price: Number(i.price),
@@ -282,7 +309,7 @@ function NewPurchaseModal({ onClose }) {
                   <input className={`${inp}`} placeholder="Phone"
                     value={sellerPhone} onChange={e => setSellerPhone(e.target.value)} />
                   <input className={`${inp}`} placeholder="Address"
-                    value={sellerAddress} onChange={e => setSellerAddress(e.target.value)} />
+                    value={sellerAddress} onChange={e => setSellerAddress(capitalizeFirstLetter(e.target.value))} />
                 </div>
               </div>
 
@@ -338,15 +365,18 @@ function NewPurchaseModal({ onClose }) {
                         {/* Suggestions dropdown */}
                         {suggestions[i]?.length > 0 && (
                           <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-b shadow-lg z-10 max-h-40 overflow-y-auto">
-                            {suggestions[i].map(stock => (
+                            {suggestions[i].map(suggestion => (
                               <div
-                                key={stock.id}
+                                key={suggestion.id}
                                 className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
-                                onClick={() => selectSuggestion(i, stock)}
+                                onClick={() => selectSuggestion(i, suggestion)}
                               >
-                                <div className="font-medium text-sm text-gray-800">{stock.name}</div>
+                                <div className="font-medium text-sm text-gray-800">{suggestion.name}</div>
                                 <div className="text-xs text-gray-500">
-                                  pkr{Number(stock.unit_price).toFixed(0)} · Current Stock: {stock.quantity}
+                                  {category === 'raw-material'
+                                    ? <>pkr{Number(suggestion.unit_price || 0).toFixed(0)} · Current Stock: {suggestion.quantity} {suggestion.unit || ''}</>
+                                    : <>pkr{Number(suggestion.unit_price).toFixed(0)} · Current Stock: {suggestion.quantity}</>
+                                  }
                                 </div>
                               </div>
                             ))}
@@ -361,6 +391,7 @@ function NewPurchaseModal({ onClose }) {
                         type="number"
                         value={item.price}
                         onChange={e => updateItem(i, 'price', e.target.value)}
+                        onWheel={e => e.target.blur()}
                       />
 
                       {/* Quantity */}
@@ -371,7 +402,18 @@ function NewPurchaseModal({ onClose }) {
                         min="1"
                         value={item.quantity}
                         onChange={e => updateItem(i, 'quantity', e.target.value)}
+                        onWheel={e => e.target.blur()}
                       />
+
+                      {/* Unit (raw material only) */}
+                      {category === 'raw-material' && (
+                        <input
+                          className="w-20 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                          placeholder="Unit"
+                          value={item.unit}
+                          onChange={e => updateItem(i, 'unit', e.target.value)}
+                        />
+                      )}
 
                       {items.length > 1 &&
                         <button
@@ -460,6 +502,7 @@ function NewPurchaseModal({ onClose }) {
                     placeholder="0"
                     value={advancePaid}
                     onChange={e => setAdvancePaid(e.target.value)}
+                    onWheel={e => e.target.blur()}
                     className={inp}
                     min="0"
                     max={total}

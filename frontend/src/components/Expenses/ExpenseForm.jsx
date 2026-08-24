@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Select, Alert } from '../shared/UIComponents';
 import expenseAPI from '../../api/expenseApi';
+import { capitalizeFirstLetter } from '../../utils/text';
 
 const ExpenseForm = ({ isOpen, onClose, onSubmit, expense, categories }) => {
   const [formData, setFormData] = useState({
@@ -36,7 +37,8 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, expense, categories }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const nextValue = (name === 'description' || name === 'notes') ? capitalizeFirstLetter(value) : value;
+    setFormData({ ...formData, [name]: nextValue });
   };
 
   const handleSubmit = async (e) => {

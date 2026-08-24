@@ -185,7 +185,7 @@ function Analytics() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col" style={{ paddingTop: '76px' }}>
+    <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
       {/* <div className="px-8 py-6 bg-gradient-to-r from-blue-600 to-blue-800 text-white">
         <h1 className="text-3xl font-bold mb-2">Analytics Dashboard</h1>

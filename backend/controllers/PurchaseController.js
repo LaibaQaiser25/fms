@@ -581,13 +581,31 @@ class PurchaseController {
         return res.status(400).json({ error: 'Invalid category' });
       }
 
+      // Validate total_amount matches the sum of item amounts (boundary check
+      // on client input) — mirrors SalesController.createSale. Purchase items
+      // use `price` where sale items use `unit_price`.
+      const computedTotal = items.reduce(
+        (sum, item) => sum + (Number(item.quantity) * Number(item.price)),
+        0
+      );
+      if (Math.abs(computedTotal - Number(total_amount)) > 0.01) {
+        return res.status(400).json({ error: 'total_amount does not match sum of item amounts' });
+      }
+
+      // An advance above the total produces a negative balance, an invoice
+      // marked paid, and a negative debt in the ledger
+      const advance = Number(advance_paid) || 0;
+      if (advance < 0 || advance > Number(total_amount) + 0.01) {
+        return res.status(400).json({ error: 'advance_paid must be between 0 and total_amount' });
+      }
+
       await client.query('BEGIN');
 
       // 1. Generate unique purchase number
       const purchaseNo = PurchaseController.generateUniqueId('PUR');
 
       // 2. Create purchase record
-      const balance = total_amount - (advance_paid || 0);
+      const balance = Number(total_amount) - advance;
 
       // Goods are recorded as received the moment the purchase is created
       const status = 'received';
@@ -596,7 +614,7 @@ class PurchaseController {
         `INSERT INTO purchases (purchase_no, seller_id, seller_name, phone, address, category, type, total_amount, advance_paid, balance, payment_type, status, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
-        [purchaseNo, seller_id, seller_name, phone, address, category, type || null, total_amount, advance_paid || 0, balance, payment_type, status, notes]
+        [purchaseNo, seller_id, seller_name, phone, address, category, type || null, total_amount, advance, balance, payment_type, status, notes]
       );
 
       const purchaseId = purchaseResult.rows[0].id;
@@ -604,10 +622,42 @@ class PurchaseController {
       // 3. Create purchase items
       for (const item of items) {
         const itemAmount = item.quantity * item.price;
+        let rawMaterialId = null;
+
+        if (category === 'raw-material') {
+          rawMaterialId = item.raw_material_id || null;
+
+          if (!rawMaterialId) {
+            // Match an existing raw material by name, or create it on the fly
+            // (same pattern already used for new sellers during a purchase).
+            const existing = await client.query(
+              'SELECT id FROM raw_materials WHERE LOWER(name) = LOWER($1)',
+              [item.product_name]
+            );
+
+            if (existing.rows.length > 0) {
+              rawMaterialId = existing.rows[0].id;
+            } else {
+              const created = await client.query(
+                `INSERT INTO raw_materials (name, unit, quantity)
+                 VALUES ($1, $2, 0)
+                 RETURNING id`,
+                [item.product_name, item.unit || null]
+              );
+              rawMaterialId = created.rows[0].id;
+            }
+          }
+
+          await client.query(
+            'UPDATE raw_materials SET quantity = quantity + $1, updated_at = NOW() WHERE id = $2',
+            [item.quantity, rawMaterialId]
+          );
+        }
+
         await client.query(
-          `INSERT INTO purchase_items (purchase_id, stock_id, product_name, description, quantity, price, amount)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [purchaseId, item.stock_id || null, item.product_name, item.description, item.quantity, item.price, itemAmount]
+          `INSERT INTO purchase_items (purchase_id, stock_id, raw_material_id, product_name, description, quantity, price, amount)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [purchaseId, item.stock_id || null, rawMaterialId, item.product_name, item.description, item.quantity, item.price, itemAmount]
         );
 
         // Increase stock — only for stock-ready purchases with a matched stock item
@@ -625,18 +675,23 @@ class PurchaseController {
       // items are looked up later via purchase_invoices.purchase_id.
       const invoiceNo = PurchaseController.generateUniqueId('PINV');
 
+      // Status has to reflect what was actually paid up front, the same way
+      // SalesController does it — hardcoding 'unpaid' left fully-prepaid
+      // purchases sitting in the pending-payments list forever.
+      const invoiceStatus = balance <= 0 ? 'paid' : (advance > 0 ? 'partial' : 'unpaid');
+
       const invoiceResult = await client.query(
         `INSERT INTO purchase_invoices (invoice_no, purchase_id, seller_id, seller_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'purchase_invoice', 'unpaid')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'purchase_invoice', $10)
          RETURNING *`,
-        [invoiceNo, purchaseId, seller_id, seller_name, phone, address, total_amount, advance_paid || 0, balance]
+        [invoiceNo, purchaseId, seller_id, seller_name, phone, address, total_amount, advance, balance, invoiceStatus]
       );
 
       // 5. Create Seller Ledger Entry
       await client.query(
         `INSERT INTO purchase_ledger (seller_id, seller_name, purchase_id, invoice_no, debit, credit, debt, transaction_type, note)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'purchase', 'New purchase created')`,
-        [seller_id, seller_name, purchaseId, invoiceNo, total_amount, advance_paid || 0, balance]
+        [seller_id, seller_name, purchaseId, invoiceNo, total_amount, advance, balance]
       );
 
       await client.query('COMMIT');

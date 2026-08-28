@@ -240,11 +240,12 @@ class PurchaseInvoiceController {
         [receiptInvoiceNo, linkedPurchaseId, seller_id, seller_name, amount]
       );
 
-      // 4. Update ledger
+      // 4. Update ledger — linked to the payment receipt invoice, so the
+      //    ledger history can show a clickable reference for this payment
       await client.query(
-        `INSERT INTO purchase_ledger (seller_id, seller_name, purchase_id, debit, credit, transaction_type, note)
-         VALUES ($1, $2, $3, 0, $4, 'payment', $5)`,
-        [seller_id, seller_name, linkedPurchaseId, amount, `Payment made: ${payment_type}`]
+        `INSERT INTO purchase_ledger (seller_id, seller_name, purchase_id, invoice_no, debit, credit, transaction_type, note)
+         VALUES ($1, $2, $3, $4, 0, $5, 'payment', $6)`,
+        [seller_id, seller_name, linkedPurchaseId, receiptInvoiceNo, amount, `Payment made: ${payment_type}`]
       );
 
       // 5. Fall back to the caller-supplied purchase when no invoice was

@@ -66,23 +66,27 @@ class PurchaseLedgerController {
       }
 
       const ledgerResult = await pool.query(
-        `SELECT 
+        `SELECT
           id, invoice_no, debit, credit, debt, transaction_type, note, created_at
-         FROM purchase_ledger 
-         WHERE seller_id = $1 
-         ORDER BY created_at DESC`,
+         FROM purchase_ledger
+         WHERE seller_id = $1
+         ORDER BY created_at ASC, id ASC`,
         [seller_id]
       );
 
-      // Calculate running balance
+      // Running balance has to accumulate oldest-first (debit raises debt,
+      // credit lowers it) — the API still returns newest-first, so the array
+      // is reversed only after each row's cumulative value is computed.
       let runningBalance = 0;
-      const ledgerWithBalance = ledgerResult.rows.map(entry => {
-        runningBalance += (entry.debit || 0) - (entry.credit || 0);
-        return {
-          ...entry,
-          running_balance: runningBalance
-        };
-      });
+      const ledgerWithBalance = ledgerResult.rows
+        .map(entry => {
+          runningBalance += (entry.debit || 0) - (entry.credit || 0);
+          return {
+            ...entry,
+            running_balance: runningBalance
+          };
+        })
+        .reverse();
 
       // Get summary
       const summaryResult = await pool.query(
@@ -151,6 +155,17 @@ class PurchaseLedgerController {
 
       if (!seller_id) {
         return res.status(400).json({ error: 'Missing seller_id' });
+      }
+
+      // 'purchase' and 'payment' rows are written by createPurchase/recordPayment,
+      // which also update purchase_invoices.outstanding_debt/status and
+      // purchases.balance in the same transaction. A manual entry of those types
+      // would insert a ledger row without touching those balances, desyncing
+      // them from the ledger.
+      if (['purchase', 'payment'].includes(transaction_type)) {
+        return res.status(400).json({
+          error: `transaction_type '${transaction_type}' must go through the purchase/payment endpoints, not a manual ledger entry`
+        });
       }
 
       const debt = debit - credit;

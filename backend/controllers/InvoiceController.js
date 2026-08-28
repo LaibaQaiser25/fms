@@ -240,11 +240,12 @@ class InvoiceController {
         [receiptInvoiceNo, linkedSaleId, customer_id, customer_name, amount]
       );
 
-      // 4. Update ledger
+      // 4. Update ledger — linked to the payment receipt invoice, so the
+      //    ledger history can show a clickable reference for this payment
       await client.query(
-        `INSERT INTO customer_ledger (customer_id, customer_name, invoice_id, debit, credit, transaction_type, note)
-         VALUES ($1, $2, $3, 0, $4, 'payment', $5)`,
-        [customer_id, customer_name, paymentReceiptResult.rows[0].id, amount, `Payment received: ${payment_type}`]
+        `INSERT INTO customer_ledger (customer_id, customer_name, invoice_id, invoice_no, debit, credit, transaction_type, note)
+         VALUES ($1, $2, $3, $4, 0, $5, 'payment', $6)`,
+        [customer_id, customer_name, paymentReceiptResult.rows[0].id, receiptInvoiceNo, amount, `Payment received: ${payment_type}`]
       );
 
       // 5. Fall back to the caller-supplied sale when no invoice was allocated

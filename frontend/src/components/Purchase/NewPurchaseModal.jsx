@@ -16,6 +16,7 @@ function NewPurchaseModal({ onClose }) {
   const [sellerSearch, setSellerSearch] = useState('');
   const [sellers, setSellers] = useState([]);
   const [showSellerDropdown, setShowSellerDropdown] = useState(false);
+  const [showSellerPhoneDropdown, setShowSellerPhoneDropdown] = useState(false);
   const [selectedSeller, setSelectedSeller] = useState(null);
 
   // Purchase classification
@@ -68,6 +69,25 @@ function NewPurchaseModal({ onClose }) {
     }
   };
 
+  // Phone doubles as a search field — but only while no name has been typed yet, so
+  // typing a phone number first surfaces matching sellers the same way typing a name
+  // does (the backend's /sellers/search already matches on name OR phone).
+  const handleSellerPhoneSearch = async (value) => {
+    setSellerPhone(value);
+    setSelectedSeller(null);
+    if (!sellerSearch && value.length > 0) {
+      try {
+        const response = await sellersApi.searchSellers(value, 10);
+        setSellers(response.data.data || []);
+        setShowSellerPhoneDropdown(true);
+      } catch (error) {
+        console.error('Error searching sellers by phone:', error);
+      }
+    } else {
+      setShowSellerPhoneDropdown(false);
+    }
+  };
+
   const selectSeller = async (seller) => {
     try {
       // Fetch full seller details to ensure phone and address are populated
@@ -80,6 +100,7 @@ function NewPurchaseModal({ onClose }) {
       setSellerAddress(fullSeller.address || '');
       setSellerSearch(fullSeller.name);
       setShowSellerDropdown(false);
+      setShowSellerPhoneDropdown(false);
     } catch (error) {
       console.error('Error fetching seller details:', error);
       // Fallback to search result
@@ -89,21 +110,7 @@ function NewPurchaseModal({ onClose }) {
       setSellerAddress(seller.address || '');
       setSellerSearch(seller.name);
       setShowSellerDropdown(false);
-    }
-  };
-
-  const createNewSeller = async () => {
-    if (!sellerName.trim()) return;
-    try {
-      const response = await sellersApi.createSeller({
-        name: sellerName,
-        phone: sellerPhone,
-        address: sellerAddress
-      });
-      setSelectedSeller(response.data.data);
-      setShowSellerDropdown(false);
-    } catch (error) {
-      console.error('Error creating seller:', error);
+      setShowSellerPhoneDropdown(false);
     }
   };
 
@@ -190,9 +197,10 @@ function NewPurchaseModal({ onClose }) {
   const balance = total - advance;
 
   const handleSubmit = async () => {
-    // Validate seller is selected
-    if (!selectedSeller) {
-      return alert('⚠️ Please select or create a seller');
+    // Validate seller info is present (either an existing seller was picked,
+    // or enough info was typed in to create one)
+    if (!selectedSeller && (!sellerName.trim() || !sellerPhone.trim() || !sellerAddress.trim())) {
+      return alert('⚠️ Please provide seller name, phone, and address');
     }
 
     // Validate items
@@ -203,11 +211,21 @@ function NewPurchaseModal({ onClose }) {
 
     setLoading(true);
     try {
+      let seller = selectedSeller;
+      if (!seller) {
+        const sellerResponse = await sellersApi.createSeller({
+          name: sellerName,
+          phone: sellerPhone,
+          address: sellerAddress
+        });
+        seller = sellerResponse.data.data;
+      }
+
       const purchaseData = {
-        seller_id: selectedSeller.id,
-        seller_name: selectedSeller.name,
-        phone: selectedSeller.phone || '',
-        address: selectedSeller.address || '',
+        seller_id: seller.id,
+        seller_name: seller.name,
+        phone: seller.phone || '',
+        address: seller.address || '',
         category,
         type: type || null,
         items: validItems.map(i => ({
@@ -267,31 +285,26 @@ function NewPurchaseModal({ onClose }) {
                     placeholder="Search or create seller *"
                     value={sellerSearch}
                     onChange={(e) => handleSellerSearch(e.target.value)}
+                    onBlur={() => setTimeout(() => setShowSellerDropdown(false), 150)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.target.blur();
+                      }
+                    }}
                   />
-                  {showSellerDropdown && (sellers.length > 0 || sellerName.trim()) && (
+                  {showSellerDropdown && sellers.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
-                      {sellers.length > 0 ? (
-                        sellers.map(seller => (
-                          <div
-                            key={seller.id}
-                            onClick={() => selectSeller(seller)}
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
-                          >
-                            <div className="font-semibold text-sm text-gray-800">{seller.name}</div>
-                            <div className="text-xs text-gray-500">{seller.phone || 'No phone'}</div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-xs text-gray-400 italic">No existing sellers found</div>
-                      )}
-                      {sellerName.trim() && (
-                        <button
-                          onClick={createNewSeller}
-                          className="w-full text-left px-3 py-2 bg-blue-50 text-blue-600 font-semibold text-sm border-t border-gray-100 hover:bg-blue-100"
+                      {sellers.map(seller => (
+                        <div
+                          key={seller.id}
+                          onClick={() => selectSeller(seller)}
+                          className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
                         >
-                          + Create New: {sellerName}
-                        </button>
-                      )}
+                          <div className="font-semibold text-sm text-gray-800">{seller.name}</div>
+                          <div className="text-xs text-gray-500">{seller.phone || 'No phone'}</div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -306,8 +319,27 @@ function NewPurchaseModal({ onClose }) {
 
                 {/* Seller Manual Input */}
                 <div className="grid grid-cols-2 gap-2">
-                  <input className={`${inp}`} placeholder="Phone"
-                    value={sellerPhone} onChange={e => setSellerPhone(e.target.value)} />
+                  <div className="relative">
+                    <input className={`${inp}`} placeholder="Phone"
+                      value={sellerPhone}
+                      onChange={e => handleSellerPhoneSearch(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowSellerPhoneDropdown(false), 150)}
+                    />
+                    {showSellerPhoneDropdown && sellers.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
+                        {sellers.map(seller => (
+                          <div
+                            key={seller.id}
+                            onClick={() => selectSeller(seller)}
+                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                          >
+                            <div className="font-semibold text-sm text-gray-800">{seller.phone}</div>
+                            <div className="text-xs text-gray-500">{seller.name}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <input className={`${inp}`} placeholder="Address"
                     value={sellerAddress} onChange={e => setSellerAddress(capitalizeFirstLetter(e.target.value))} />
                 </div>

@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const invoiceRoutes = require('./routes/invoices');
 const stockRoutes   = require('./routes/stock');
+const productsRoutes = require('./routes/products');
 const ledgerRoutes = require('./routes/ledger');
 const expenseRoutes = require('./routes/expenses');
 const assetRoutes = require('./routes/assets');
@@ -18,8 +19,10 @@ const productionRoutes = require('./routes/production');
 const rawMaterialsRoutes = require('./routes/rawMaterials');
 const rawMaterialConsumptionRoutes = require('./routes/rawMaterialConsumption');
 const cashbookRoutes = require('./routes/cashbook');
+const reportsRoutes = require('./routes/reports');
 const authRoutes = require('./routes/auth');
 const authMiddleware = require('./middleware/authMiddleware');
+const requireOwner = require('./middleware/requireOwner');
 const { startCronJobs } = require('./services/cronJobs');
 
 
@@ -53,6 +56,7 @@ app.use('/api', authMiddleware);
 // Legacy routes
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/stock', stockRoutes);
+app.use('/api/products', productsRoutes);
 app.use('/api/ledger', ledgerRoutes);
 
 // Existing module routes
@@ -72,6 +76,9 @@ app.use('/api/production', productionRoutes);
 app.use('/api/raw-materials', rawMaterialsRoutes);
 app.use('/api/raw-material-consumption', rawMaterialConsumptionRoutes);
 app.use('/api/cashbook', cashbookRoutes);
+
+// Owner-only — first role-gated route in the app (see middleware/requireOwner.js)
+app.use('/api/reports', requireOwner, reportsRoutes);
 
 startCronJobs(); // Start the cron jobs when the server starts
 

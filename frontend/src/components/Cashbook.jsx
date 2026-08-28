@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, Receipt, Wallet, ArrowUpDown, X } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Receipt, Wallet, ArrowUpDown, X, HandCoins, Landmark } from 'lucide-react';
 import * as cashbookApi from '../api/cashbookApi';
 import expenseAPI from '../api/expenseApi';
 import { Pagination } from './shared/UIComponents';
@@ -45,6 +45,7 @@ const formatDate = (value) => {
 function Cashbook() {
   const [entries, setEntries] = useState([]);
   const [totals, setTotals] = useState(null);
+  const [balances, setBalances] = useState(null);
   const [categories, setCategories] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +95,7 @@ function Cashbook() {
       const response = await cashbookApi.getCashbook(params);
       setEntries(response.data.data || []);
       setTotals(response.data.totals || null);
+      setBalances(response.data.balances || null);
       setTotalPages(response.data.pagination?.pages || 1);
       setTotalEntries(response.data.pagination?.total || 0);
     } catch (err) {
@@ -101,6 +103,7 @@ function Cashbook() {
       setError(err.response?.data?.error || 'Failed to load the cashbook');
       setEntries([]);
       setTotals(null);
+      setBalances(null);
     } finally {
       setLoading(false);
     }
@@ -177,18 +180,48 @@ function Cashbook() {
     </div>
   );
 
+  // Balances are a position, not a flow, so they only follow the end date —
+  // "as of" that day, or right now when no end date is set
+  const BalanceCard = ({ icon, label, sublabel, value, parties, partyNoun, background }) => {
+    // A missing figure must not render as a confident "Rs 0" — that reads as
+    // "nobody owes anything" when it actually means the API didn't send it
+    const unavailable = value === undefined || value === null;
+
+    return (
+      <div className={`rounded-lg shadow-md p-5 ${background}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white">{label}</p>
+            <p className="text-xs text-white/80">{sublabel}</p>
+          </div>
+          {icon}
+        </div>
+        <p className="text-3xl font-bold mt-3 text-white">
+          {unavailable ? '—' : formatCurrency(value)}
+        </p>
+        <p className="text-xs text-white/80 mt-1">
+          {unavailable ? (
+            'Unavailable — the API returned no balance for this card'
+          ) : (
+            <>
+              across {parties ?? 0} {parties === 1 ? partyNoun : `${partyNoun}s`}
+              {' · as of '}
+              {filters.endDate ? formatDate(filters.endDate) : 'today'}
+            </>
+          )}
+        </p>
+      </div>
+    );
+  };
+
   const net = totals?.net ?? 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-8 py-6">
+      {/* <div className="bg-white shadow-sm border-b border-gray-200 px-8 py-6">
         <h1 className="text-3xl font-bold text-gray-800">Cashbook</h1>
-        <p className="text-gray-600 mt-2">
-          Money in and out — sale advances and customer payments, purchase advances and
-          seller payments, and expenses
-        </p>
-      </div>
+      </div> */}
 
       <div className="px-8 py-6">
         {/* Summary cards — these always reflect the active filters across the
@@ -217,7 +250,7 @@ function Cashbook() {
           />
           <div className={`rounded-lg shadow-md p-5 ${net >= 0 ? 'bg-green-600' : 'bg-red-600'}`}>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-white/90">Net Cash</p>
+              <p className="text-sm font-medium text-white/90">Net Cash In-hand</p>
               <Wallet size={20} className="text-white/90" />
             </div>
             <p className="text-2xl font-bold mt-2 text-white">{formatCurrency(net)}</p>
@@ -225,6 +258,30 @@ function Cashbook() {
               {totalEntries} {totalEntries === 1 ? 'entry' : 'entries'} in view
             </p>
           </div>
+        </div>
+
+        {/* Outstanding position. Unlike the cards above — which measure money
+            that moved during the filtered period — these are balances that
+            stand until someone pays, so they ignore every filter but the date. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <BalanceCard
+            icon={<HandCoins size={24} className="text-white/90" />}
+            label="Receivable"
+            sublabel="Customers owe us"
+            value={balances?.receivable}
+            parties={balances?.customersOwing}
+            partyNoun="customer"
+            background="bg-indigo-500"
+          />
+          <BalanceCard
+            icon={<Landmark size={24} className="text-white/90" />}
+            label="Payable"
+            sublabel="We owe sellers"
+            value={balances?.payable}
+            parties={balances?.sellersOwed}
+            partyNoun="seller"
+            background="bg-orange-500"
+          />
         </div>
 
         {/* Filters */}

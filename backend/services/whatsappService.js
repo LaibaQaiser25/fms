@@ -1,18 +1,23 @@
-const twilio = require('twilio');
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
 const sendWhatsApp = async (message) => {
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    console.error('❌ WhatsApp error: N8N_WEBHOOK_URL is not set');
+    return;
+  }
+
   try {
-    await client.messages.create({
-      from: process.env.TWILIO_WHATSAPP_FROM,
-      to: process.env.OWNER_WHATSAPP,
-      body: message
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
     });
-    console.log('✅ WhatsApp sent:', message);
+
+    if (!response.ok) {
+      throw new Error(`n8n webhook responded with ${response.status}`);
+    }
+
+    console.log('✅ WhatsApp alert sent to n8n:', message);
   } catch (error) {
     console.error('❌ WhatsApp error:', error.message);
   }

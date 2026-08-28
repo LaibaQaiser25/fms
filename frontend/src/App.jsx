@@ -68,6 +68,7 @@ import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import Analytics from './components/Analytics';
 import StockManager from './components/StockManager';
+import ProductsManager from './components/ProductsManager';
 import CustomerLedger from './components/Sales/Ledger/CustomerLedger';
 import PurchaseLedger from './components/Purchase/PLedger/PurchaseLedger';
 import RawMaterialsList from './components/RawMaterials/RawMaterialsList';
@@ -76,7 +77,7 @@ import ExpenseList from './components/Expenses/ExpenseList';
 import AssetList from './components/Assets/AssetList';
 import EmployeeList from './components/Employees/EmployeeList';
 import Cashbook from './components/Cashbook';
-import Reports from './components/Reports';
+import Reports from './components/Reports/Reports.jsx';
 
 // Public Pages
 import HomePage from './pages/HomePage';
@@ -105,6 +106,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/stock" element={<StockManager />} />
+            <Route path="/products" element={<ProductsManager />} />
             <Route path="/ledger" element={<CustomerLedger />} />
             <Route path="/purchase-ledger" element={<PurchaseLedger />} />
             <Route path="/raw-materials" element={<RawMaterialsList />} />
@@ -113,7 +115,10 @@ function App() {
             <Route path="/assets" element={<AssetList />} />
             <Route path="/employees" element={<EmployeeList />} />
             <Route path="/cashbook" element={<Cashbook />} />
-            <Route path="/reports" element={<Reports />} />
+            {/* Reports is owner-only — financial snapshots (debt/payables) beyond the shared owner+manager gate above */}
+            <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
+              <Route path="/reports" element={<Reports />} />
+            </Route>
           </Route>
         </Route>
       </Routes>

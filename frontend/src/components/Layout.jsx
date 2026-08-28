@@ -10,7 +10,7 @@ export const AlertRefreshContext = createContext();
 
 export default function Layout() {
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);       // owed TO us (customers)
   const [payablePayments, setPayablePayments] = useState([]);       // owed BY us (sellers)

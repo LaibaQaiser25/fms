@@ -32,6 +32,9 @@ router.get('/', PurchaseController.getAllPurchases);
 // Get today's purchases summary
 router.get('/summary/today', PurchaseController.getTodaysPurchasesSummary);
 
+// Get purchase totals for a date range (Reports)
+router.get('/summary/range', PurchaseController.getPurchasesSummary);
+
 // Get recent purchases (last 10)
 router.get('/recent/list', PurchaseController.getRecentPurchases);
 

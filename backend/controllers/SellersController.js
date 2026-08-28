@@ -9,15 +9,15 @@ class SellersController {
     try {
       const { name, phone, address, email } = req.body;
 
-      if (!name) {
-        return res.status(400).json({ error: 'Seller name is required' });
+      if (!name || !phone || !address) {
+        return res.status(400).json({ error: 'Seller name, phone, and address are required' });
       }
 
       const result = await pool.query(
         `INSERT INTO sellers (name, phone, address, email)
          VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [name, phone || null, address || null, email || null]
+        [name, phone, address, email || null]
       );
 
       res.status(201).json({
@@ -44,7 +44,7 @@ class SellersController {
       let params = [];
 
       if (search) {
-        query += ' WHERE LOWER(name) ILIKE LOWER($1)';
+        query += ' WHERE LOWER(name) ILIKE LOWER($1) OR phone ILIKE $1';
         params.push(`%${search}%`);
         query += ` LIMIT $${params.length + 1}`;
         params.push(limit);

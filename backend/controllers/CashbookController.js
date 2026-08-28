@@ -220,6 +220,54 @@ class CashbookController {
   }
 
   /**
+   * Outstanding position — what customers still owe us (receivable) and what we
+   * still owe sellers (payable).
+   *
+   * These are balances, not cash movements, so they deliberately ignore the
+   * cashbook's type/search/category filters. Only the date matters: passing
+   * asOf gives the position as it stood at the end of that day, so the figure
+   * lines up with a date-ranged cashbook view instead of contradicting it.
+   *
+   * Read from the ledgers rather than invoices.outstanding_debt: the ledgers
+   * have always been written correctly, whereas invoice balances were only
+   * fixed going forward and pre-fix rows were never backfilled.
+   *
+   * Balances are summed per party and only positive ones are counted — a
+   * customer who has overpaid must not quietly cancel out another's debt.
+   */
+  static async fetchBalances(asOf) {
+    const result = await pool.query(
+      `WITH customer_balances AS (
+         SELECT customer_id, SUM(debit) - SUM(credit) AS balance
+         FROM customer_ledger
+         WHERE ($1::date IS NULL OR created_at::date <= $1::date)
+         GROUP BY customer_id
+       ),
+       seller_balances AS (
+         SELECT seller_id, SUM(debit) - SUM(credit) AS balance
+         FROM purchase_ledger
+         WHERE ($1::date IS NULL OR created_at::date <= $1::date)
+         GROUP BY seller_id
+       )
+       SELECT
+         COALESCE((SELECT SUM(balance) FROM customer_balances WHERE balance > 0.01), 0) AS receivable,
+         (SELECT COUNT(*) FROM customer_balances WHERE balance > 0.01)                  AS customers_owing,
+         COALESCE((SELECT SUM(balance) FROM seller_balances WHERE balance > 0.01), 0)   AS payable,
+         (SELECT COUNT(*) FROM seller_balances WHERE balance > 0.01)                    AS sellers_owed`,
+      [asOf || null]
+    );
+
+    const row = result.rows[0];
+    return {
+      receivable: Number(row.receivable),
+      payable: Number(row.payable),
+      customersOwing: Number(row.customers_owing),
+      sellersOwed: Number(row.sellers_owed),
+      asOf: asOf || null
+    };
+  }
+
+  /**
    * Cashbook entries + totals
    * GET /api/cashbook?startDate=&endDate=&type=sale,expense&direction=&categoryId=
    *                  &partyId=&paymentType=&search=&sortBy=date&order=DESC&page=1&limit=25
@@ -241,7 +289,7 @@ class CashbookController {
 
       const listParams = [...filters.params, limit, offset];
 
-      const [listResult, summary] = await Promise.all([
+      const [listResult, summary, balances] = await Promise.all([
         pool.query(
           `${CASH_ENTRIES_CTE}
            -- entry_date goes out as text on purpose: res.json() serializes a
@@ -257,13 +305,15 @@ class CashbookController {
            LIMIT $${filters.params.length + 1} OFFSET $${filters.params.length + 2}`,
           listParams
         ),
-        CashbookController.fetchTotals(filters.whereSql, filters.params)
+        CashbookController.fetchTotals(filters.whereSql, filters.params),
+        CashbookController.fetchBalances(req.query.endDate)
       ]);
 
       res.json({
         success: true,
         data: listResult.rows,
         totals: summary.totals,
+        balances,
         pagination: {
           total: summary.totalCount,
           page,
@@ -289,13 +339,17 @@ class CashbookController {
         return res.status(400).json({ error: 'Invalid type or direction filter' });
       }
 
-      const summary = await CashbookController.fetchTotals(filters.whereSql, filters.params);
+      const [summary, balances] = await Promise.all([
+        CashbookController.fetchTotals(filters.whereSql, filters.params),
+        CashbookController.fetchBalances(req.query.endDate)
+      ]);
 
       res.json({
         success: true,
         data: {
           ...summary.totals,
-          entryCount: summary.totalCount
+          entryCount: summary.totalCount,
+          balances
         }
       });
 
@@ -330,5 +384,10 @@ class CashbookController {
     }
   }
 }
+
+// Exposed so ReportsController.generateSnapshot can compute cumulative
+// "net cash in hand as of X" from the exact same cash-movement sources,
+// instead of re-deriving (and risking drift from) this query.
+CashbookController.CASH_ENTRIES_CTE = CASH_ENTRIES_CTE;
 
 module.exports = CashbookController;

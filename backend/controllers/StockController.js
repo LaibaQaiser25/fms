@@ -35,13 +35,34 @@ exports.getStockById = async (req, res) => {
 };
 
 // POST add new stock item
+// Name, category, and size are not free-typed here — they're pulled from an existing
+// Stock-type product in the catalog, so a new stock row can't drift from its product
+// definition. Only unit_price/quantity/extra are entered directly.
 exports.addStock = async (req, res) => {
-  const { name, unit_price, quantity, category, size, extra } = req.body;
+  const { product_id, unit_price, quantity, extra } = req.body;
   try {
+    if (!product_id) {
+      return res.status(400).json({ error: 'product_id is required' });
+    }
+
+    const productResult = await pool.query(
+      `SELECT p.*, c.name AS category_name
+       FROM products p
+       LEFT JOIN product_categories c ON c.id = p.category_id
+       WHERE p.id = $1 AND p.type = 'stock'`,
+      [product_id]
+    );
+
+    if (productResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Product not found or is not a Stock-type product' });
+    }
+
+    const product = productResult.rows[0];
+
     const result = await pool.query(
-      `INSERT INTO stock (name, unit_price, quantity, category, size, extra)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name, unit_price, quantity || 0, category, size, extra]
+      `INSERT INTO stock (name, unit_price, quantity, category, size, extra, product_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [product.name, unit_price, quantity || 0, product.category_name, product.size, extra, product.id]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

@@ -14,6 +14,9 @@ router.get('/', SalesController.getAllSales);
 // Get today's sales summary
 router.get('/summary/today', SalesController.getTodaysSalesSummary);
 
+// Get sales totals for a date range (Reports)
+router.get('/summary/range', SalesController.getSalesSummary);
+
 // Get recent orders (last 10)
 router.get('/recent/list', SalesController.getRecentOrders);
 

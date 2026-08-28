@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   BookText,
@@ -14,10 +15,12 @@ import {
 } from 'lucide-react';
 
 const LEDGER_PATHS = ['/ledger', '/purchase-ledger'];
-const INVENTORY_PATHS = ['/stock', '/raw-materials', '/production', '/assets'];
+const INVENTORY_PATHS = ['/products', '/stock', '/raw-materials', '/production', '/assets'];
 
 export default function Sidebar({ collapsed = false, onToggleCollapse }) {
   const location = useLocation();
+  const { user } = useAuth();
+  const isOwner = user?.role?.toLowerCase() === 'owner';
 
   const ledgerActive = LEDGER_PATHS.includes(location.pathname);
   const inventoryActive = INVENTORY_PATHS.includes(location.pathname);
@@ -146,6 +149,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           {inventoryOpen && (
             <div className={popoverPosition}>
               <div className="flex flex-col gap-1 p-1.5 rounded-2xl" style={PANEL_STYLE}>
+                <NavLink to="/products" className={subLink} style={navStyle} onClick={() => setInventoryOpen(false)}>
+                  Products
+                </NavLink>
                 <NavLink to="/stock" className={subLink} style={navStyle} onClick={() => setInventoryOpen(false)}>
                   Stock
                 </NavLink>
@@ -169,10 +175,12 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           <Wallet size={19} strokeWidth={2} className="shrink-0" />
           {!collapsed && 'Cashbook'}
         </NavLink>
-        <NavLink to="/reports" className={link} style={navStyle} title="Reports">
-          <FileBarChart2 size={19} strokeWidth={2} className="shrink-0" />
-          {!collapsed && 'Reports'}
-        </NavLink>
+        {isOwner && (
+          <NavLink to="/reports" className={link} style={navStyle} title="Reports">
+            <FileBarChart2 size={19} strokeWidth={2} className="shrink-0" />
+            {!collapsed && 'Reports'}
+          </NavLink>
+        )}
         <NavLink to="/analytics" className={link} style={navStyle} title="Analytics">
           <LineChart size={19} strokeWidth={2} className="shrink-0" />
           {!collapsed && 'Analytics'}

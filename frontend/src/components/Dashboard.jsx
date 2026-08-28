@@ -9,6 +9,47 @@ import * as salesApi from '../api/salesApi';
 import { NavLink, Link, useOutletContext } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';
 
+// Shrinks its own font-size until the text fits on one line within its
+// container, instead of overflowing the card or wrapping mid-number.
+const FIT_MAX_PX = 30; // text-3xl
+const FIT_MIN_PX = 15; // floor before we'd rather clip than get unreadable
+
+function FitText({ children, className = '' }) {
+  const ref = useRef(null);
+  const [fontSize, setFontSize] = useState(FIT_MAX_PX);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const fit = () => {
+      let size = FIT_MAX_PX;
+      el.style.fontSize = `${size}px`;
+      while (el.scrollWidth > el.clientWidth && size > FIT_MIN_PX) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+      setFontSize(size);
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children]);
+
+  return (
+    <p
+      ref={ref}
+      className={`${className} whitespace-nowrap overflow-hidden`}
+      style={{ fontSize }}
+      title={typeof children === 'string' ? children : undefined}
+    >
+      {children}
+    </p>
+  );
+}
+
 function Dashboard() {
   const alertRefresh = useContext(AlertRefreshContext);
   const outletContext = useOutletContext();
@@ -174,7 +215,7 @@ function Dashboard() {
             {/* Card 1: Today's Sales Summary */}
             <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Today's Sales</h3>
-              <p className="text-3xl font-bold text-gray-800">{formatCurrency(salesSummary?.total_amount)}</p>
+              <FitText className="font-bold text-gray-800">{formatCurrency(salesSummary?.total_amount)}</FitText>
               <p className="text-xs text-gray-500 mt-2">Total Sales: {salesSummary?.total_sales || 0}</p>
               <p className="text-xs text-gray-500">Received: {formatCurrency(salesSummary?.total_advance || 0)}</p>
             </div>
@@ -182,7 +223,7 @@ function Dashboard() {
             {/* Card 2: Recent Orders */}
             <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Recent Orders</h3>
-              <p className="text-3xl font-bold text-gray-800">{recentOrders.length}</p>
+              <FitText className="font-bold text-gray-800">{recentOrders.length}</FitText>
               <p className="text-xs text-gray-500 mt-2">New orders today</p>
               {recentOrders.length > 0 && (
                 <p className="text-xs text-gray-500">Latest: {recentOrders[0].customer_name}</p>
@@ -192,7 +233,7 @@ function Dashboard() {
             {/* Card 3: Low Stock Alerts */}
             <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Low Stock</h3>
-              <p className="text-3xl font-bold text-gray-800">{lowStockAlerts.length}</p>
+              <FitText className="font-bold text-gray-800">{lowStockAlerts.length}</FitText>
               <p className="text-xs text-gray-500 mt-2">Items need restock</p>
               {lowStockAlerts.length > 0 && (
                 <p className="text-xs text-yellow-600 font-semibold">{lowStockAlerts[0].name}</p>
@@ -202,12 +243,12 @@ function Dashboard() {
             {/* Card 4: Pending Payments */}
             <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Pending Payments</h3>
-              <p className="text-3xl font-bold text-gray-800">{formatCurrency(
+              <FitText className="font-bold text-gray-800">{formatCurrency(
                 pendingPayments.reduce((sum, p) => {
                   const debt = parseFloat(p.outstanding_debt) || 0;
                   return sum + (isNaN(debt) ? 0 : debt);
                 }, 0)
-              )}</p>
+              )}</FitText>
               <p className="text-xs text-gray-500 mt-2">Outstanding: {pendingPayments.length} invoices</p>
             </div>
           </div>

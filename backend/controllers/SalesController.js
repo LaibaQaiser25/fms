@@ -314,6 +314,40 @@ class SalesController {
   }
 
   /**
+   * Get sales totals for an arbitrary date range (inclusive) — used by Reports.
+   * GET /api/sales/summary/range?startDate=&endDate=
+   */
+  static async getSalesSummary(req, res) {
+    try {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const result = await pool.query(
+        `SELECT
+          COUNT(*) as total_sales,
+          COALESCE(SUM(total_amount), 0) as total_amount
+         FROM sales
+         WHERE created_at::date BETWEEN $1 AND $2`,
+        [startDate, endDate]
+      );
+
+      res.json({
+        success: true,
+        data: {
+          count: parseInt(result.rows[0].total_sales, 10),
+          total: parseFloat(result.rows[0].total_amount)
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching sales summary:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * Get recent orders (last 10)
    * GET /api/sales/recent/list
    */

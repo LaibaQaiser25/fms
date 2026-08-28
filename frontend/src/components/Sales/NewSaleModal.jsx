@@ -2,8 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import * as customersApi from '../../api/customersApi';
 import * as stockApi from '../../api/stockApi';
+import * as productsApi from '../../api/productsApi';
 import * as salesApi from '../../api/salesApi';
-import AddProductionForm from '../AddProductionForm';
 import { AlertRefreshContext } from '../Layout';
 import { capitalizeFirstLetter } from '../../utils/text';
 
@@ -16,10 +16,12 @@ function NewSaleModal({ onClose }) {
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showPhoneDropdown, setShowPhoneDropdown] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   // Sale Items
-  const [items, setItems] = useState([{ description: '', price: '', quantity: '', availableQty: undefined, stock_id: null }]);
+  const emptyItem = { description: '', price: '', quantity: '', availableQty: undefined, product_id: null, stock_id: null };
+  const [items, setItems] = useState([emptyItem]);
   const [suggestions, setSuggestions] = useState({});
   const [stockList, setStockList] = useState([]);
   const [itemsError, setItemsError] = useState('');
@@ -28,9 +30,6 @@ function NewSaleModal({ onClose }) {
   const [paymentType, setPaymentType] = useState('Cash');
   const [advancePaid, setAdvancePaid] = useState('');
   const [notes, setNotes] = useState('');
-  const [showProductionForm, setShowProductionForm] = useState(false);
-  const [productionItemToAdd, setProductionItemToAdd] = useState(null);
-  const [pendingItemIndex, setPendingItemIndex] = useState(null);
 
   // Submission
   const [loading, setLoading] = useState(false);
@@ -68,18 +67,38 @@ function NewSaleModal({ onClose }) {
     }
   };
 
+  // Phone doubles as a search field — but only while no name has been typed yet, so
+  // typing a phone number first surfaces matching customers the same way typing a name
+  // does (the backend's /customers/search already matches on name OR phone).
+  const handlePhoneSearch = async (value) => {
+    setCustomerPhone(value);
+    setSelectedCustomer(null);
+    if (!customerSearch && value.length > 0) {
+      try {
+        const response = await customersApi.searchCustomers(value, 10);
+        setCustomers(response.data.data || []);
+        setShowPhoneDropdown(true);
+      } catch (error) {
+        console.error('Error searching customers by phone:', error);
+      }
+    } else {
+      setShowPhoneDropdown(false);
+    }
+  };
+
   const selectCustomer = async (customer) => {
     try {
       // Fetch full customer details to ensure phone and address are populated
       const response = await customersApi.getCustomer(customer.id);
       const fullCustomer = response.data?.data || response.data || customer;
-      
+
       setSelectedCustomer(fullCustomer);
       setCustomerName(fullCustomer.name);
       setCustomerPhone(fullCustomer.phone || '');
       setCustomerAddress(fullCustomer.address || '');
       setCustomerSearch(fullCustomer.name);
       setShowCustomerDropdown(false);
+      setShowPhoneDropdown(false);
     } catch (error) {
       console.error('Error fetching customer details:', error);
       // Fallback to search result
@@ -89,76 +108,45 @@ function NewSaleModal({ onClose }) {
       setCustomerAddress(customer.address || '');
       setCustomerSearch(customer.name);
       setShowCustomerDropdown(false);
+      setShowPhoneDropdown(false);
     }
   };
 
-  const createNewCustomer = async () => {
-    if (!customerName.trim()) return;
-    try {
-      const response = await customersApi.createCustomer({
-        name: customerName,
-        phone: customerPhone,
-        address: customerAddress
-      });
-      setSelectedCustomer(response.data.data);
-      setShowCustomerDropdown(false);
-    } catch (error) {
-      console.error('Error creating customer:', error);
-    }
-  };
-
-  // Item handling
+  // Item handling — suggestions come from the products catalog (Stock-type only) so
+  // any defined product is selectable, whether or not it has stock on hand yet.
   const handleDescriptionChange = async (index, value) => {
     const newItems = [...items];
     newItems[index].description = capitalizeFirstLetter(value);
     setItems(newItems);
 
-    // Search suggestions - show all items including zero-stock
     if (value.length > 0) {
       try {
-        const response = await stockApi.searchStock(value);
+        const response = await productsApi.searchProducts(value, 'stock');
         setSuggestions({
           ...suggestions,
           [index]: response.data || []
         });
       } catch (error) {
-        console.error('Error searching stock:', error);
+        console.error('Error searching products:', error);
       }
     } else {
       setSuggestions({ ...suggestions, [index]: [] });
     }
   };
 
-  const selectSuggestion = (index, stock) => {
-    // If item is out of stock, ask to add to production
-    if (stock.quantity <= 0) {
-      const confirmAdd = window.confirm(
-        `❌ "${stock.name}" is not in stock.\n\nWould you like to add it to the production queue?\n\nClick OK to proceed to production form.`
-      );
-      
-      if (confirmAdd) {
-        // Set the item details and open production form
-        setPendingItemIndex(index);
-        setProductionItemToAdd({
-          product_name: stock.name,
-          description: stock.name,
-          stock_id: stock.id,
-          quantity: 1,
-          unit_price: stock.unit_price
-        });
-        setShowProductionForm(true);
-      }
-      return;
-    }
+  const selectSuggestion = (index, product) => {
+    // Availability is looked up client-side against the already-fetched stock list —
+    // a product with no matching row just means stock_id/availableQty stay unset.
+    const matchedStock = stockList.find((s) => s.product_id === product.id);
 
-    // Item is in stock - allow selection
     const newItems = [...items];
     newItems[index] = {
-      description: stock.name,
-      price: stock.unit_price || '',
+      description: product.name,
+      price: matchedStock ? matchedStock.unit_price : '',
       quantity: 1,
-      availableQty: stock.quantity,
-      stock_id: stock.id
+      availableQty: matchedStock ? matchedStock.quantity : 0,
+      product_id: product.id,
+      stock_id: matchedStock ? matchedStock.id : null
     };
     setItems(newItems);
     setSuggestions({ ...suggestions, [index]: [] });
@@ -170,50 +158,24 @@ function NewSaleModal({ onClose }) {
     setItems(newItems);
   };
 
-  // Check if item exceeds available stock (but allow production items)
+  // Check if item exceeds available stock
   const isItemOverStock = (item) => {
-    if (item.from_production) return false; // Production items don't count as over-stock
     return item.stock_id && item.availableQty !== undefined && Number(item.quantity) > Number(item.availableQty);
   };
 
   const addItem = () => {
-    // Only allow adding a new item if at least one item has been selected from stock
-    const hasSelectedItem = items.some(i => i.stock_id);
+    // Only allow adding a new row once the current last one has a catalog product
+    // picked — stock availability no longer gates this.
+    const hasSelectedItem = items.some(i => i.product_id);
     if (!hasSelectedItem) {
-      return alert('⚠️ Please select at least one item from stock before adding another item');
+      return alert('⚠️ Please select at least one item from the suggestions before adding another item');
     }
-    setItems([...items, { description: '', price: '', quantity: '', availableQty: undefined, stock_id: null }]);
+    setItems([...items, emptyItem]);
   };
 
   const removeItem = (index) => {
     const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems.length > 0 ? newItems : [{ description: '', price: '', quantity: '', availableQty: undefined, stock_id: null }]);
-  };
-
-  const handleAddToProduction = (item, index) => {
-    setProductionItemToAdd({ ...item, index });
-    setShowProductionForm(true);
-  };
-
-  const handleProductionSubmit = async (productionData) => {
-    // After production is added, populate the item in the sale form
-    if (pendingItemIndex !== null && productionItemToAdd) {
-      const newItems = [...items];
-      newItems[pendingItemIndex] = {
-        description: productionItemToAdd.product_name,
-        price: productionItemToAdd.unit_price || '',
-        quantity: productionData.required_quantity || 1,
-        availableQty: 0, // Out of stock, but will be produced
-        stock_id: productionItemToAdd.stock_id,
-        from_production: true, // Mark this as coming from production queue
-        production_queue_id: productionData.id
-      };
-      setItems(newItems);
-      setPendingItemIndex(null);
-    }
-    
-    setShowProductionForm(false);
-    setProductionItemToAdd(null);
+    setItems(newItems.length > 0 ? newItems : [emptyItem]);
   };
 
   // Calculate totals
@@ -227,47 +189,47 @@ function NewSaleModal({ onClose }) {
   const balance = total - advance;
 
   const handleSubmit = async () => {
-    // Validate customer is selected
-    if (!selectedCustomer) {
-      return alert('⚠️ Please select or create a customer');
+    // Validate customer info is present (either an existing customer was picked,
+    // or enough info was typed in to create one)
+    if (!selectedCustomer && (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim())) {
+      return alert('⚠️ Please provide customer name, phone, and address');
     }
 
-    // Validate that at least one item is selected from stock
-    const validItems = items.filter(i => i.stock_id && i.quantity && i.price);
+    // Validate that at least one item was picked from the product suggestions —
+    // stock availability is informational only and no longer gates submission.
+    const validItems = items.filter(i => i.product_id && i.quantity && i.price);
     if (validItems.length === 0) {
-      return alert('⚠️ Please select at least one item from the suggestions.\n\n• For items in stock: Click on them in the dropdown\n• For out-of-stock items: Click the "+ Production" button to add to production queue');
+      return alert('⚠️ Please select at least one item from the suggestions.');
     }
 
-    // Check that all valid items have required fields and stock_id
-    const allItemsValid = validItems.every(i => i.stock_id && i.description && i.price && i.quantity);
+    const allItemsValid = validItems.every(i => i.product_id && i.description && i.price && i.quantity);
     if (!allItemsValid) {
-      return alert('⚠️ All items must be selected from stock with quantity specified');
-    }
-
-    // Check stock availability (but allow production items)
-    const overStock = validItems.find(i => {
-      if (i.from_production) return false; // Skip validation for production items
-      return isItemOverStock(i);
-    });
-    if (overStock) {
-      return alert(`⚠️ "${overStock.description}" exceeds available stock of ${overStock.availableQty} units!\n\nPlease adjust the quantity or remove this item.`);
+      return alert('⚠️ All items must be selected from the suggestions with quantity specified');
     }
 
     setLoading(true);
     try {
+      let customer = selectedCustomer;
+      if (!customer) {
+        const customerResponse = await customersApi.createCustomer({
+          name: customerName,
+          phone: customerPhone,
+          address: customerAddress
+        });
+        customer = customerResponse.data.data;
+      }
+
       const saleData = {
-        customer_id: selectedCustomer.id,
-        customer_name: selectedCustomer.name,
-        phone: selectedCustomer.phone || '',
-        address: selectedCustomer.address || '',
+        customer_id: customer.id,
+        customer_name: customer.name,
+        phone: customer.phone || '',
+        address: customer.address || '',
         items: validItems.map(i => ({
           stock_id: i.stock_id,
           product_name: i.description,
           quantity: Number(i.quantity),
           unit_price: Number(i.price),
-          description: i.description,
-          from_production: !!i.from_production,
-          production_queue_id: i.production_queue_id || null
+          description: i.description
         })),
         total_amount: total,
         advance_paid: advance,
@@ -317,31 +279,26 @@ function NewSaleModal({ onClose }) {
                     placeholder="Search or create customer *"
                     value={customerSearch}
                     onChange={(e) => handleCustomerSearch(e.target.value)}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.target.blur();
+                      }
+                    }}
                   />
-                  {showCustomerDropdown && (customers.length > 0 || customerName.trim()) && (
+                  {showCustomerDropdown && customers.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
-                      {customers.length > 0 ? (
-                        customers.map(customer => (
-                          <div
-                            key={customer.id}
-                            onClick={() => selectCustomer(customer)}
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
-                          >
-                            <div className="font-semibold text-sm text-gray-800">{customer.name}</div>
-                            <div className="text-xs text-gray-500">{customer.phone || 'No phone'}</div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-xs text-gray-400 italic">No existing customers found</div>
-                      )}
-                      {customerName.trim() && (
-                        <button
-                          onClick={createNewCustomer}
-                          className="w-full text-left px-3 py-2 bg-blue-50 text-blue-600 font-semibold text-sm border-t border-gray-100 hover:bg-blue-100"
+                      {customers.map(customer => (
+                        <div
+                          key={customer.id}
+                          onClick={() => selectCustomer(customer)}
+                          className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
                         >
-                          + Create New: {customerName}
-                        </button>
-                      )}
+                          <div className="font-semibold text-sm text-gray-800">{customer.name}</div>
+                          <div className="text-xs text-gray-500">{customer.phone || 'No phone'}</div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -356,8 +313,27 @@ function NewSaleModal({ onClose }) {
 
                 {/* Customer Manual Input */}
                 <div className="grid grid-cols-2 gap-2">
-                  <input className={`${inp}`} placeholder="Phone"
-                    value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+                  <div className="relative">
+                    <input className={`${inp}`} placeholder="Phone"
+                      value={customerPhone}
+                      onChange={e => handlePhoneSearch(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowPhoneDropdown(false), 150)}
+                    />
+                    {showPhoneDropdown && customers.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
+                        {customers.map(customer => (
+                          <div
+                            key={customer.id}
+                            onClick={() => selectCustomer(customer)}
+                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                          >
+                            <div className="font-semibold text-sm text-gray-800">{customer.phone}</div>
+                            <div className="text-xs text-gray-500">{customer.name}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <input className={`${inp}`} placeholder="Address"
                     value={customerAddress} onChange={e => setCustomerAddress(capitalizeFirstLetter(e.target.value))} />
                 </div>
@@ -377,42 +353,17 @@ function NewSaleModal({ onClose }) {
                           value={item.description}
                           onChange={e => handleDescriptionChange(i, e.target.value)}
                         />
-                        {/* Suggestions dropdown */}
+                        {/* Suggestions dropdown — names only; availability shows
+                            after selection, not while browsing */}
                         {suggestions[i]?.length > 0 && (
                           <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-b shadow-lg z-10 max-h-40 overflow-y-auto">
-                            {suggestions[i].map(stock => (
+                            {suggestions[i].map(product => (
                               <div
-                                key={stock.id}
-                                className={`px-3 py-2 border-b border-gray-100 last:border-0 ${
-                                  stock.quantity <= 0 
-                                    ? 'bg-red-50' 
-                                    : 'hover:bg-gray-50 cursor-pointer'
-                                }`}
-                                onClick={stock.quantity > 0 ? () => selectSuggestion(i, stock) : undefined}
+                                key={product.id}
+                                className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
+                                onClick={() => selectSuggestion(i, product)}
                               >
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex-1">
-                                    <div className="font-medium text-sm text-gray-800">{stock.name}</div>
-                                    <div className={`text-xs ${
-                                      stock.quantity <= 0 
-                                        ? 'text-red-600 font-semibold' 
-                                        : 'text-gray-500'
-                                    }`}>
-                                      pkr{Number(stock.unit_price).toFixed(0)} · Stock: {stock.quantity}
-                                    </div>
-                                  </div>
-                                  {stock.quantity <= 0 && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        selectSuggestion(i, stock);
-                                      }}
-                                      className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 whitespace-nowrap font-semibold"
-                                    >
-                                      + Production
-                                    </button>
-                                  )}
-                                </div>
+                                <div className="font-medium text-sm text-gray-800">{product.name}</div>
                               </div>
                             ))}
                           </div>
@@ -461,13 +412,11 @@ function NewSaleModal({ onClose }) {
                             pkr{(Number(item.price) * Number(item.quantity)).toFixed(0)}
                           </span>
                         </div>
-                        {item.stock_id && item.availableQty !== undefined && i === items.length - 1 && (
+                        {item.product_id && i === items.length - 1 && (
                           <div>
-                            {item.from_production ? (
-                              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2 mt-1">
-                                <span className="text-xs text-blue-600 font-medium">
-                                  ℹ️ Item added to production queue and will be available after completion.
-                                </span>
+                            {item.stock_id === null ? (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Not currently in stock — sale can still be recorded.
                               </div>
                             ) : isItemOverStock(item) ? (
                               <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded px-3 py-2 mt-1">
@@ -494,7 +443,7 @@ function NewSaleModal({ onClose }) {
 
                 <button
                   onClick={addItem}
-                  disabled={!items.some(i => i.stock_id)}
+                  disabled={!items.some(i => i.product_id)}
                   className="text-sm border border-gray-300 px-4 py-2 rounded hover:bg-gray-50 font-medium transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
                 >
                   + Add Item
@@ -590,15 +539,6 @@ function NewSaleModal({ onClose }) {
           </div>
         </div>
       </div>
-
-      {/* Production Form Modal */}
-      {showProductionForm && productionItemToAdd && (
-        <AddProductionForm
-          item={productionItemToAdd}
-          onClose={() => setShowProductionForm(false)}
-          onSubmit={handleProductionSubmit}
-        />
-      )}
     </div>
   );
 }

@@ -855,6 +855,40 @@ class PurchaseController {
   }
 
   /**
+   * Get purchase totals for an arbitrary date range (inclusive) — used by Reports.
+   * GET /api/purchase/summary/range?startDate=&endDate=
+   */
+  static async getPurchasesSummary(req, res) {
+    try {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const result = await pool.query(
+        `SELECT
+          COUNT(*) as total_purchases,
+          COALESCE(SUM(total_amount), 0) as total_amount
+         FROM purchases
+         WHERE created_at::date BETWEEN $1 AND $2`,
+        [startDate, endDate]
+      );
+
+      res.json({
+        success: true,
+        data: {
+          count: parseInt(result.rows[0].total_purchases, 10),
+          total: parseFloat(result.rows[0].total_amount)
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching purchases summary:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * Get recent purchases (last 10)
    * GET /api/purchase/recent/list
    */

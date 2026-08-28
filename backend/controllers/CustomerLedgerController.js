@@ -20,8 +20,8 @@ class CustomerLedgerController {
           COALESCE(SUM(CASE WHEN cl.debit > 0 THEN cl.debit ELSE 0 END), 0) as total_debit,
           COALESCE(SUM(CASE WHEN cl.credit > 0 THEN cl.credit ELSE 0 END), 0) as total_credit,
           COALESCE(SUM(CASE WHEN cl.debit > 0 THEN cl.debit ELSE 0 END) - SUM(CASE WHEN cl.credit > 0 THEN cl.credit ELSE 0 END), 0) as debt
-         FROM customers c
-         LEFT JOIN customer_ledger cl ON c.id = cl.customer_id
+         FROM customer_ledger cl
+         JOIN customers c ON c.id = cl.customer_id
          GROUP BY c.id, c.name, c.phone, c.address
          ORDER BY c.id DESC
          LIMIT $1 OFFSET $2`,
@@ -114,15 +114,22 @@ class CustomerLedgerController {
    * Get ledger summary (all customers)
    * GET /api/ledger/summary/all
    */
+  /**
+   * GET /api/ledger/summary/all?asOfDate=  — asOfDate caps the snapshot at that
+   * day (used by Reports for "debt as of X"); omitted, it's the all-time total.
+   */
   static async getLedgerSummary(req, res) {
     try {
+      const { asOfDate } = req.query;
       const result = await pool.query(
-        `SELECT 
+        `SELECT
           COUNT(DISTINCT customer_id) as total_customers,
           COALESCE(SUM(CASE WHEN debit > 0 THEN debit ELSE 0 END), 0) as total_debit,
           COALESCE(SUM(CASE WHEN credit > 0 THEN credit ELSE 0 END), 0) as total_credit,
           COALESCE(SUM(CASE WHEN debit > 0 THEN debit ELSE 0 END) - SUM(CASE WHEN credit > 0 THEN credit ELSE 0 END), 0) as total_outstanding
-         FROM customer_ledger`
+         FROM customer_ledger
+         WHERE $1::date IS NULL OR created_at::date <= $1`,
+        [asOfDate || null]
       );
 
       res.json({

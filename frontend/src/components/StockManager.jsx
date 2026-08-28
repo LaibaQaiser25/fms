@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getAllStock, createStock, updateStock, deleteStock } from '../api/stockApi';
+import * as productsApi from '../api/productsApi';
 
 export default function StockManager() {
   const [stocks, setStocks] = useState([]);
@@ -8,8 +9,13 @@ export default function StockManager() {
   const [editing, setEditing] = useState(null);
   const [showCalculator, setShowCalculator] = useState(false);
   const [form, setForm] = useState({
-    name: '', unit_price: '0', quantity: '', category: '', size: '', extra: ''
+    name: '', unit_price: '0', quantity: '', category: '', size: '', extra: '', product_id: null
   });
+
+  // Adding a new stock item requires picking an existing Stock-type product from the
+  // catalog — name/category/size come from that product, not free text.
+  const [productSearch, setProductSearch] = useState('');
+  const [productSuggestions, setProductSuggestions] = useState([]);
 
   // Price calculator state
   const [calculatorRows, setCalculatorRows] = useState([
@@ -101,7 +107,36 @@ export default function StockManager() {
     }
   };
 
+  const resetForm = () => {
+    setForm({ name: '', unit_price: '0', quantity: '', category: '', size: '', extra: '', product_id: null });
+    setProductSearch('');
+    setProductSuggestions([]);
+    setEditing(null);
+  };
+
+  const handleProductSearch = async (value) => {
+    setProductSearch(value);
+    setForm(f => ({ ...f, product_id: null, name: '', category: '', size: '' }));
+    if (value.length > 0) {
+      try {
+        const res = await productsApi.searchProducts(value, 'stock');
+        setProductSuggestions(res.data || []);
+      } catch (err) {
+        console.error('Error searching products:', err);
+      }
+    } else {
+      setProductSuggestions([]);
+    }
+  };
+
+  const selectProduct = (p) => {
+    setForm(f => ({ ...f, product_id: p.id, name: p.name, category: p.category_name || '', size: p.size || '' }));
+    setProductSearch(p.name);
+    setProductSuggestions([]);
+  };
+
   const handleSubmit = async () => {
+    if (!editing && !form.product_id) return alert('Select an existing Stock product first (add it in Products if it doesn\'t exist yet)!');
     if (!form.name || !form.unit_price) return alert('Name and price are required!');
     try {
       if (editing) {
@@ -109,8 +144,7 @@ export default function StockManager() {
       } else {
         await createStock(form);
       }
-      setForm({ name: '', unit_price: '0', quantity: '', category: '', size: '', extra: '' });
-      setEditing(null);
+      resetForm();
       setShowForm(false);
       fetchStock();
     } catch (err) {
@@ -123,7 +157,7 @@ export default function StockManager() {
     setForm({
       name: item.name, unit_price: item.unit_price,
       quantity: item.quantity, category: item.category || '',
-      size: item.size || '', extra: item.extra || ''
+      size: item.size || '', extra: item.extra || '', product_id: item.product_id || null
     });
     setShowForm(true);
   };
@@ -153,7 +187,7 @@ export default function StockManager() {
             {showCalculator ? '✕ Close Calc' : '󱐋 Calculator'}
           </button>
 
-          <button onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ name: '', unit_price: '0', quantity: '', category: '', size: '', extra: '' }); }}
+          <button onClick={() => { resetForm(); setShowForm(!showForm); }}
             className="bg-gray-900 text-white px-4 py-2 rounded font-bold text-sm">
             {showForm ? '✕ Cancel' : '+ Add Item'}
           </button>
@@ -269,16 +303,45 @@ export default function StockManager() {
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 mb-6">
           <h3 className="font-bold mb-4">{editing ? 'Edit Item' : 'Add New Stock Item'}</h3>
           <div className="grid grid-cols-2 gap-3">
-            <input className={inp} placeholder="Item Name *" value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })} />
+            {editing ? (
+              <>
+                <input className={inp} placeholder="Item Name *" value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })} />
+                <input className={inp} placeholder="Category" value={form.category}
+                  onChange={e => setForm({ ...form, category: e.target.value })} />
+                <input className={inp} placeholder="Size (e.g. 10ft, 2m)" value={form.size}
+                  onChange={e => setForm({ ...form, size: e.target.value })} />
+              </>
+            ) : (
+              <>
+                {/* Name is not free-typed here — it's picked from an existing
+                    Stock-type product in the catalog, and Category/Size are derived
+                    from that product rather than entered independently. */}
+                <div className="relative">
+                  <input className={inp} placeholder="Search product name *" value={productSearch}
+                    onChange={e => handleProductSearch(e.target.value)} />
+                  {productSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-20 max-h-40 overflow-y-auto">
+                      {productSuggestions.map(p => (
+                        <div key={p.id} onClick={() => selectProduct(p)}
+                          className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 text-sm">
+                          <div className="font-medium text-gray-800">{p.name}</div>
+                          <div className="text-xs text-gray-500">{p.category_name || '—'}{p.size ? ` · ${p.size}` : ''}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <input className={`${inp} bg-gray-100 text-gray-400`} placeholder="Category (from product)"
+                  value={form.category} readOnly />
+                <input className={`${inp} bg-gray-100 text-gray-400`} placeholder="Size (from product)"
+                  value={form.size} readOnly />
+              </>
+            )}
             <input className={inp} placeholder="Unit Price *" type="number" value={form.unit_price}
               onChange={e => setForm({ ...form, unit_price: e.target.value })} />
             <input className={inp} placeholder="Quantity" type="number" value={form.quantity}
               onChange={e => setForm({ ...form, quantity: e.target.value })} />
-            <input className={inp} placeholder="Category" value={form.category}
-              onChange={e => setForm({ ...form, category: e.target.value })} />
-            <input className={inp} placeholder="Size (e.g. 10ft, 2m)" value={form.size}
-              onChange={e => setForm({ ...form, size: e.target.value })} />
             <input className={inp} placeholder="Extra info" value={form.extra}
               onChange={e => setForm({ ...form, extra: e.target.value })} />
           </div>

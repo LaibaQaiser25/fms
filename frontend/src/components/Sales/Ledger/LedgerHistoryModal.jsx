@@ -125,7 +125,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">Debit (pkr)</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">Credit (pkr)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Running Balance (pkr)</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Debt (pkr)</th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Notes</th>
                   </tr>
                 </thead>

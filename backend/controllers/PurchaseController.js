@@ -703,6 +703,11 @@ class PurchaseController {
         );
       }
 
+      // Immediate summary of the purchase itself
+      await sendWhatsApp(
+        `📦 *New Purchase*\n\n• Seller: ${seller_name}\n• Category: ${category}\n• Items: ${items.length}\n• Total: Rs.${total_amount}\n• Advance: Rs.${advance}\n• Invoice: ${invoiceNo}`
+      );
+
       res.status(201).json({
         success: true,
         message: 'Purchase created successfully',

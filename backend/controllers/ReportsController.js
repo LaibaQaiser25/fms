@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const CashbookController = require('./CashbookController');
+const { sendWhatsApp } = require('../services/whatsappService');
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
@@ -17,24 +18,37 @@ const toDateStr = (date) => {
 // res.json() serializes a DATE column through toISOString(), which rolls it
 // back a day in any timezone ahead of UTC (same pitfall CashbookController
 // works around) — send period_start/period_end out as plain 'YYYY-MM-DD' text.
-const REPORT_COLUMNS = `id, period_type,
+const REPORT_COLUMNS = `id, period_type, report_level,
   to_char(period_start, 'YYYY-MM-DD') AS period_start,
   to_char(period_end, 'YYYY-MM-DD') AS period_end,
   label, generated_by, data, created_at, updated_at`;
+
+const REPORT_LEVELS = ['summary', 'medium', 'full'];
 
 const formatDisplay = (dateStr) => {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * Resolves a { periodType, month, year } request into concrete boundaries.
- * month/year only matter for 'monthly'/'yearly' — 'daily' is always today,
+ * Resolves a { periodType, month, year, startDate, endDate } request into
+ * concrete boundaries. month/year only matter for 'monthly'/'yearly';
+ * startDate/endDate only matter for 'custom' — 'daily' is always today,
  * 'weekly' is always the current week (Monday-start), matching what the
- * Create Report UI actually offers.
+ * Create Report UI offers alongside the custom range picker.
  */
-function resolvePeriod(periodType, month, year) {
+function resolvePeriod(periodType, month, year, startDate, endDate) {
   const today = new Date();
+
+  if (periodType === 'custom') {
+    if (!ISO_DATE.test(startDate) || !ISO_DATE.test(endDate) || startDate > endDate) return null;
+    const label = startDate === endDate
+      ? formatDisplay(startDate)
+      : `${formatDisplay(startDate)} – ${formatDisplay(endDate)}`;
+    return { periodStart: startDate, periodEnd: endDate, label };
+  }
 
   if (periodType === 'daily') {
     const d = toDateStr(today);
@@ -127,24 +141,83 @@ class ReportsController {
   }
 
   /**
+   * Builds the WhatsApp text for "today's report": the same aggregates as
+   * generateSnapshot, plus the actual unpaid-invoice / unpaid-purchase rows
+   * behind customerDebt/payable so the message is actionable, not just a
+   * total. Shared by the on-demand endpoint and the nightly cron.
+   */
+  static async buildDailyReportMessage() {
+    const period = resolvePeriod('daily');
+    const [data, debtRes, payableRes] = await Promise.all([
+      ReportsController.generateSnapshot(period.periodStart, period.periodEnd),
+      pool.query(
+        `SELECT customer_name, outstanding_debt, invoice_no
+         FROM invoices WHERE status IN ('unpaid', 'partial')
+         ORDER BY outstanding_debt DESC`
+      ),
+      pool.query(
+        `SELECT seller_name, outstanding_debt, invoice_no
+         FROM purchase_invoices WHERE status IN ('unpaid', 'partial')
+         ORDER BY outstanding_debt DESC`
+      )
+    ]);
+
+    const money = (n) => Number(n).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+    const listLines = (rows, nameKey) => {
+      const shown = rows.slice(0, 15)
+        .map(r => `• ${r[nameKey]}: Rs.${money(r.outstanding_debt)} (${r.invoice_no})`)
+        .join('\n');
+      const extra = rows.length > 15 ? `\n…+${rows.length - 15} more` : '';
+      return (shown || '• None') + extra;
+    };
+
+    return `📊 *Daily Report — ${formatDisplay(period.periodStart)}*\n\n` +
+      `💵 Sales: Rs.${money(data.sales.total)} (${data.sales.count})\n` +
+      `🛒 Purchases: Rs.${money(data.purchases.total)} (${data.purchases.count})\n` +
+      `💸 Expenses: Rs.${money(data.expenses.total)} (${data.expenses.count})\n` +
+      `🏦 Net Cash in Hand: Rs.${money(data.netCashInHand)}\n\n` +
+      `📌 *Pending Customer Debt* — Total: Rs.${money(data.customerDebt)}\n${listLines(debtRes.rows, 'customer_name')}\n\n` +
+      `📌 *Payable to Sellers* — Total: Rs.${money(data.payable)}\n${listLines(payableRes.rows, 'seller_name')}`;
+  }
+
+  /** POST /api/reports/send-whatsapp — sends today's report on demand */
+  static async sendDailyReportWhatsApp(req, res) {
+    try {
+      const message = await ReportsController.buildDailyReportMessage();
+      await sendWhatsApp(message);
+      res.json({ success: true, message: 'Daily report sent to WhatsApp' });
+    } catch (error) {
+      console.error('❌ Error sending daily report to WhatsApp:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * POST /api/reports
-   * Body: { periodType: 'daily'|'weekly'|'monthly'|'yearly', month?, year? }
+   * Body: { periodType: 'daily'|'weekly'|'monthly'|'yearly'|'custom', month?, year?, startDate?, endDate?,
+   *         reportLevel?: 'summary'|'medium'|'full' }
+   * startDate/endDate ('YYYY-MM-DD') are required for 'custom' and ignored otherwise.
+   * reportLevel is chosen once here and frozen on the row — the detail view
+   * always renders that level, it isn't a switch you can flip afterward.
    */
   static async createReport(req, res) {
     try {
-      const { periodType, month, year } = req.body;
-      const period = resolvePeriod(periodType, month, year);
+      const { periodType, month, year, startDate, endDate, reportLevel } = req.body;
+      const period = resolvePeriod(periodType, month, year, startDate, endDate);
       if (!period) {
-        return res.status(400).json({ error: 'Invalid periodType, or missing month/year for monthly/yearly reports' });
+        return res.status(400).json({
+          error: 'Invalid periodType, missing month/year for monthly/yearly reports, or invalid/missing startDate/endDate for a custom range'
+        });
       }
+      const level = REPORT_LEVELS.includes(reportLevel) ? reportLevel : 'medium';
 
       const data = await ReportsController.generateSnapshot(period.periodStart, period.periodEnd);
 
       const result = await pool.query(
-        `INSERT INTO reports (period_type, period_start, period_end, label, generated_by, data)
-         VALUES ($1, $2, $3, $4, 'manual', $5)
+        `INSERT INTO reports (period_type, period_start, period_end, label, generated_by, report_level, data)
+         VALUES ($1, $2, $3, $4, 'manual', $5, $6)
          RETURNING ${REPORT_COLUMNS}`,
-        [periodType, period.periodStart, period.periodEnd, period.label, JSON.stringify(data)]
+        [periodType, period.periodStart, period.periodEnd, period.label, level, JSON.stringify(data)]
       );
 
       res.status(201).json({ success: true, data: result.rows[0] });

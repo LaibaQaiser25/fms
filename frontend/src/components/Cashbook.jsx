@@ -182,37 +182,23 @@ function Cashbook() {
 
   // Balances are a position, not a flow, so they only follow the end date —
   // "as of" that day, or right now when no end date is set
-  const BalanceCard = ({ icon, label, sublabel, value, parties, partyNoun, background }) => {
-    // A missing figure must not render as a confident "Rs 0" — that reads as
-    // "nobody owes anything" when it actually means the API didn't send it
-    const unavailable = value === undefined || value === null;
-
-    return (
-      <div className={`rounded-lg shadow-md p-5 ${background}`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-white">{label}</p>
-            <p className="text-xs text-white/80">{sublabel}</p>
-          </div>
-          {icon}
+  const BalanceCard = ({ icon, label, sublabel, value, parties, partyNoun, background }) => (
+    <div className={`rounded-lg shadow-md p-5 ${background}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white">{label}</p>
+          <p className="text-xs text-white/80">{sublabel}</p>
         </div>
-        <p className="text-3xl font-bold mt-3 text-white">
-          {unavailable ? '—' : formatCurrency(value)}
-        </p>
-        <p className="text-xs text-white/80 mt-1">
-          {unavailable ? (
-            'Unavailable — the API returned no balance for this card'
-          ) : (
-            <>
-              across {parties ?? 0} {parties === 1 ? partyNoun : `${partyNoun}s`}
-              {' · as of '}
-              {filters.endDate ? formatDate(filters.endDate) : 'today'}
-            </>
-          )}
-        </p>
+        {icon}
       </div>
-    );
-  };
+      <p className="text-3xl font-bold mt-3 text-white">{formatCurrency(value)}</p>
+      <p className="text-xs text-white/80 mt-1">
+        across {parties ?? 0} {parties === 1 ? partyNoun : `${partyNoun}s`}
+        {' · as of '}
+        {filters.endDate ? formatDate(filters.endDate) : 'today'}
+      </p>
+    </div>
+  );
 
   const net = totals?.net ?? 0;
 
@@ -280,7 +266,7 @@ function Cashbook() {
             value={balances?.payable}
             parties={balances?.sellersOwed}
             partyNoun="seller"
-            background="bg-orange-500"
+            background="bg-orange-400"
           />
         </div>
 

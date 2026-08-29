@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { sendWhatsApp } = require('../services/whatsappService');
 
 // Get all expenses with filters
 const getExpenses = async (req, res) => {
@@ -119,6 +120,13 @@ const createExpense = async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
       [categoryId, description, amount, date, notes || null]
+    );
+
+    const categoryResult = await pool.query('SELECT name FROM expense_categories WHERE id = $1', [categoryId]);
+    const categoryName = categoryResult.rows[0]?.name || 'Uncategorized';
+
+    await sendWhatsApp(
+      `💸 *New Expense*\n\n• Category: ${categoryName}\n• Description: ${description}\n• Amount: Rs.${amount}\n• Date: ${date}`
     );
 
     res.status(201).json({ success: true, data: result.rows[0] });

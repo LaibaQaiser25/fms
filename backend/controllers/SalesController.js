@@ -161,6 +161,10 @@ class SalesController {
         );
       }
 
+      // Immediate summary of the sale itself
+      await sendWhatsApp(
+        `🧾 *New Sale*\n\n• Customer: ${customer_name}\n• Items: ${items.length}\n• Total: Rs.${total_amount}\n• Advance: Rs.${advance}\n• Invoice: ${invoiceNo}`
+      );
 
       res.status(201).json({
         success: true,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FileBarChart2, Zap } from 'lucide-react';
+import { FileBarChart2, Zap, MessageCircle } from 'lucide-react';
 import * as reportsApi from '../../api/reportsApi';
 import { Button, Pagination } from '../shared/UIComponents';
 import CreateReportModal from './CreateReportModal';
@@ -8,7 +8,8 @@ import ReportDetailModal from './ReportDetailModal';
 
 const LIMIT = 20;
 
-const PERIOD_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
+const PERIOD_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly', custom: 'Custom' };
+const LEVEL_LABELS = { summary: 'Summary', medium: 'Medium', full: 'Full Detail' };
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 })
@@ -44,6 +45,7 @@ export default function Reports() {
   const [createOpen, setCreateOpen] = useState(false);
   const [automationOpen, setAutomationOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
 
   // Feed the typed search into the query a beat later, so every keystroke
   // doesn't fire its own request (same pattern as Cashbook.jsx)
@@ -102,6 +104,19 @@ export default function Reports() {
 
   const sortIndicator = (column) => (sortBy === column ? (order === 'ASC' ? ' ▲' : ' ▼') : '');
 
+  const handleSendWhatsApp = async () => {
+    setSendingWhatsApp(true);
+    setError('');
+    try {
+      await reportsApi.sendDailyReportWhatsApp();
+    } catch (err) {
+      console.error('Error sending daily report to WhatsApp:', err);
+      setError(err.response?.data?.error || 'Failed to send report to WhatsApp');
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <div className="px-8 py-6 flex-1">
@@ -111,6 +126,11 @@ export default function Reports() {
             <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           </div>
           <div className="flex gap-3">
+            <Button variant="secondary" onClick={handleSendWhatsApp} disabled={sendingWhatsApp}>
+              <span className="inline-flex items-center gap-1.5">
+                <MessageCircle className="w-4 h-4" /> {sendingWhatsApp ? 'Sending...' : "Send Today's Report"}
+              </span>
+            </Button>
             <Button variant="secondary" onClick={() => setAutomationOpen(true)}>
               <span className="inline-flex items-center gap-1.5"><Zap className="w-4 h-4" /> Automate</span>
             </Button>
@@ -142,6 +162,7 @@ export default function Reports() {
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
               <option value="yearly">Yearly</option>
+              <option value="custom">Custom</option>
             </select>
           </div>
         </div>
@@ -163,6 +184,7 @@ export default function Reports() {
               <thead className="bg-gray-100 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('label')}>Label{sortIndicator('label')}</th>
+                  <th className="px-4 py-3 text-left font-semibold">Type</th>
                   <th className="px-4 py-3 text-left font-semibold">Period</th>
                   <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('period_start')}>Date Range{sortIndicator('period_start')}</th>
                   <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('created_at')}>Generated{sortIndicator('created_at')}</th>
@@ -182,6 +204,11 @@ export default function Reports() {
                     onClick={() => setSelectedReport(r)}
                   >
                     <td className="px-4 py-3 font-semibold text-gray-800">{r.label}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                        {LEVEL_LABELS[r.report_level] || 'Medium'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">{PERIOD_LABELS[r.period_type] || r.period_type}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{formatDate(r.period_start)} – {formatDate(r.period_end)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">

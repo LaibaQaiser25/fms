@@ -11,43 +11,15 @@ const toDateStr = (date) => {
 };
 
 const startCronJobs = () => {
-  // Every day at 9 PM
-  cron.schedule('0 21 * * *', async () => {
-    console.log('🕘 Running nightly alerts...');
+  // Every day at 8:30 PM — sends the full daily report (sales, purchases,
+  // expenses, net cash, pending customer debt, payable to sellers) instead
+  // of the old low-stock/debt-only alert format.
+  cron.schedule('30 20 * * *', async () => {
+    console.log('🕣 Sending daily report...');
 
     try {
-      // 1. Low stock summary
-      const stockResult = await pool.query(
-        `SELECT name, quantity, minimum_stock 
-         FROM stock 
-         WHERE quantity <= COALESCE(minimum_stock, 10)
-         ORDER BY quantity ASC`
-      );
-
-      if (stockResult.rows.length > 0) {
-        let msg = '⚠️ *Low Stock Alert*\n\n';
-        stockResult.rows.forEach(item => {
-          msg += `• ${item.name}: ${item.quantity} units left\n`;
-        });
-        await sendWhatsApp(msg);
-      }
-
-      // 2. Outstanding debts summary
-      const debtResult = await pool.query(
-        `SELECT customer_name, outstanding_debt, invoice_no
-         FROM invoices
-         WHERE status IN ('unpaid', 'partial')
-         ORDER BY outstanding_debt DESC`
-      );
-
-      if (debtResult.rows.length > 0) {
-        let msg = '💰 *Outstanding Payments Alert*\n\n';
-        debtResult.rows.forEach(inv => {
-          msg += `• ${inv.customer_name} — Rs.${inv.outstanding_debt} (${inv.invoice_no})\n`;
-        });
-        await sendWhatsApp(msg);
-      }
-
+      const message = await ReportsController.buildDailyReportMessage();
+      await sendWhatsApp(message);
     } catch (error) {
       console.error('❌ Cron job error:', error.message);
     }
@@ -66,8 +38,13 @@ const startCronJobs = () => {
       );
 
       for (const schedule of schedules) {
+        // >= rather than an exact-minute match: a schedule due at 00:01 that
+        // gets missed that exact tick (a slow query, a brief DB hiccup, a
+        // restart landing a few seconds late) would otherwise silently wait
+        // a full day/week/month for the next exact match. The last_run_at
+        // check below still guarantees at most one fire per day.
         const runHHMM = schedule.run_time.slice(0, 5);
-        if (runHHMM !== nowHHMM) continue;
+        if (nowHHMM < runHHMM) continue;
 
         if (schedule.frequency === 'weekly' && schedule.run_day_of_week !== now.getDay()) continue;
         if (schedule.frequency === 'monthly' && schedule.run_day_of_month !== now.getDate()) continue;
@@ -79,17 +56,30 @@ const startCronJobs = () => {
 
         const data = await ReportsController.generateSnapshot(period.periodStart, period.periodEnd);
 
-        await pool.query(
-          `INSERT INTO reports (period_type, period_start, period_end, label, generated_by, data)
-           VALUES ($1, $2, $3, $4, 'auto', $5)`,
-          [schedule.frequency, period.periodStart, period.periodEnd, period.label, JSON.stringify(data)]
-        );
+        try {
+          // reports_auto_period_uniq (migration 006) rejects a second auto
+          // report for the same exact period — the last line of defence if
+          // more than one backend process ends up alive at once (e.g. an
+          // orphaned node process from a restart) and both race this same
+          // schedule at the same minute.
+          await pool.query(
+            `INSERT INTO reports (period_type, period_start, period_end, label, generated_by, data)
+             VALUES ($1, $2, $3, $4, 'auto', $5)`,
+            [schedule.frequency, period.periodStart, period.periodEnd, period.label, JSON.stringify(data)]
+          );
+          console.log(`✅ Auto-generated ${schedule.frequency} report: ${period.label}`);
+        } catch (insertError) {
+          if (insertError.code === '23505') {
+            console.log(`ℹ️ Skipped ${schedule.frequency} report for ${period.label} — another process already generated it`);
+          } else {
+            throw insertError;
+          }
+        }
+
         await pool.query(
           `UPDATE report_schedules SET last_run_at = NOW() WHERE frequency = $1`,
           [schedule.frequency]
         );
-
-        console.log(`✅ Auto-generated ${schedule.frequency} report: ${period.label}`);
       }
     } catch (error) {
       console.error('❌ Report automation error:', error.message);

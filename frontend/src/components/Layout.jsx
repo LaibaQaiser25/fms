@@ -10,7 +10,26 @@ export const AlertRefreshContext = createContext();
 
 export default function Layout() {
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sidebarCollapsed');
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sidebarCollapsed', String(next));
+      } catch {
+        // ignore — persistence is a convenience, not a requirement
+      }
+      return next;
+    });
+  };
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);       // owed TO us (customers)
   const [payablePayments, setPayablePayments] = useState([]);       // owed BY us (sellers)
@@ -53,22 +72,26 @@ export default function Layout() {
     ...lowStockAlerts.map(stock => ({
       type: 'stock',
       message: `${stock.name} - Low Stock (${stock.quantity} units)`,
-      severity: 'warning'
+      severity: 'warning',
+      link: '/stock'
     })),
     ...pendingPayments.slice(0, 5).map(payment => ({
       type: 'payment',
       message: `${payment.customer_name} - Outstanding Debt: ${formatCurrency(payment.outstanding_debt)}`,
-      severity: 'alert'
+      severity: 'alert',
+      link: `/ledger?customerId=${payment.customer_id}`
     })),
     ...payablePayments.slice(0, 5).map(payment => ({
       type: 'payable',
       message: `Owed to ${payment.seller_name} - ${formatCurrency(payment.outstanding_debt)}`,
-      severity: 'alert'
+      severity: 'alert',
+      link: `/purchase-ledger?sellerId=${payment.seller_id}`
     })),
     ...lowStockRawMaterials.map(material => ({
       type: 'raw-material',
       message: `${material.name} - Low raw material (${material.quantity}${material.unit || ''})`,
-      severity: 'warning'
+      severity: 'warning',
+      link: '/raw-materials'
     }))
   ];
 
@@ -77,7 +100,7 @@ export default function Layout() {
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar
           collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
+          onToggleCollapse={toggleSidebarCollapsed}
         />
         <DashboardHeader
           allAlerts={allAlerts}

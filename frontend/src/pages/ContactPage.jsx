@@ -15,7 +15,7 @@ export default function ContactPage() {
     const whatsappMessage = encodeURIComponent(
       `Name: ${form.name}\nEmail: ${form.email}\nMessage: ${form.message}`
     );
-    window.open(`https://wa.me/923001234567?text=${whatsappMessage}`, '_blank');
+    window.open(`https://wa.me/923457579505?text=${whatsappMessage}`, '_blank');
     setSubmitted(true);
     setTimeout(() => {
       setForm({ name: '', email: '', message: '' });
@@ -42,8 +42,8 @@ export default function ContactPage() {
               <MapPin className="text-blue-600 mx-auto mb-4" size={40} />
               <h3 className="text-xl font-bold mb-2">Address</h3>
               <p className="text-gray-600">
-                Industrial Zone, Lahore<br />
-                Punjab, Pakistan
+                Sugar Mill Road, Near Kuthiala Sayedan<br />
+                Mandi Bahauddin, Pakistan
               </p>
             </div>
 
@@ -52,8 +52,8 @@ export default function ContactPage() {
               <Phone className="text-green-600 mx-auto mb-4" size={40} />
               <h3 className="text-xl font-bold mb-2">Phone</h3>
               <p className="text-gray-600">
-                +92 (300) 1234567<br />
-                +92 (42) 3711-0000
+                Mirza Zahid Nasir: +92 345 7579505<br />
+                Mirza Shoaib: +92 348 7236088
               </p>
             </div>
 
@@ -62,8 +62,7 @@ export default function ContactPage() {
               <Mail className="text-purple-600 mx-auto mb-4" size={40} />
               <h3 className="text-xl font-bold mb-2">Email</h3>
               <p className="text-gray-600">
-                info@binzahid.com<br />
-                sales@binzahid.com
+                nasir_mirza202@yahoo.com
               </p>
             </div>
           </div>

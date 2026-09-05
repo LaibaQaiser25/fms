@@ -3,9 +3,11 @@ import { X } from 'lucide-react';
 import * as sellersApi from '../../api/sellersApi';
 import * as stockApi from '../../api/stockApi';
 import * as rawMaterialsApi from '../../api/rawMaterialsApi';
+import * as productsApi from '../../api/productsApi';
 import * as purchaseApi from '../../api/purchaseApi';
 import { AlertRefreshContext } from '../Layout';
-import { capitalizeFirstLetter } from '../../utils/text';
+import { capitalizeFirstLetter, capitalizeWords, capitalizeAddress } from '../../utils/text';
+import { PAYMENT_METHODS, PAKISTANI_BANKS } from '../../paymentOptions';
 
 function NewPurchaseModal({ onClose }) {
   const alertRefresh = useContext(AlertRefreshContext);
@@ -19,26 +21,37 @@ function NewPurchaseModal({ onClose }) {
   const [showSellerPhoneDropdown, setShowSellerPhoneDropdown] = useState(false);
   const [selectedSeller, setSelectedSeller] = useState(null);
 
-  // Purchase classification
-  const [category, setCategory] = useState('stock-ready');
-  const [type, setType] = useState('');
+  // Purchase classification — Type is compulsory and gates everything below it.
+  // `category` keeps the values the backend already expects ('stock-ready' /
+  // 'raw-material'); the UI just labels it "Type" per how the feature was asked for.
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedUnitName, setSelectedUnitName] = useState('');
 
   // Purchase Items
-  const [items, setItems] = useState([{ description: '', price: '', quantity: '', stock_id: null, raw_material_id: null, unit: '' }]);
+  const emptyItem = { description: '', price: '', quantity: '', availableQty: undefined, product_id: null, stock_id: null, raw_material_id: null };
+  const [items, setItems] = useState([{ ...emptyItem }]);
   const [suggestions, setSuggestions] = useState({});
   const [stockList, setStockList] = useState([]);
+  const [rawMaterialsList, setRawMaterialsList] = useState([]);
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
+  const [bankName, setBankName] = useState('');
   const [advancePaid, setAdvancePaid] = useState('');
   const [notes, setNotes] = useState('');
 
   // Submission
   const [loading, setLoading] = useState(false);
 
-  // Initialize
+  // Initialize — everything fetched fresh each time the modal opens
   useEffect(() => {
     fetchStock();
+    fetchRawMaterialsList();
+    fetchCategories();
+    fetchUnits();
   }, []);
 
   const fetchStock = async () => {
@@ -50,9 +63,44 @@ function NewPurchaseModal({ onClose }) {
     }
   };
 
+  const fetchRawMaterialsList = async () => {
+    try {
+      const response = await rawMaterialsApi.getAllRawMaterialsList();
+      setRawMaterialsList(response.data || []);
+    } catch (error) {
+      console.error('Error fetching raw materials:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await productsApi.getCategories();
+      setCategories(response.data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  const fetchUnits = async () => {
+    try {
+      const response = await productsApi.getUnits();
+      setUnits(response.data || []);
+    } catch (error) {
+      console.error('Error fetching units:', error);
+    }
+  };
+
+  const handleCategoryChange = (value) => {
+    setCategory(value);
+    setSelectedCategoryId('');
+    setSelectedUnitName('');
+    setItems([{ ...emptyItem }]);
+    setSuggestions({});
+  };
+
   // Seller search and selection
   const handleSellerSearch = async (value) => {
-    const capitalizedValue = capitalizeFirstLetter(value);
+    const capitalizedValue = capitalizeWords(value);
     setSellerSearch(capitalizedValue);
     setSellerName(capitalizedValue);
     setSelectedSeller(null); // reset selected when typing again
@@ -114,59 +162,68 @@ function NewPurchaseModal({ onClose }) {
     }
   };
 
-  // Item handling
+  // Item handling — suggestions come from the products catalog, filtered by the
+  // chosen Type (and further by Category/Unit if one is picked), so any defined
+  // product is selectable whether or not it has inventory on hand yet.
   const handleDescriptionChange = async (index, value) => {
     const newItems = [...items];
     newItems[index].description = capitalizeFirstLetter(value);
+    newItems[index].product_id = null;
     newItems[index].stock_id = null;
     newItems[index].raw_material_id = null;
     setItems(newItems);
 
-    // Search suggestions — existing stock for stock-ready, raw materials otherwise
     if (value.length > 0) {
       try {
-        if (category === 'raw-material') {
-          const response = await rawMaterialsApi.searchRawMaterials(value);
-          setSuggestions({
-            ...suggestions,
-            [index]: response.data.data || []
-          });
-        } else {
-          const response = await stockApi.searchStock(value);
-          setSuggestions({
-            ...suggestions,
-            [index]: response.data || []
-          });
+        const productType = category === 'raw-material' ? 'raw_material' : 'stock';
+        const response = await productsApi.searchProducts(value, productType);
+        let results = response.data || [];
+
+        if (category === 'stock-ready' && selectedCategoryId) {
+          results = results.filter((p) => String(p.category_id) === String(selectedCategoryId));
+        } else if (category === 'raw-material' && selectedUnitName) {
+          results = results.filter((p) => p.unit === selectedUnitName);
         }
+
+        setSuggestions({ ...suggestions, [index]: results });
       } catch (error) {
-        console.error('Error searching items:', error);
+        console.error('Error searching products:', error);
       }
     } else {
       setSuggestions({ ...suggestions, [index]: [] });
     }
   };
 
-  const selectSuggestion = (index, suggestion) => {
+  const selectSuggestion = (index, product) => {
+    // Availability is looked up client-side against the already-fetched
+    // stock/raw-materials list — a product with no matching row just means
+    // stock_id/raw_material_id/availableQty stay unset (first-ever purchase of it).
     const newItems = [...items];
+
     if (category === 'raw-material') {
+      const matched = rawMaterialsList.find((r) => r.product_id === product.id);
       newItems[index] = {
-        description: suggestion.name,
-        price: suggestion.unit_price || '',
+        description: product.name,
+        price: matched ? matched.unit_price || '' : '',
         quantity: newItems[index].quantity || 1,
+        availableQty: matched ? matched.quantity : 0,
+        product_id: product.id,
         stock_id: null,
-        raw_material_id: suggestion.id,
-        unit: suggestion.unit || ''
+        raw_material_id: matched ? matched.id : null
       };
     } else {
+      const matched = stockList.find((s) => s.product_id === product.id);
       newItems[index] = {
-        description: suggestion.name,
-        price: suggestion.unit_price || '',
+        description: product.name,
+        price: matched ? matched.unit_price || '' : '',
         quantity: newItems[index].quantity || 1,
-        stock_id: suggestion.id,
-        raw_material_id: null,
-        unit: ''
+        availableQty: matched ? matched.quantity : 0,
+        product_id: product.id,
+        stock_id: matched ? matched.id : null,
+        raw_material_id: null
       };
     }
+
     setItems(newItems);
     setSuggestions({ ...suggestions, [index]: [] });
   };
@@ -178,12 +235,17 @@ function NewPurchaseModal({ onClose }) {
   };
 
   const addItem = () => {
-    setItems([...items, { description: '', price: '', quantity: '', stock_id: null, raw_material_id: null, unit: '' }]);
+    // Only allow adding a new row once the current last one has a catalog product picked
+    const hasSelectedItem = items.some((i) => i.product_id);
+    if (!hasSelectedItem) {
+      return alert('⚠️ Please select at least one item from the suggestions before adding another item');
+    }
+    setItems([...items, { ...emptyItem }]);
   };
 
   const removeItem = (index) => {
     const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems.length > 0 ? newItems : [{ description: '', price: '', quantity: '', stock_id: null, raw_material_id: null, unit: '' }]);
+    setItems(newItems.length > 0 ? newItems : [{ ...emptyItem }]);
   };
 
   // Calculate totals
@@ -196,17 +258,31 @@ function NewPurchaseModal({ onClose }) {
   const advance = Number(advancePaid) || 0;
   const balance = total - advance;
 
+  const selectedCategoryName = categories.find((c) => String(c.id) === String(selectedCategoryId))?.name || '';
+
   const handleSubmit = async () => {
+    if (!category) {
+      return alert('⚠️ Please select a Type (Stock or Raw Material)');
+    }
+
     // Validate seller info is present (either an existing seller was picked,
     // or enough info was typed in to create one)
     if (!selectedSeller && (!sellerName.trim() || !sellerPhone.trim() || !sellerAddress.trim())) {
       return alert('⚠️ Please provide seller name, phone, and address');
     }
 
-    // Validate items
-    const validItems = items.filter(i => i.description && i.quantity && i.price);
+    // Validate that at least one item was picked from the product suggestions
+    const validItems = items.filter((i) => i.product_id && i.quantity && i.price);
     if (validItems.length === 0) {
-      return alert('⚠️ Please add at least one item with a description, price, and quantity');
+      return alert('⚠️ Please select at least one item from the suggestions.');
+    }
+
+    if (category === 'raw-material' && !selectedUnitName) {
+      return alert('⚠️ Please select a Unit');
+    }
+
+    if (paymentType === 'Bank Transfer' && !bankName) {
+      return alert('⚠️ Please select a bank');
     }
 
     setLoading(true);
@@ -227,11 +303,13 @@ function NewPurchaseModal({ onClose }) {
         phone: seller.phone || '',
         address: seller.address || '',
         category,
-        type: type || null,
-        items: validItems.map(i => ({
+        type: null,
+        items: validItems.map((i) => ({
+          product_id: i.product_id,
           stock_id: i.stock_id,
           raw_material_id: i.raw_material_id,
-          unit: i.unit || null,
+          unit: category === 'raw-material' ? selectedUnitName : null,
+          category_name: category === 'stock-ready' ? (selectedCategoryName || null) : null,
           product_name: i.description,
           quantity: Number(i.quantity),
           price: Number(i.price),
@@ -240,6 +318,7 @@ function NewPurchaseModal({ onClose }) {
         total_amount: total,
         advance_paid: advance,
         payment_type: paymentType,
+        bank_name: paymentType === 'Bank Transfer' ? bankName : null,
         notes
       };
 
@@ -341,7 +420,7 @@ function NewPurchaseModal({ onClose }) {
                     )}
                   </div>
                   <input className={`${inp}`} placeholder="Address"
-                    value={sellerAddress} onChange={e => setSellerAddress(capitalizeFirstLetter(e.target.value))} />
+                    value={sellerAddress} onChange={e => setSellerAddress(capitalizeAddress(e.target.value))} />
                 </div>
               </div>
 
@@ -350,27 +429,46 @@ function NewPurchaseModal({ onClose }) {
                 <h3 className="font-bold mb-3 text-sm text-gray-600 uppercase tracking-wider">Purchase Type</h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Category *</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Type *</label>
                     <select
                       className={inp}
                       value={category}
-                      onChange={(e) => setCategory(e.target.value)}
+                      onChange={(e) => handleCategoryChange(e.target.value)}
                     >
-                      <option value="stock-ready">Stock Ready (adds to stock)</option>
+                      <option value="">-- Select Type --</option>
+                      <option value="stock-ready">Stock</option>
                       <option value="raw-material">Raw Material</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Type</label>
-                    <select
-                      className={inp}
-                      value={type}
-                      onChange={(e) => setType(e.target.value)}
-                    >
-                      <option value="">— Optional —</option>
-                      <option value="truck">Truck</option>
-                      <option value="bag">Bag</option>
-                    </select>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      {category === 'raw-material' ? 'Unit *' : 'Category'}
+                    </label>
+                    {category === 'raw-material' ? (
+                      <select
+                        className={inp}
+                        value={selectedUnitName}
+                        disabled={!category}
+                        onChange={(e) => setSelectedUnitName(e.target.value)}
+                      >
+                        <option value="">-- Select Unit --</option>
+                        {units.map((u) => (
+                          <option key={u.id} value={u.name}>{u.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        className={inp}
+                        value={selectedCategoryId}
+                        disabled={!category}
+                        onChange={(e) => setSelectedCategoryId(e.target.value)}
+                      >
+                        <option value="">-- All Categories --</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
                 {category === 'raw-material' && (
@@ -383,7 +481,10 @@ function NewPurchaseModal({ onClose }) {
               {/* Items Section */}
               <div className="mb-6">
                 <h3 className="font-bold mb-3 text-sm text-gray-600 uppercase tracking-wider">Items</h3>
-                {items.map((item, i) => (
+                {!category && (
+                  <p className="text-sm text-gray-400 italic">Select a Type above to start adding items.</p>
+                )}
+                {category && items.map((item, i) => (
                   <div key={i} className="mb-4">
                     <div className="flex gap-2 mb-1">
                       {/* Description with autocomplete */}
@@ -394,22 +495,24 @@ function NewPurchaseModal({ onClose }) {
                           value={item.description}
                           onChange={e => handleDescriptionChange(i, e.target.value)}
                         />
-                        {/* Suggestions dropdown */}
+                        {/* Suggestions dropdown — names only; availability shows after selection */}
                         {suggestions[i]?.length > 0 && (
                           <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-b shadow-lg z-10 max-h-40 overflow-y-auto">
-                            {suggestions[i].map(suggestion => (
+                            {suggestions[i].map(product => (
                               <div
-                                key={suggestion.id}
+                                key={product.id}
                                 className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
-                                onClick={() => selectSuggestion(i, suggestion)}
+                                onClick={() => selectSuggestion(i, product)}
+                                title={product.description || ''}
                               >
-                                <div className="font-medium text-sm text-gray-800">{suggestion.name}</div>
-                                <div className="text-xs text-gray-500">
-                                  {category === 'raw-material'
-                                    ? <>pkr{Number(suggestion.unit_price || 0).toFixed(0)} · Current Stock: {suggestion.quantity} {suggestion.unit || ''}</>
-                                    : <>pkr{Number(suggestion.unit_price).toFixed(0)} · Current Stock: {suggestion.quantity}</>
-                                  }
-                                </div>
+                                <div className="font-medium text-sm text-gray-800">{product.name}</div>
+                                {(product.size || product.description) && (
+                                  <div className="text-xs text-gray-500 truncate">
+                                    {product.size && <span>{product.size}</span>}
+                                    {product.size && product.description && <span> · </span>}
+                                    {product.description && <span>{product.description}</span>}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -437,16 +540,6 @@ function NewPurchaseModal({ onClose }) {
                         onWheel={e => e.target.blur()}
                       />
 
-                      {/* Unit (raw material only) */}
-                      {category === 'raw-material' && (
-                        <input
-                          className="w-20 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                          placeholder="Unit"
-                          value={item.unit}
-                          onChange={e => updateItem(i, 'unit', e.target.value)}
-                        />
-                      )}
-
                       {items.length > 1 &&
                         <button
                           onClick={() => removeItem(i)}
@@ -457,7 +550,7 @@ function NewPurchaseModal({ onClose }) {
                       }
                     </div>
 
-                    {/* Amount preview + stock info */}
+                    {/* Amount preview + availability info */}
                     {item.price && item.quantity && (
                       <div className="pr-2">
                         <div className="text-right text-xs text-gray-500 mb-1">
@@ -465,9 +558,17 @@ function NewPurchaseModal({ onClose }) {
                             pkr{(Number(item.price) * Number(item.quantity)).toFixed(0)}
                           </span>
                         </div>
-                        {item.stock_id && category === 'stock-ready' && (
-                          <div className="text-xs text-green-600 mt-1">
-                            ✓ Will add {item.quantity} units to existing stock
+                        {item.product_id && (
+                          <div>
+                            {(category === 'raw-material' ? item.raw_material_id : item.stock_id) === null ? (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Not currently in inventory — this purchase will create it.
+                              </div>
+                            ) : (
+                              <div className="text-xs text-green-600 mt-1">
+                                ✓ Currently Available: <span className="font-bold">{item.availableQty} units</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -476,12 +577,15 @@ function NewPurchaseModal({ onClose }) {
                   </div>
                 ))}
 
-                <button
-                  onClick={addItem}
-                  className="text-sm border border-gray-300 px-4 py-2 rounded hover:bg-gray-50 font-medium transition"
-                >
-                  + Add Item
-                </button>
+                {category && (
+                  <button
+                    onClick={addItem}
+                    disabled={!items.some(i => i.product_id)}
+                    className="text-sm border border-gray-300 px-4 py-2 rounded hover:bg-gray-50 font-medium transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+                  >
+                    + Add Item
+                  </button>
+                )}
               </div>
             </div>
 
@@ -499,32 +603,34 @@ function NewPurchaseModal({ onClose }) {
                   </div>
                 </div>
 
-                {/* Payment Type */}
+                {/* Payment Method */}
                 <div className="mb-4">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Payment Type</p>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="Cash"
-                        checked={paymentType === 'Cash'}
-                        onChange={(e) => setPaymentType(e.target.value)}
-                        className="cursor-pointer"
-                      />
-                      <span className="text-gray-700 text-sm">Cash</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="Udhaar"
-                        checked={paymentType === 'Udhaar'}
-                        onChange={(e) => setPaymentType(e.target.value)}
-                        className="cursor-pointer"
-                      />
-                      <span className="text-gray-700 text-sm">Udhaar (Credit)</span>
-                    </label>
-                  </div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
+                  <select
+                    value={paymentType}
+                    onChange={(e) => { setPaymentType(e.target.value); setBankName(''); }}
+                    className={inp}
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
                 </div>
+                {paymentType === 'Bank Transfer' && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Bank *</label>
+                    <select
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      className={inp}
+                    >
+                      <option value="">-- Select Bank --</option>
+                      {PAKISTANI_BANKS.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Advance Amount */}
                 <div className="mb-4">

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
+import { ArrowLeft, Package, Pencil, Trash2 } from 'lucide-react';
 import { getAllStock, createStock, updateStock, deleteStock } from '../api/stockApi';
 import * as productsApi from '../api/productsApi';
+import { ACCENT_GRADIENT_STYLE } from '../theme';
+
+// Cycled left-border accents for category cards — mirrors the stat-card language
+// used on the Dashboard (border-l-4 in rotating brand colors).
+const CARD_ACCENTS = ['border-violet-500', 'border-emerald-500', 'border-blue-500', 'border-amber-500', 'border-rose-500', 'border-cyan-500'];
 
 export default function StockManager() {
   const [stocks, setStocks] = useState([]);
@@ -8,6 +14,8 @@ export default function StockManager() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [showCalculator, setShowCalculator] = useState(false);
+  // Default landing view is category cards; picking one drills into its in-stock items.
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [form, setForm] = useState({
     name: '', unit_price: '0', quantity: '', category: '', size: '', extra: '', product_id: null
   });
@@ -148,7 +156,7 @@ export default function StockManager() {
       setShowForm(false);
       fetchStock();
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Error: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -170,29 +178,68 @@ export default function StockManager() {
 
   const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-gray-500";
 
+  // Group stock items by category for the card view (uncategorized items get their own bucket).
+  const categoryGroups = stocks.reduce((acc, item) => {
+    const key = item.category?.trim() || 'Uncategorized';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+  const categoryCards = Object.entries(categoryGroups)
+    .map(([name, items]) => ({
+      name,
+      items,
+      totalQty: items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0),
+      outOfStockCount: items.filter((i) => Number(i.quantity) <= 0).length
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const categoryItems = selectedCategory ? (categoryGroups[selectedCategory] || []) : [];
+
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="min-h-screen bg-gray-50">
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="bg-white shadow-sm border-b border-gray-200 px-8 py-6 flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-extrabold">Stock Manager</h2>
-          <p className="text-gray-400 text-sm">{stocks.length} items in stock</p>
+          {selectedCategory ? (
+            <>
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className="group inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-900 hover:text-white px-3 py-1.5 rounded-full mb-2 transition-colors duration-150"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 transition-transform duration-150 group-hover:-translate-x-0.5" />
+                All Categories
+              </button>
+              <h1 className="text-3xl font-bold text-gray-800">{selectedCategory}</h1>
+              <p className="text-gray-600 mt-2">{categoryItems.length} items in stock</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl font-bold text-gray-800">Stock Manager</h1>
+              <p className="text-gray-600 mt-2">{stocks.length} items across {categoryCards.length} categories</p>
+            </>
+          )}
         </div>
         {/* --- BUTTONS --- */}
         <div className="flex gap-2">
           <button onClick={() => setShowCalculator(!showCalculator)}
-            className={`${showCalculator ? 'bg-gray-900 text-white px-4' : 'bg-gray-900 text-white px-4'} px-4 py-2 rounded font-bold text-sm transition-colors`}
+            style={showCalculator ? undefined : ACCENT_GRADIENT_STYLE}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showCalculator ? 'bg-gray-600 hover:bg-gray-700' : ''}`}
           >
             {showCalculator ? '✕ Close Calc' : '󱐋 Calculator'}
           </button>
 
           <button onClick={() => { resetForm(); setShowForm(!showForm); }}
-            className="bg-gray-900 text-white px-4 py-2 rounded font-bold text-sm">
+            style={showForm ? undefined : ACCENT_GRADIENT_STYLE}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showForm ? 'bg-gray-600 hover:bg-gray-700' : ''}`}>
             {showForm ? '✕ Cancel' : '+ Add Item'}
           </button>
         </div>
       </div>
+
+      {/* Content */}
+      <div className="px-8 py-6">
 
       {/* Price Calculator Card */}
       {/* This says: IF showCalculator is true, THEN show the div below */}
@@ -346,58 +393,100 @@ export default function StockManager() {
               onChange={e => setForm({ ...form, extra: e.target.value })} />
           </div>
           <button onClick={handleSubmit}
-            className="mt-4 bg-gray-900 text-white px-5 py-2 rounded font-bold text-sm">
+            style={ACCENT_GRADIENT_STYLE}
+            className="mt-4 text-white px-5 py-2 rounded-lg font-semibold text-sm">
             {editing ? 'Update Item' : 'Save Item'}
           </button>
         </div>
       )}
 
-      {/* Table */}
+      {/* Category cards (default view) or items table (drilled into a category) */}
       {loading ? (
         <p className="text-gray-400">Loading...</p>
       ) : stocks.length === 0 ? (
         <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-lg">
           No stock items yet. Add your first item!
         </div>
+      ) : !selectedCategory ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {categoryCards.map((cat, i) => (
+            <button
+              key={cat.name}
+              onClick={() => setSelectedCategory(cat.name)}
+              className={`group text-left bg-white border-l-4 ${CARD_ACCENTS[i % CARD_ACCENTS.length]} border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200`}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                  style={ACCENT_GRADIENT_STYLE}
+                >
+                  <Package className="w-5 h-5 text-white" />
+                </div>
+                {cat.outOfStockCount > 0 && (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                    {cat.outOfStockCount} out of stock
+                  </span>
+                )}
+              </div>
+              <h3 className="font-semibold text-xl text-gray-800 mb-0.5 truncate group-hover:text-violet-700 transition-colors">{cat.name}</h3>
+              <p className="text-gray-600 text-sm mb-3">{cat.items.length} item{cat.items.length === 1 ? '' : 's'}</p>
+              <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                <span className="text-sm font-semibold text-gray-600">Total Quantity</span>
+                <span className="text-xl font-semibold text-gray-900">{cat.totalQty}</span>
+              </div>
+            </button>
+          ))}
+        </div>
       ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-lg">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                {['Name', 'Category', 'Size', 'Unit Price', 'Qty', 'Extra', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-bold text-gray-700">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {stocks.map(item => (
-                <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{item.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{item.category || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{item.size || '—'}</td>
-                  <td className="px-4 py-3 font-bold">pkr{Number(item.unit_price).toFixed(0)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.quantity > 10 ? 'bg-green-100 text-green-700' : item.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600'}`}>
-                      {item.quantity}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{item.extra || '—'}</td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => handleEdit(item)}
-                      className="bg-gray-100 text-gray-700 px-3 py-1 rounded text-xs mr-2 font-medium">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(item.id)}
-                      className="bg-red-50 text-red-600 px-3 py-1 rounded text-xs font-medium">
-                      Delete
-                    </button>
-                  </td>
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-100 border-b border-gray-200">
+                <tr>
+                  <th className="py-3 px-6 text-left font-semibold text-gray-700">Name</th>
+                  <th className="py-3 px-6 text-left font-semibold text-gray-700">Category</th>
+                  <th className="py-3 px-6 text-left font-semibold text-gray-700">Size</th>
+                  <th className="py-3 px-6 text-right font-semibold text-gray-700">Unit Price (pkr)</th>
+                  <th className="py-3 px-6 text-right font-semibold text-gray-700">Qty</th>
+                  <th className="py-3 px-6 text-left font-semibold text-gray-700">Extra</th>
+                  <th className="py-3 px-6 text-center font-semibold text-gray-700">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {categoryItems.map(item => (
+                  <tr key={item.id} className="hover:bg-gray-50 transition">
+                    <td className="py-4 px-6 font-semibold text-gray-800">{item.name}</td>
+                    <td className="py-4 px-6 text-gray-700">{item.category || '—'}</td>
+                    <td className="py-4 px-6 text-gray-700">{item.size || '—'}</td>
+                    <td className="py-4 px-6 text-right text-gray-700 font-semibold">
+                      {Number(item.unit_price).toLocaleString()}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.quantity > 10 ? 'bg-green-100 text-green-700' : item.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                        {item.quantity}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-gray-500 text-xs">{item.extra || '—'}</td>
+                    <td className="py-4 px-6 text-center whitespace-nowrap">
+                      <button onClick={() => handleEdit(item)}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 rounded hover:bg-violet-200 transition font-semibold text-sm mr-2">
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
+                      <button onClick={() => handleDelete(item.id)}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition font-semibold text-sm">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

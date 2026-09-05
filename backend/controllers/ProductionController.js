@@ -8,17 +8,17 @@ class ProductionController {
    */
   static async addToQueue(req, res) {
     try {
-      const { product_name, stock_id, required_quantity, notes, priority = 'normal', sale_id } = req.body;
+      const { product_name, product_id, stock_id, required_quantity, notes, priority = 'normal', sale_id } = req.body;
 
       if (!product_name || !required_quantity) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
       const result = await pool.query(
-        `INSERT INTO production_queue (product_name, stock_id, required_quantity, notes, priority, sale_id, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+        `INSERT INTO production_queue (product_name, product_id, stock_id, required_quantity, notes, priority, sale_id, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
          RETURNING *`,
-        [product_name, stock_id || null, required_quantity, notes, priority, sale_id || null]
+        [product_name, product_id || null, stock_id || null, required_quantity, notes, priority, sale_id || null]
       );
 
       res.status(201).json({
@@ -142,11 +142,65 @@ class ProductionController {
       const productionItem = result.rows[0];
 
       // If production is completed, update stock and sale status
-      if (status === 'completed' && productionItem.stock_id) {
+      if (status === 'completed') {
+        let stockId = productionItem.stock_id;
+
+        if (!stockId) {
+          // No stock row was picked when this order was queued — typically a
+          // product being produced for the first time. Find an existing stock
+          // row for it, or create one now, same as a first-ever stock purchase does.
+          const existing = productionItem.product_id
+            ? await client.query('SELECT id FROM stock WHERE product_id = $1', [productionItem.product_id])
+            : await client.query('SELECT id FROM stock WHERE LOWER(name) = LOWER($1)', [productionItem.product_name]);
+
+          if (existing.rows.length > 0) {
+            stockId = existing.rows[0].id;
+          } else {
+            // Resolve catalog details from the stored product_id, falling back to a
+            // name match — older queue rows predate the product_id column.
+            const productLookup = productionItem.product_id
+              ? await client.query(
+                  `SELECT p.id, p.size, p.description, p.sale_price, p.cost_price, pc.name AS category_name
+                   FROM products p
+                   LEFT JOIN product_categories pc ON pc.id = p.category_id
+                   WHERE p.id = $1`,
+                  [productionItem.product_id]
+                )
+              : await client.query(
+                  `SELECT p.id, p.size, p.description, p.sale_price, p.cost_price, pc.name AS category_name
+                   FROM products p
+                   LEFT JOIN product_categories pc ON pc.id = p.category_id
+                   WHERE LOWER(p.name) = LOWER($1) AND p.type = 'stock'`,
+                  [productionItem.product_name]
+                );
+            const product = productLookup.rows[0] || null;
+
+            const created = await client.query(
+              `INSERT INTO stock (name, unit_price, quantity, product_id, category, size, extra)
+               VALUES ($1, $2, 0, $3, $4, $5, $6)
+               RETURNING id`,
+              [
+                productionItem.product_name,
+                product?.sale_price ?? product?.cost_price ?? 0,
+                product?.id || productionItem.product_id || null,
+                product?.category_name || null,
+                product?.size || null,
+                product?.description || null
+              ]
+            );
+            stockId = created.rows[0].id;
+          }
+
+          await client.query(
+            'UPDATE production_queue SET stock_id = $1 WHERE id = $2',
+            [stockId, id]
+          );
+        }
+
         // Add completed quantity to stock
         await client.query(
           'UPDATE stock SET quantity = quantity + $1 WHERE id = $2',
-          [productionItem.required_quantity, productionItem.stock_id]
+          [productionItem.required_quantity, stockId]
         );
 
         // Update related sale status if completed

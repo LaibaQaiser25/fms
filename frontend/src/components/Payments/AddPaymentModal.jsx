@@ -6,6 +6,7 @@ import * as invoiceApi from '../../api/invoiceApi';
 import * as productionApi from '../../api/productionApi';
 import AddProductionDirect from '../AddProductionDirect';
 import { AlertRefreshContext } from '../Layout';
+import { PAYMENT_METHODS, PAKISTANI_BANKS } from '../../paymentOptions';
 
 function AddPaymentModal({ onClose }) {
   const alertRefresh = useContext(AlertRefreshContext);
@@ -26,6 +27,7 @@ function AddPaymentModal({ onClose }) {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentType, setPaymentType] = useState('Cash');
+  const [bankName, setBankName] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Customer search and selection
@@ -57,6 +59,7 @@ function AddPaymentModal({ onClose }) {
     setPaymentAmount('');
     setPaymentNote('');
     setPaymentType('Cash');
+    setBankName('');
 
     // Fetch customer's ledger
     try {
@@ -94,6 +97,10 @@ function AddPaymentModal({ onClose }) {
       return alert(`⚠️ Payment amount exceeds outstanding debt of PKR${outstandingDebt.toFixed(0)}`);
     }
 
+    if (paymentType === 'Bank Transfer' && !bankName) {
+      return alert('⚠️ Please select a bank');
+    }
+
     setLoading(true);
     try {
       await invoiceApi.recordPayment({
@@ -101,6 +108,7 @@ function AddPaymentModal({ onClose }) {
         customer_name: selectedCustomer.name,
         payment_amount: amount,
         payment_type: paymentType,
+        bank_name: paymentType === 'Bank Transfer' ? bankName : null,
         note: paymentNote || 'Payment received'
       });
 
@@ -222,15 +230,29 @@ function AddPaymentModal({ onClose }) {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Method</label>
                   <select
                     value={paymentType}
-                    onChange={(e) => setPaymentType(e.target.value)}
+                    onChange={(e) => { setPaymentType(e.target.value); setBankName(''); }}
                     className={inp}
                   >
-                    <option value="Cash">Cash</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Other">Other</option>
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
                   </select>
                 </div>
+                {paymentType === 'Bank Transfer' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Bank *</label>
+                    <select
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      className={inp}
+                    >
+                      <option value="">-- Select Bank --</option>
+                      {PAKISTANI_BANKS.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Note</label>
                   <textarea

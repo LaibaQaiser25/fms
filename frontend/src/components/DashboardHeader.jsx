@@ -1,7 +1,8 @@
 import { Bell, AlertCircle, Search, LogOut, User } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
 
 export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, setSearchResults, setSearchSQL }) {
   const [query, setQuery] = useState('');
@@ -9,6 +10,18 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const alertsRef = useRef(null);
+
+  useEffect(() => {
+    if (!showAlertsDropdown) return;
+    const handleClickOutside = (e) => {
+      if (alertsRef.current && !alertsRef.current.contains(e.target)) {
+        setShowAlertsDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAlertsDropdown, setShowAlertsDropdown]);
 
   const handleLogout = () => {
     logout();
@@ -138,10 +151,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
             >
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                style={{
-                  background: 'linear-gradient(135deg, #581cd4, #059669)',
-                  boxShadow: '0 0 20px rgba(88,28,212,0.45), 0 0 40px rgba(5,150,105,0.25), inset 0 1px 0 rgba(255,255,255,0.15)',
-                }}
+                style={ACCENT_GRADIENT_STYLE}
               >
                 <User className="w-5 h-5 text-white" />
               </div>
@@ -155,12 +165,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                 <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
                 <div
                   className="absolute right-0 mt-3 w-56 rounded-xl overflow-hidden z-50"
-                  style={{
-                    background: 'linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    boxShadow: '0 8px 40px rgba(0,0,0,0.85), 0 1px 0 rgba(139,92,246,0.3)',
-                    backdropFilter: 'blur(12px)',
-                  }}
+                  style={PANEL_STYLE}
                 >
                   <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                     <p className="text-sm font-semibold text-white">{user?.username || 'User'}</p>
@@ -184,7 +189,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
           <div className="w-px my-2" style={{ background: 'rgba(255,255,255,0.07)' }} />
 
           {/* Alerts */}
-          <div className="relative flex">
+          <div className="relative flex" ref={alertsRef}>
             <button
               onClick={() => setShowAlertsDropdown(!showAlertsDropdown)}
               className="relative px-3 rounded-r-lg transition-all duration-200 hover:bg-white/[0.05]"
@@ -198,17 +203,9 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
             </button>
 
             {showAlertsDropdown && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowAlertsDropdown(false)} />
                 <div
                   className="absolute right-0 top-full mt-3 w-80 rounded-xl overflow-hidden z-50 max-h-96 overflow-y-auto"
-                  style={{
-                    background: 'linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    boxShadow: '0 8px 40px rgba(0,0,0,0.85), 0 1px 0 rgba(139,92,246,0.3)',
-                    backdropFilter: 'blur(12px)',
-                  }}
-                  onClick={e => e.stopPropagation()}
+                  style={PANEL_STYLE}
                 >
                   <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                     <h3 className="font-semibold text-white">Alerts</h3>
@@ -220,17 +217,20 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                       </div>
                     ) : (
                       allAlerts.map((alert, idx) => (
-                        <div key={idx} className="p-4 hover:bg-white/[0.04] transition-colors cursor-pointer">
+                        <button
+                          key={idx}
+                          onClick={() => { setShowAlertsDropdown(false); if (alert.link) navigate(alert.link); }}
+                          className="w-full text-left p-4 hover:bg-white/[0.04] transition-colors cursor-pointer"
+                        >
                           <div className="flex items-start gap-3">
                             <AlertCircle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${alert.severity === 'alert' ? 'text-red-400' : 'text-amber-400'}`} />
                             <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>{alert.message}</p>
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>
                 </div>
-              </>
             )}
           </div>
         </div>

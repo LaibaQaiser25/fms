@@ -3,10 +3,10 @@ import { Users, Award, Zap } from 'lucide-react';
 
 export default function AboutPage() {
   const team = [
-    { name: 'Muhammad Zahid', role: 'Founder & CEO', image: '👨‍💼' },
-    { name: 'Ahmed Hassan', role: 'Engineering Director', image: '👨‍🔧' },
-    { name: 'Fatima Khan', role: 'Operations Manager', image: '👩‍💼' },
-    { name: 'Ali Raza', role: 'Quality Lead', image: '👨‍🏭' },
+    { name: 'Mirza Zahid Nasir', role: 'Founder & Partner', image: '👨‍💼' },
+    { name: 'Mirza Shoaib', role: 'Partner', image: '👨‍💼' },
+    { name: 'Sagar Ali Mangat', role: 'Manager', image: '👨‍🔧' },
+    { name: 'Syed Usama Shah', role: 'Manager', image: '👨‍🔧' },
   ];
 
   return (

@@ -5,7 +5,8 @@ import * as stockApi from '../../api/stockApi';
 import * as productsApi from '../../api/productsApi';
 import * as salesApi from '../../api/salesApi';
 import { AlertRefreshContext } from '../Layout';
-import { capitalizeFirstLetter } from '../../utils/text';
+import { capitalizeFirstLetter, capitalizeWords, capitalizeAddress } from '../../utils/text';
+import { PAYMENT_METHODS, PAKISTANI_BANKS } from '../../paymentOptions';
 
 function NewSaleModal({ onClose }) {
   const alertRefresh = useContext(AlertRefreshContext);
@@ -28,6 +29,7 @@ function NewSaleModal({ onClose }) {
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
+  const [bankName, setBankName] = useState('');
   const [advancePaid, setAdvancePaid] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -50,7 +52,7 @@ function NewSaleModal({ onClose }) {
 
   // Customer search and selection
   const handleCustomerSearch = async (value) => {
-    const capitalizedValue = capitalizeFirstLetter(value);
+    const capitalizedValue = capitalizeWords(value);
     setCustomerSearch(capitalizedValue);
     setCustomerName(capitalizedValue);
     setSelectedCustomer(null); // reset selected when typing again
@@ -207,6 +209,10 @@ function NewSaleModal({ onClose }) {
       return alert('⚠️ All items must be selected from the suggestions with quantity specified');
     }
 
+    if (paymentType === 'Bank Transfer' && !bankName) {
+      return alert('⚠️ Please select a bank');
+    }
+
     setLoading(true);
     try {
       let customer = selectedCustomer;
@@ -234,6 +240,7 @@ function NewSaleModal({ onClose }) {
         total_amount: total,
         advance_paid: advance,
         payment_type: paymentType,
+        bank_name: paymentType === 'Bank Transfer' ? bankName : null,
         notes
       };
 
@@ -335,7 +342,7 @@ function NewSaleModal({ onClose }) {
                     )}
                   </div>
                   <input className={`${inp}`} placeholder="Address"
-                    value={customerAddress} onChange={e => setCustomerAddress(capitalizeFirstLetter(e.target.value))} />
+                    value={customerAddress} onChange={e => setCustomerAddress(capitalizeAddress(e.target.value))} />
                 </div>
               </div>
 
@@ -362,8 +369,16 @@ function NewSaleModal({ onClose }) {
                                 key={product.id}
                                 className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
                                 onClick={() => selectSuggestion(i, product)}
+                                title={product.description || ''}
                               >
                                 <div className="font-medium text-sm text-gray-800">{product.name}</div>
+                                {(product.size || product.description) && (
+                                  <div className="text-xs text-gray-500 truncate">
+                                    {product.size && <span>{product.size}</span>}
+                                    {product.size && product.description && <span> · </span>}
+                                    {product.description && <span>{product.description}</span>}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -465,32 +480,34 @@ function NewSaleModal({ onClose }) {
                   </div>
                 </div>
 
-                {/* Payment Type */}
+                {/* Payment Method */}
                 <div className="mb-4">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Payment Type</p>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="Cash"
-                        checked={paymentType === 'Cash'}
-                        onChange={(e) => setPaymentType(e.target.value)}
-                        className="cursor-pointer"
-                      />
-                      <span className="text-gray-700 text-sm">Cash</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="Udhaar"
-                        checked={paymentType === 'Udhaar'}
-                        onChange={(e) => setPaymentType(e.target.value)}
-                        className="cursor-pointer"
-                      />
-                      <span className="text-gray-700 text-sm">Udhaar (Credit)</span>
-                    </label>
-                  </div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
+                  <select
+                    value={paymentType}
+                    onChange={(e) => { setPaymentType(e.target.value); setBankName(''); }}
+                    className={inp}
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
                 </div>
+                {paymentType === 'Bank Transfer' && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Bank *</label>
+                    <select
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      className={inp}
+                    >
+                      <option value="">-- Select Bank --</option>
+                      {PAKISTANI_BANKS.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Advance Amount */}
                 <div className="mb-4">

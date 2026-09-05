@@ -7,12 +7,30 @@ class CustomerLedgerController {
    */
   static async getFullLedger(req, res) {
     try {
-      const { page = 1, limit = 10 } = req.query;
+      const { page = 1, limit = 10, search = '', sortBy = 'id', sortOrder = 'desc' } = req.query;
       const offset = (page - 1) * limit;
+
+      const sortColumns = {
+        name: 'c.name',
+        debit: 'total_debit',
+        credit: 'total_credit',
+        debt: 'debt',
+        id: 'c.id'
+      };
+      const sortColumn = sortColumns[sortBy] || sortColumns.id;
+      const order = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+      const params = [];
+      let searchClause = '';
+      if (search) {
+        params.push(`%${search}%`);
+        searchClause = `WHERE (c.name ILIKE $${params.length} OR c.phone ILIKE $${params.length})`;
+      }
+      params.push(limit, offset);
 
       // Get unique customers with their ledger summary
       const result = await pool.query(
-        `SELECT DISTINCT ON (c.id)
+        `SELECT
           c.id,
           c.name as customer_name,
           c.phone,
@@ -22,13 +40,21 @@ class CustomerLedgerController {
           COALESCE(SUM(CASE WHEN cl.debit > 0 THEN cl.debit ELSE 0 END) - SUM(CASE WHEN cl.credit > 0 THEN cl.credit ELSE 0 END), 0) as debt
          FROM customer_ledger cl
          JOIN customers c ON c.id = cl.customer_id
+         ${searchClause}
          GROUP BY c.id, c.name, c.phone, c.address
-         ORDER BY c.id DESC
-         LIMIT $1 OFFSET $2`,
-        [limit, offset]
+         ORDER BY ${sortColumn} ${order}
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
       );
 
-      const countResult = await pool.query('SELECT COUNT(DISTINCT customer_id) FROM customer_ledger');
+      const countParams = search ? [`%${search}%`] : [];
+      const countResult = await pool.query(
+        `SELECT COUNT(DISTINCT cl.customer_id)
+         FROM customer_ledger cl
+         JOIN customers c ON c.id = cl.customer_id
+         ${searchClause}`,
+        countParams
+      );
       const total = parseInt(countResult.rows[0].count);
 
       res.json({

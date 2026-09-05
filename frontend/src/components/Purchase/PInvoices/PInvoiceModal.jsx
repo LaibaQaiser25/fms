@@ -1,23 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, Download, List } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 import * as purchaseInvoiceApi from '../../../api/purchaseInvoiceApi';
 
 function PurchaseInvoiceModal({ invoiceId, onClose }) {
+  const [currentInvoiceId, setCurrentInvoiceId] = useState(invoiceId);
   const [invoice, setInvoice] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showInvoiceList, setShowInvoiceList] = useState(false);
   const [sellerInvoices, setSellerInvoices] = useState([]);
+  const invoiceContentRef = useRef(null);
 
   useEffect(() => {
     fetchInvoice();
-  }, [invoiceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentInvoiceId]);
 
   const fetchInvoice = async () => {
     try {
       setLoading(true);
-      const response = await purchaseInvoiceApi.getPurchaseInvoice(invoiceId);
+      const response = await purchaseInvoiceApi.getPurchaseInvoice(currentInvoiceId);
       setInvoice(response.data.data.invoice);
       setItems(response.data.data.items || []);
 
@@ -46,8 +50,17 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
   };
 
   const handleDownloadPDF = () => {
-    // This would require a PDF generation library like jsPDF
-    console.log('PDF download - implement with jsPDF library');
+    if (!invoiceContentRef.current) return;
+    html2pdf()
+      .set({
+        margin: 10,
+        filename: `${invoice?.invoice_no || 'invoice'}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      })
+      .from(invoiceContentRef.current)
+      .save();
   };
 
   if (loading) {
@@ -131,19 +144,22 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
         </div>
 
         {/* Invoice List Dropdown */}
-        {showInvoiceList && sellerInvoices.length > 1 && (
+        {showInvoiceList && (
           <div className="border-b border-gray-200 bg-gray-50 p-4">
             <h3 className="font-semibold text-gray-800 mb-3">All Invoices for {invoice.seller_name}</h3>
+            {sellerInvoices.length <= 1 ? (
+              <p className="text-sm text-gray-500">No previous invoices</p>
+            ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {sellerInvoices.map(inv => (
                 <button
                   key={inv.id}
                   onClick={() => {
-                    // Reload with new invoice
-                    window.location.reload();
+                    setCurrentInvoiceId(inv.id);
+                    setShowInvoiceList(false);
                   }}
                   className={`p-2 text-left rounded border transition ${
-                    inv.id === invoiceId
+                    inv.id === currentInvoiceId
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-300 hover:border-gray-500'
                   }`}
@@ -153,11 +169,13 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
                 </button>
               ))}
             </div>
+            )}
           </div>
         )}
 
-        {/* Invoice Content */}
-        <div className="p-8 print:p-0">
+        {/* Invoice Content — hidden while the invoice list is open, so the list is all that shows */}
+        {!showInvoiceList && (
+        <div ref={invoiceContentRef} className="p-8 print:p-0">
           {/* Company Header */}
           <div className="flex items-start justify-between mb-8 pb-8 border-b-2 border-gray-900">
             <div>
@@ -165,8 +183,8 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
             </div>
             <div className="text-right">
               <p className="font-bold text-gray-900">Bin-Zahid & Partners</p>
-              <p className="text-sm text-gray-700">123 Anywhere St., Any City, ST 12345</p>
-              <p className="text-sm text-gray-700">Tel: +123-456-7890</p>
+              <p className="text-sm text-gray-700">Sugar Mill Road, Near Kuthiala Sayedan, Mandi Bahauddin</p>
+              <p className="text-sm text-gray-700">Tel: +92 345 7579505</p>
             </div>
           </div>
 
@@ -226,10 +244,12 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
             </div>
           </div>
 
-          {/* Bank Details */}
+          {/* Payment Method */}
           <div className="mb-8 pb-8 border-b-2 border-gray-900">
-            <p className="text-sm font-semibold text-gray-900">Bank Name: <span className="text-gray-700">Olivia Wilson</span></p>
-            <p className="text-sm font-semibold text-gray-900">Bank Account: <span className="text-gray-700">0123 4567 8901</span></p>
+            <p className="text-sm font-semibold text-gray-900">Payment Method: <span className="text-gray-700">{invoice.payment_type || 'N/A'}</span></p>
+            {invoice.payment_type === 'Bank Transfer' && invoice.bank_name && (
+              <p className="text-sm font-semibold text-gray-900">Bank: <span className="text-gray-700">{invoice.bank_name}</span></p>
+            )}
           </div>
 
           {/* Account Balance */}
@@ -252,10 +272,12 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-gray-600">If you have any question please contact: hello@reallygreasite.com</p>
+          <p className="text-center text-xs text-gray-600">If you have any question please contact: nasir_mirza202@yahoo.com</p>
         </div>
+        )}
 
         {/* Action Buttons */}
+        {!showInvoiceList && (
         <div className="flex gap-2 p-6 border-t border-gray-200 bg-gray-50 print:hidden">
           <button
             onClick={onClose}
@@ -271,6 +293,7 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
             Print
           </button>
         </div>
+        )}
       </div>
     </div>
   );

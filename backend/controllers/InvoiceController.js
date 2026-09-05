@@ -185,7 +185,7 @@ class InvoiceController {
   static async recordPayment(req, res) {
     const client = await pool.connect();
     try {
-      const { customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, note } = req.body;
+      const { customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, bank_name, note } = req.body;
 
       if (!customer_id || !payment_amount) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -224,20 +224,25 @@ class InvoiceController {
 
       // 2. Record payment, linked to whichever invoice/sale it landed on
       await client.query(
-        `INSERT INTO payment_records (customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [customer_id, customer_name, linkedSaleId, linkedInvoiceId, amount, payment_type, note]
+        `INSERT INTO payment_records (customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, bank_name, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [customer_id, customer_name, linkedSaleId, linkedInvoiceId, amount, payment_type, bank_name || null, note]
       );
 
-      // 3. Create payment receipt invoice
+      // 3. Create payment receipt invoice — phone/address are looked up fresh
+      // rather than trusted from the request body, same as customer_name here
+      const customerResult = await client.query('SELECT phone, address FROM customers WHERE id = $1', [customer_id]);
+      const customerPhone = customerResult.rows[0]?.phone || null;
+      const customerAddress = customerResult.rows[0]?.address || null;
+
       const namePrefix = (customer_name || 'CUST').substring(0, 3).toUpperCase();
       const receiptInvoiceNo = InvoiceController.generateUniqueId(`INV-${namePrefix}`);
 
       const paymentReceiptResult = await client.query(
-        `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, total_amount, advance_paid, outstanding_debt, invoice_type, status)
-         VALUES ($1, $2, $3, $4, $5, 0, 0, 'payment_receipt', 'paid')
+        `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status, payment_type, bank_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0, 'payment_receipt', 'paid', $8, $9)
          RETURNING *`,
-        [receiptInvoiceNo, linkedSaleId, customer_id, customer_name, amount]
+        [receiptInvoiceNo, linkedSaleId, customer_id, customer_name, customerPhone, customerAddress, amount, payment_type, bank_name || null]
       );
 
       // 4. Update ledger — linked to the payment receipt invoice, so the

@@ -1,67 +1,67 @@
-const express = require('express');
-const router = express.Router();
-const { Pool } = require('pg');
-const Groq = require('groq-sdk');
-require('dotenv').config();
+// const express = require('express');
+// const router = express.Router();
+// const { Pool } = require('pg');
+// const Groq = require('groq-sdk');
+// require('dotenv').config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const SCHEMA_CONTEXT = `
-You are a PostgreSQL expert for a factory management system.
-Convert natural language to a SELECT query ONLY. No explanations, no markdown, just raw SQL.
+// const SCHEMA_CONTEXT = `
+// You are a PostgreSQL expert for a factory management system.
+// Convert natural language to a SELECT query ONLY. No explanations, no markdown, just raw SQL.
 
-Schema:
-- stock(id, name, unit_price, quantity, category, size, minimum_stock)
-- sales(id, sale_no, customer_id, customer_name, total_amount, advance_paid, balance, payment_type, status, created_at)
-- sale_items(id, sale_id, stock_id, product_name, quantity, unit_price, amount)
-- invoices(id, invoice_no, customer_id, customer_name, total_amount, status, advance_paid, outstanding_debt, invoice_type, created_at)
-- invoice_items(id, invoice_id, stock_id, product_name, price, quantity, amount)
-- customers(id, name, phone, email, address)
-- customer_ledger(id, customer_id, customer_name, invoice_id, debit, credit, debt, transaction_type, created_at)
-- ledger(id, customer_name, invoice_id, invoice_no, debit, credit, note, date)
-- payment_records(id, customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, created_at)
-- expenses(id, category_id, description, amount, date)
-- expense_categories(id, name)
-- employees(id, first_name, last_name, position, salary, department, status, hire_date)
-- employee_types(id, type_name)
-- assets(id, name, purchase_cost, current_value, depreciation_rate, status, location)
-- asset_categories(id, name)
-- production_queue(id, product_name, stock_id, required_quantity, priority, status, sale_id, created_at)
+// Schema:
+// - stock(id, name, unit_price, quantity, category, size, minimum_stock)
+// - sales(id, sale_no, customer_id, customer_name, total_amount, advance_paid, balance, payment_type, status, created_at)
+// - sale_items(id, sale_id, stock_id, product_name, quantity, unit_price, amount)
+// - invoices(id, invoice_no, customer_id, customer_name, total_amount, status, advance_paid, outstanding_debt, invoice_type, created_at)
+// - invoice_items(id, invoice_id, stock_id, product_name, price, quantity, amount)
+// - customers(id, name, phone, email, address)
+// - customer_ledger(id, customer_id, customer_name, invoice_id, debit, credit, debt, transaction_type, created_at)
+// - ledger(id, customer_name, invoice_id, invoice_no, debit, credit, note, date)
+// - payment_records(id, customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, created_at)
+// - expenses(id, category_id, description, amount, date)
+// - expense_categories(id, name)
+// - employees(id, first_name, last_name, position, salary, department, status, hire_date)
+// - employee_types(id, type_name)
+// - assets(id, name, purchase_cost, current_value, depreciation_rate, status, location)
+// - asset_categories(id, name)
+// - production_queue(id, product_name, stock_id, required_quantity, priority, status, sale_id, created_at)
 
-For gross profit: use sale_items.amount (revenue) - (sale_items.quantity * stock.unit_price) (cost)
-`;
+// For gross profit: use sale_items.amount (revenue) - (sale_items.quantity * stock.unit_price) (cost)
+// `;
 
-router.post('/nlp-search', async (req, res) => {
-  const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'Query required' });
+// router.post('/nlp-search', async (req, res) => {
+//   const { query } = req.body;
+//   if (!query) return res.status(400).json({ error: 'Query required' });
 
-  try {
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: SCHEMA_CONTEXT },
-        { role: 'user', content: `User query: "${query}"` }
-      ],
-      temperature: 0.1
-    });
+//   try {
+//     const completion = await groq.chat.completions.create({
+//       model: 'llama-3.3-70b-versatile',
+//       messages: [
+//         { role: 'system', content: SCHEMA_CONTEXT },
+//         { role: 'user', content: `User query: "${query}"` }
+//       ],
+//       temperature: 0.1
+//     });
 
-    let sql = completion.choices[0].message.content.trim();
-    sql = sql.replace(/```sql|```/gi, '').trim();
+//     let sql = completion.choices[0].message.content.trim();
+//     sql = sql.replace(/```sql|```/gi, '').trim();
 
-    console.log('✅ Generated SQL:', sql);
+//     console.log('✅ Generated SQL:', sql);
 
-    if (!sql.toUpperCase().startsWith('SELECT')) {
-      return res.status(400).json({ error: 'Only SELECT queries allowed' });
-    }
+//     if (!sql.toUpperCase().startsWith('SELECT')) {
+//       return res.status(400).json({ error: 'Only SELECT queries allowed' });
+//     }
 
-    const dbResult = await pool.query(sql);
-    res.json({ sql, data: dbResult.rows, rowCount: dbResult.rows.length });
+//     const dbResult = await pool.query(sql);
+//     res.json({ sql, data: dbResult.rows, rowCount: dbResult.rows.length });
 
-  } catch (err) {
-    console.error('❌ NLP Search Error:', err.message);
-    res.status(500).json({ error: 'Search failed', details: err.message });
-  }
-});
+//   } catch (err) {
+//     console.error('❌ NLP Search Error:', err.message);
+//     res.status(500).json({ error: 'Search failed', details: err.message });
+//   }
+// });
 
-module.exports = router;
+// module.exports = router;

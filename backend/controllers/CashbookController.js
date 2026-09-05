@@ -1,7 +1,8 @@
 const pool = require('../db/pool');
 
 /**
- * Cash-basis cashbook: every movement of actual money, in one normalized view.
+ * Cash-basis cashbook: every movement of actual physical cash, in one
+ * normalized view.
  *
  * IMPORTANT — sources are deliberate. `invoices` and `purchase_invoices` are
  * NOT read here and must not be added: recordPayment inserts a second
@@ -14,6 +15,12 @@ const pool = require('../db/pool');
  *   purchases.advance_paid          cash out — paid at the point of purchase
  *   purchase_payment_records        cash out — later seller payments
  *   expenses.amount                 cash out — expenses
+ *
+ * The sale/purchase branches are further restricted to payment_type = 'Cash':
+ * a Cheque can bounce and a Bank Transfer isn't money the owner is physically
+ * holding, so neither counts as cash-in-hand until/unless it's later recorded
+ * as an actual Cash entry. Expenses have no payment_type at all — they're
+ * always real money leaving hand, so every expense stays counted.
  *
  * Every branch is cast explicitly so UNION ALL type resolution can't drift, and
  * every source exposes `entry_date` as a DATE — expenses.date is a DATE while
@@ -37,7 +44,7 @@ const CASH_ENTRIES_CTE = `
       s.id                          AS source_id,
       NULL::integer                 AS category_id
     FROM sales s
-    WHERE s.advance_paid > 0
+    WHERE s.advance_paid > 0 AND LOWER(s.payment_type) = 'cash'
 
     UNION ALL
 
@@ -52,6 +59,7 @@ const CASH_ENTRIES_CTE = `
       pr.id, NULL::integer
     FROM payment_records pr
     LEFT JOIN invoices i ON i.id = pr.invoice_id
+    WHERE LOWER(pr.payment_type) = 'cash'
 
     UNION ALL
 
@@ -65,7 +73,7 @@ const CASH_ENTRIES_CTE = `
       'Advance on purchase'::text,
       p.id, NULL::integer
     FROM purchases p
-    WHERE p.advance_paid > 0
+    WHERE p.advance_paid > 0 AND LOWER(p.payment_type) = 'cash'
 
     UNION ALL
 
@@ -80,6 +88,7 @@ const CASH_ENTRIES_CTE = `
       ppr.id, NULL::integer
     FROM purchase_payment_records ppr
     LEFT JOIN purchase_invoices pi ON pi.id = ppr.invoice_id
+    WHERE LOWER(ppr.payment_type) = 'cash'
 
     UNION ALL
 

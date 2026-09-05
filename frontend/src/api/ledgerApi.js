@@ -1,7 +1,7 @@
 import http from './http';
 
-export const getAllLedger        = (page = 1, limit = 10)        =>
-  http.get(`/ledger?page=${page}&limit=${limit}`);
+export const getAllLedger        = (page = 1, limit = 10, search = '', sortBy = 'id', sortOrder = 'desc') =>
+  http.get(`/ledger?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&sortBy=${sortBy}&sortOrder=${sortOrder}`);
 export const getCustomerLedger   = (customerId)       =>
   http.get(`/ledger/customer/${customerId}`);
 export const addCredit           = (data)       =>

@@ -20,8 +20,8 @@ export const addCredit = (data) =>
 export const deleteSeller = (name) =>
   http.delete(`/purchase-ledger/seller/${name}`);
 
-export const getAllPurchaseLedger = (page = 1, limit = 10) =>
-  http.get(`/purchase-ledger?page=${page}&limit=${limit}`);
+export const getAllPurchaseLedger = (page = 1, limit = 10, search = '', sortBy = 'id', sortOrder = 'desc') =>
+  http.get(`/purchase-ledger?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&sortBy=${sortBy}&sortOrder=${sortOrder}`);
 
 export const getSellerLedgerHistory = (sellerId) =>
   http.get(`/purchase-ledger/seller/${sellerId}`);

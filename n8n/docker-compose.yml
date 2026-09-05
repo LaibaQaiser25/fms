@@ -11,6 +11,7 @@ services:
       - WHATSAPP_TO_NUMBER=${WHATSAPP_TO_NUMBER}
       - BACKEND_URL=${BACKEND_URL}
       - BACKEND_WEBHOOK_SECRET=${BACKEND_WEBHOOK_SECRET}
+      - WEBHOOK_URL=${WEBHOOK_URL}
     volumes:
       - n8n_data:/home/node/.n8n
 

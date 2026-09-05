@@ -19,7 +19,7 @@ class SalesController {
   static async createSale(req, res) {
     const client = await pool.connect();
     try {
-      const { customer_id, customer_name, phone, address, items, total_amount, advance_paid, payment_type, notes } = req.body;
+      const { customer_id, customer_name, phone, address, items, total_amount, advance_paid, payment_type, bank_name, notes } = req.body;
 
       // Validate input
       if (!customer_id || !items || items.length === 0 || !total_amount) {
@@ -69,10 +69,10 @@ class SalesController {
       }
 
       const saleResult = await client.query(
-        `INSERT INTO sales (sale_no, customer_id, customer_name, phone, address, total_amount, advance_paid, balance, payment_type, status, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO sales (sale_no, customer_id, customer_name, phone, address, total_amount, advance_paid, balance, payment_type, bank_name, status, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
-        [saleNo, customer_id, customer_name, phone, address, total_amount, advance, balance, payment_type, status, notes]
+        [saleNo, customer_id, customer_name, phone, address, total_amount, advance, balance, payment_type, bank_name || null, status, notes]
       );
 
       const saleId = saleResult.rows[0].id;
@@ -109,10 +109,10 @@ class SalesController {
       const invoiceStatus = balance <= 0 ? 'paid' : (advance > 0 ? 'partial' : 'unpaid');
 
       const invoiceResult = await client.query(
-        `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'proforma', $10)
+        `INSERT INTO invoices (invoice_no, sale_id, customer_id, customer_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status, payment_type, bank_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'proforma', $10, $11, $12)
          RETURNING *`,
-        [invoiceNo, saleId, customer_id, customer_name, phone, address, total_amount, advance, balance, invoiceStatus]
+        [invoiceNo, saleId, customer_id, customer_name, phone, address, total_amount, advance, balance, invoiceStatus, payment_type, bank_name || null]
       );
 
       const invoiceId = invoiceResult.rows[0].id;
@@ -410,8 +410,8 @@ class SalesController {
         ),
         // 4. Pending payments
         pool.query(
-          `SELECT id, invoice_no, customer_name, total_amount, advance_paid, outstanding_debt, status, created_at
-           FROM invoices 
+          `SELECT id, invoice_no, customer_id, customer_name, total_amount, advance_paid, outstanding_debt, status, created_at
+           FROM invoices
            WHERE status IN ('unpaid', 'partial')
            ORDER BY created_at DESC`
         )

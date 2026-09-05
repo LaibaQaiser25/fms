@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, History } from 'lucide-react';
+import { FileText, History, Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import * as purchaseLedgerApi from '../../../api/purchaseLedgerApi';
 import * as purchaseInvoiceApi from '../../../api/purchaseInvoiceApi';
 import PurchaseInvoiceModal from '../PInvoices/PInvoiceModal';
@@ -15,15 +16,43 @@ function PurchaseLedger() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedSellerId, setSelectedSellerId] = useState(null);
   const [showLedgerHistory, setShowLedgerHistory] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('id');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  // Debounce the search input before it drives a fetch
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
 
   useEffect(() => {
     fetchLedger();
-  }, [page]);
+  }, [page, search, sortBy, sortOrder]);
+
+  // Deep link from the header alerts dropdown, e.g. /purchase-ledger?sellerId=123
+  useEffect(() => {
+    const sellerId = searchParams.get('sellerId');
+    if (sellerId) {
+      setSelectedSellerId(Number(sellerId));
+      setShowLedgerHistory(true);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete('sellerId');
+        return next;
+      }, { replace: true });
+    }
+  }, []);
 
   const fetchLedger = async () => {
     try {
       setLoading(true);
-      const response = await purchaseLedgerApi.getAllPurchaseLedger(page, limit);
+      const response = await purchaseLedgerApi.getAllPurchaseLedger(page, limit, search, sortBy, sortOrder);
       setLedger(response.data.data || []);
       setTotal(response.data.pagination?.total || 0);
     } catch (error) {
@@ -41,6 +70,26 @@ function PurchaseLedger() {
   };
 
   const totalPages = Math.ceil(total / limit);
+
+  const sortOptions = [
+    { value: 'id-desc', label: 'Newest First' },
+    { value: 'id-asc', label: 'Oldest First' },
+    { value: 'name-asc', label: 'Seller Name (A-Z)' },
+    { value: 'name-desc', label: 'Seller Name (Z-A)' },
+    { value: 'debit-desc', label: 'Debit (High to Low)' },
+    { value: 'debit-asc', label: 'Debit (Low to High)' },
+    { value: 'credit-desc', label: 'Credit (High to Low)' },
+    { value: 'credit-asc', label: 'Credit (Low to High)' },
+    { value: 'debt-desc', label: 'Debt (High to Low)' },
+    { value: 'debt-asc', label: 'Debt (Low to High)' },
+  ];
+
+  const handleSortChange = (value) => {
+    const [field, order] = value.split('-');
+    setSortBy(field);
+    setSortOrder(order);
+    setPage(1);
+  };
 
   const handleShowRecord = (sellerId) => {
     setSelectedSellerId(sellerId);
@@ -70,6 +119,27 @@ function PurchaseLedger() {
 
       {/* Content */}
       <div className="px-8 py-6">
+        <div className="mb-4 flex flex-col sm:flex-row gap-3">
+          <div className="relative max-w-sm w-full">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by seller name or phone..."
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <select
+            value={`${sortBy}-${sortOrder}`}
+            onChange={(e) => handleSortChange(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+          >
+            {sortOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
         {loading ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -77,7 +147,9 @@ function PurchaseLedger() {
           </div>
         ) : ledger.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-            <p className="text-gray-600">No seller transactions yet</p>
+            <p className="text-gray-600">
+              {search ? `No sellers found matching "${search}"` : 'No seller transactions yet'}
+            </p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">

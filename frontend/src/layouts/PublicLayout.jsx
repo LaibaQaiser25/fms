@@ -159,12 +159,22 @@ export default function PublicLayout({ children }) {
                         </div>
                         <div>
                             <h3 className="font-bold text-lg mb-4 text-green-400">Contact</h3>
-                            <p className="text-gray-300 text-sm">Email: info@binzahid.com</p>
-                            <p className="text-gray-300 text-sm">Phone: +92-XXX-XXXXXXX</p>
+                            <p className="text-gray-300 text-sm">Sugar Mill Road, Near Kuthiala Sayedan, Mandi Bahauddin</p>
+                            <p className="text-gray-300 text-sm mt-2">Email: nasir_mirza202@yahoo.com</p>
+                            <p className="text-gray-300 text-sm">Mirza Zahid Nasir: +92 345 7579505</p>
+                            <p className="text-gray-300 text-sm">Mirza Shoaib: +92 348 7236088</p>
+                            <a
+                                href="https://wa.me/923457579505"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-green-400 text-sm hover:underline inline-block mt-1"
+                            >
+                                WhatsApp us anytime
+                            </a>
                         </div>
                         <div>
                             <h3 className="font-bold text-lg mb-4 text-green-400">Follow Us</h3>
-                            <p className="text-gray-300 text-sm">Connect with us on social media</p>
+                            <p className="text-gray-300 text-sm">Facebook: اتفاق بلڈرز کی تیار چھتیں اور دیواریں منڈی بہاؤالدین</p>
                         </div>
                     </div>
                     <div className="border-t border-gray-700 pt-8 text-center text-gray-400 text-sm">

@@ -186,7 +186,7 @@ export default function Reports() {
                   <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('label')}>Label{sortIndicator('label')}</th>
                   <th className="px-4 py-3 text-left font-semibold">Type</th>
                   <th className="px-4 py-3 text-left font-semibold">Period</th>
-                  <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('period_start')}>Date Range{sortIndicator('period_start')}</th>
+                  <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('period_start')}>Date{sortIndicator('period_start')}</th>
                   <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('created_at')}>Generated{sortIndicator('created_at')}</th>
                   <th className="px-4 py-3 text-right font-semibold">Sales</th>
                   <th className="px-4 py-3 text-right font-semibold">Purchases</th>
@@ -210,7 +210,11 @@ export default function Reports() {
                       </span>
                     </td>
                     <td className="px-4 py-3">{PERIOD_LABELS[r.period_type] || r.period_type}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{formatDate(r.period_start)} – {formatDate(r.period_end)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {r.period_start === r.period_end
+                        ? formatDate(r.period_start)
+                        : `${formatDate(r.period_start)} – ${formatDate(r.period_end)}`}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mr-1.5 ${r.generated_by === 'auto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                         {r.generated_by === 'auto' ? 'Auto' : 'Manual'}

@@ -12,6 +12,9 @@ export const getLowStockRawMaterials = () =>
 export const getAllRawMaterials = (page = 1, limit = 10) =>
   http.get(`/raw-materials?page=${page}&limit=${limit}`);
 
+// Get all raw materials, unpaginated — for client-side matching by product_id
+export const getAllRawMaterialsList = () => http.get(`/raw-materials/all`);
+
 // Get single raw material
 export const getRawMaterial = (id) => http.get(`/raw-materials/${id}`);
 

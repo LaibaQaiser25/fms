@@ -570,7 +570,7 @@ class PurchaseController {
   static async createPurchase(req, res) {
     const client = await pool.connect();
     try {
-      const { seller_id, seller_name, phone, address, category, type, items, total_amount, advance_paid, payment_type, notes } = req.body;
+      const { seller_id, seller_name, phone, address, category, type, items, total_amount, advance_paid, payment_type, bank_name, notes } = req.body;
 
       // Validate input
       if (!seller_id || !items || items.length === 0 || !total_amount || !category) {
@@ -611,10 +611,10 @@ class PurchaseController {
       const status = 'received';
 
       const purchaseResult = await client.query(
-        `INSERT INTO purchases (purchase_no, seller_id, seller_name, phone, address, category, type, total_amount, advance_paid, balance, payment_type, status, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `INSERT INTO purchases (purchase_no, seller_id, seller_name, phone, address, category, type, total_amount, advance_paid, balance, payment_type, bank_name, status, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          RETURNING *`,
-        [purchaseNo, seller_id, seller_name, phone, address, category, type || null, total_amount, advance, balance, payment_type, status, notes]
+        [purchaseNo, seller_id, seller_name, phone, address, category, type || null, total_amount, advance, balance, payment_type, bank_name || null, status, notes]
       );
 
       const purchaseId = purchaseResult.rows[0].id;
@@ -623,6 +623,7 @@ class PurchaseController {
       for (const item of items) {
         const itemAmount = item.quantity * item.price;
         let rawMaterialId = null;
+        let stockId = null;
 
         if (category === 'raw-material') {
           rawMaterialId = item.raw_material_id || null;
@@ -639,10 +640,10 @@ class PurchaseController {
               rawMaterialId = existing.rows[0].id;
             } else {
               const created = await client.query(
-                `INSERT INTO raw_materials (name, unit, quantity)
-                 VALUES ($1, $2, 0)
+                `INSERT INTO raw_materials (name, unit, quantity, product_id)
+                 VALUES ($1, $2, 0, $3)
                  RETURNING id`,
-                [item.product_name, item.unit || null]
+                [item.product_name, item.unit || null, item.product_id || null]
               );
               rawMaterialId = created.rows[0].id;
             }
@@ -654,19 +655,33 @@ class PurchaseController {
           );
         }
 
+        if (category === 'stock-ready') {
+          stockId = item.stock_id || null;
+
+          if (stockId) {
+            await client.query(
+              'UPDATE stock SET quantity = quantity + $1 WHERE id = $2',
+              [item.quantity, stockId]
+            );
+          } else {
+            // No existing stock row for this catalog product yet — this is its
+            // first-ever purchase, so create the stock row now instead of the
+            // purchase silently having no inventory effect.
+            const created = await client.query(
+              `INSERT INTO stock (name, unit_price, quantity, product_id, category)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING id`,
+              [item.product_name, item.price, item.quantity, item.product_id || null, item.category_name || null]
+            );
+            stockId = created.rows[0].id;
+          }
+        }
+
         await client.query(
           `INSERT INTO purchase_items (purchase_id, stock_id, raw_material_id, product_name, description, quantity, price, amount)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [purchaseId, item.stock_id || null, rawMaterialId, item.product_name, item.description, item.quantity, item.price, itemAmount]
+          [purchaseId, stockId, rawMaterialId, item.product_name, item.description, item.quantity, item.price, itemAmount]
         );
-
-        // Increase stock — only for stock-ready purchases with a matched stock item
-        if (category === 'stock-ready' && item.stock_id) {
-          await client.query(
-            'UPDATE stock SET quantity = quantity + $1 WHERE id = $2',
-            [item.quantity, item.stock_id]
-          );
-        }
       }
 
       // 4. Create Purchase Invoice
@@ -681,10 +696,10 @@ class PurchaseController {
       const invoiceStatus = balance <= 0 ? 'paid' : (advance > 0 ? 'partial' : 'unpaid');
 
       const invoiceResult = await client.query(
-        `INSERT INTO purchase_invoices (invoice_no, purchase_id, seller_id, seller_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'purchase_invoice', $10)
+        `INSERT INTO purchase_invoices (invoice_no, purchase_id, seller_id, seller_name, phone, address, total_amount, advance_paid, outstanding_debt, invoice_type, status, payment_type, bank_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'purchase_invoice', $10, $11, $12)
          RETURNING *`,
-        [invoiceNo, purchaseId, seller_id, seller_name, phone, address, total_amount, advance, balance, invoiceStatus]
+        [invoiceNo, purchaseId, seller_id, seller_name, phone, address, total_amount, advance, balance, invoiceStatus, payment_type, bank_name || null]
       );
 
       // 5. Create Seller Ledger Entry
@@ -944,8 +959,8 @@ class PurchaseController {
         ),
         // 3. Pending payments to sellers
         pool.query(
-          `SELECT id, invoice_no, seller_name, total_amount, advance_paid, outstanding_debt, status, created_at
-           FROM purchase_invoices 
+          `SELECT id, invoice_no, seller_id, seller_name, total_amount, advance_paid, outstanding_debt, status, created_at
+           FROM purchase_invoices
            WHERE status IN ('unpaid', 'partial')
            ORDER BY created_at DESC`
         )

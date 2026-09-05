@@ -7,17 +7,17 @@ class RawMaterialsController {
    */
   static async createRawMaterial(req, res) {
     try {
-      const { name, unit, unit_price, quantity, category, minimum_stock } = req.body;
+      const { name, unit, unit_price, quantity, category, minimum_stock, product_id } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: 'Raw material name is required' });
       }
 
       const result = await pool.query(
-        `INSERT INTO raw_materials (name, unit, unit_price, quantity, category, minimum_stock)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO raw_materials (name, unit, unit_price, quantity, category, minimum_stock, product_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [name, unit || null, unit_price || null, quantity || 0, category || null, minimum_stock || 10]
+        [name, unit || null, unit_price || null, quantity || 0, category || null, minimum_stock || 10, product_id || null]
       );
 
       res.status(201).json({
@@ -117,6 +117,21 @@ class RawMaterialsController {
 
     } catch (error) {
       console.error('❌ Error fetching raw materials:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Get all raw materials, unpaginated — for client-side matching (e.g. Purchase
+   * form availability lookups by product_id), mirroring stockApi.getAllStock().
+   * GET /api/raw-materials/all
+   */
+  static async getAllRawMaterialsList(req, res) {
+    try {
+      const result = await pool.query('SELECT * FROM raw_materials ORDER BY name ASC');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('❌ Error fetching raw materials list:', error);
       res.status(500).json({ error: error.message });
     }
   }

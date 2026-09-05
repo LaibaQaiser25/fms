@@ -8,6 +8,9 @@ router.get('/search', RawMaterialsController.searchRawMaterials);
 // Low-stock alerts (MUST come before /:id route)
 router.get('/alerts/low-stock', RawMaterialsController.getLowStockRawMaterials);
 
+// Unpaginated list, for client-side matching (MUST come before /:id route)
+router.get('/all', RawMaterialsController.getAllRawMaterialsList);
+
 // Get single raw material
 router.get('/:id', RawMaterialsController.getRawMaterial);
 

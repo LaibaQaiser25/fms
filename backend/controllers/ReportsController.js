@@ -91,7 +91,7 @@ class ReportsController {
    * reports.data. Shared by the manual-create endpoint and the automation cron.
    */
   static async generateSnapshot(periodStart, periodEnd) {
-    const [salesRes, purchasesRes, expensesRes, cashRes, debtRes, payableRes] = await Promise.all([
+    const [salesRes, purchasesRes, expensesRes, cashRes, debtRes, payableRes, todayCashRes, todayDebtRes, todayPayableRes] = await Promise.all([
       pool.query(
         `SELECT COUNT(*) as count, COALESCE(SUM(total_amount), 0) as total
          FROM sales WHERE created_at::date BETWEEN $1 AND $2`,
@@ -127,6 +127,28 @@ class ReportsController {
         `SELECT COALESCE(SUM(debit) - SUM(credit), 0) as outstanding
          FROM purchase_ledger WHERE created_at::date <= $1`,
         [periodEnd]
+      ),
+      // "Today's" (i.e. this report period's own) cash movement — same
+      // sources as the cumulative figure above, but scoped to just this
+      // period instead of everything up to periodEnd.
+      pool.query(
+        `${CashbookController.CASH_ENTRIES_CTE}
+         SELECT
+           COALESCE(SUM(amount) FILTER (WHERE entry_type = 'sale'), 0) -
+           COALESCE(SUM(amount) FILTER (WHERE entry_type = 'purchase'), 0) -
+           COALESCE(SUM(amount) FILTER (WHERE entry_type = 'expense'), 0) as net
+         FROM cash_entries WHERE entry_date BETWEEN $1 AND $2`,
+        [periodStart, periodEnd]
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(debit) - SUM(credit), 0) as outstanding
+         FROM customer_ledger WHERE created_at::date BETWEEN $1 AND $2`,
+        [periodStart, periodEnd]
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(debit) - SUM(credit), 0) as outstanding
+         FROM purchase_ledger WHERE created_at::date BETWEEN $1 AND $2`,
+        [periodStart, periodEnd]
       )
     ]);
 
@@ -134,9 +156,14 @@ class ReportsController {
       sales: { total: parseFloat(salesRes.rows[0].total), count: parseInt(salesRes.rows[0].count, 10) },
       purchases: { total: parseFloat(purchasesRes.rows[0].total), count: parseInt(purchasesRes.rows[0].count, 10) },
       expenses: { total: parseFloat(expensesRes.rows[0].total), count: parseInt(expensesRes.rows[0].count, 10) },
+      // Complete/cumulative figures — everything up to periodEnd.
       netCashInHand: parseFloat(cashRes.rows[0].net),
       customerDebt: parseFloat(debtRes.rows[0].outstanding),
-      payable: parseFloat(payableRes.rows[0].outstanding)
+      payable: parseFloat(payableRes.rows[0].outstanding),
+      // "Today's" figures — scoped to just this report's own period.
+      todayCashInHand: parseFloat(todayCashRes.rows[0].net),
+      todayCustomerDebt: parseFloat(todayDebtRes.rows[0].outstanding),
+      todayPayable: parseFloat(todayPayableRes.rows[0].outstanding)
     };
   }
 

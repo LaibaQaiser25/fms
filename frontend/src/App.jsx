@@ -65,7 +65,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import Layout from './components/Layout';
-import Dashboard from './components/Dashboard';
+import RoleDashboard from './components/RoleDashboard';
 import Analytics from './components/Analytics';
 import StockManager from './components/StockManager';
 import ProductsManager from './components/ProductsManager';
@@ -100,24 +100,30 @@ function App() {
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/contact" element={<ContactPage />} />
 
-        {/* Protected Routes - Require authentication */}
-        <Route element={<ProtectedRoute allowedRoles={['owner', 'manager']} />}>
+        {/* Protected Routes - Require authentication. Guest is dashboard-only:
+            it's allowed through this outer gate (so /dashboard works) but the
+            nested ProtectedRoute below excludes it from every other route,
+            and ProtectedRoute redirects a denied role back to /dashboard. */}
+        <Route element={<ProtectedRoute allowedRoles={['owner', 'manager', 'guest']} />}>
           <Route element={<Layout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/stock" element={<StockManager />} />
-            <Route path="/products" element={<ProductsManager />} />
-            <Route path="/ledger" element={<CustomerLedger />} />
-            <Route path="/purchase-ledger" element={<PurchaseLedger />} />
-            <Route path="/raw-materials" element={<RawMaterialsList />} />
-            <Route path="/production" element={<ProductionList />} />
-            <Route path="/expenses" element={<ExpenseList />} />
-            <Route path="/assets" element={<AssetList />} />
-            <Route path="/employees" element={<EmployeeList />} />
-            <Route path="/cashbook" element={<Cashbook />} />
-            {/* Reports is owner-only — financial snapshots (debt/payables) beyond the shared owner+manager gate above */}
-            <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
-              <Route path="/reports" element={<Reports />} />
+            <Route path="/dashboard" element={<RoleDashboard />} />
+            {/* Owner + Manager only — Guest cannot reach any of these */}
+            <Route element={<ProtectedRoute allowedRoles={['owner', 'manager']} />}>
+              <Route path="/stock" element={<StockManager />} />
+              <Route path="/products" element={<ProductsManager />} />
+              <Route path="/ledger" element={<CustomerLedger />} />
+              <Route path="/purchase-ledger" element={<PurchaseLedger />} />
+              <Route path="/raw-materials" element={<RawMaterialsList />} />
+              <Route path="/production" element={<ProductionList />} />
+              <Route path="/expenses" element={<ExpenseList />} />
+              <Route path="/assets" element={<AssetList />} />
+              <Route path="/employees" element={<EmployeeList />} />
+              {/* Owner-only — Analytics, Cashbook and Reports are off-limits to Manager and Guest */}
+              <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/cashbook" element={<Cashbook />} />
+                <Route path="/reports" element={<Reports />} />
+              </Route>
             </Route>
           </Route>
         </Route>

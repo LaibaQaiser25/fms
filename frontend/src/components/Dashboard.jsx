@@ -50,7 +50,7 @@ function FitText({ children, className = '' }) {
   );
 }
 
-function Dashboard() {
+function Dashboard({ readOnly = false }) {
   const alertRefresh = useContext(AlertRefreshContext);
   const outletContext = useOutletContext();
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
@@ -91,6 +91,7 @@ function Dashboard() {
   };
 
   const openPaymentPopover = () => {
+    if (readOnly) return;
     if (paymentPopoverTimeout.current) {
       clearTimeout(paymentPopoverTimeout.current);
       paymentPopoverTimeout.current = null;
@@ -134,33 +135,37 @@ function Dashboard() {
         <div className="grid grid-cols-4 gap-4">
           <button
             onClick={() => setShowNewSaleModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold"
+            disabled={readOnly}
+            className={`flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg transition font-semibold ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-600'}`}
           >
             <ShoppingCart className="w-5 h-5" />
             New Sale
           </button>
          <button
   onClick={() => setShowNewPurchaseModal(true)}
-  className="flex items-center justify-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
+  disabled={readOnly}
+  className={`flex items-center justify-center gap-2 px-6 py-3 bg-violet-600 active:bg-violet-800 text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-700 cursor-pointer'}`}
 >
   <Package className="w-5 h-5" />
   New Purchase
 </button>
           <button
             onClick={() => setShowAddProductionModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold"
+            disabled={readOnly}
+            className={`flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg transition font-semibold ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}`}
           >
             <Package className="w-5 h-5" />
             New Production
           </button>
           <div
             className="relative"
-            onMouseEnter={openPaymentPopover}
-            onMouseLeave={closePaymentPopoverWithDelay}
+            onMouseEnter={readOnly ? undefined : openPaymentPopover}
+            onMouseLeave={readOnly ? undefined : closePaymentPopoverWithDelay}
           >
             <button
               onClick={() => setShowPaymentPopover(prev => !prev)}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
+              disabled={readOnly}
+              className={`w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg transition font-semibold ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-600'}`}
             >
               <BarChart3 className="w-5 h-5" />
               Add Payment

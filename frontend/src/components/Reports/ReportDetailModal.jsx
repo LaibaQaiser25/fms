@@ -31,9 +31,12 @@ const FIELDS = [
   { group: 'purchases', key: 'count', label: 'Purchases Count' },
   { group: 'expenses', key: 'total', label: 'Expenses Total' },
   { group: 'expenses', key: 'count', label: 'Expenses Count' },
-  { group: null, key: 'netCashInHand', label: 'Net Cash In Hand' },
-  { group: null, key: 'customerDebt', label: 'Customer Debt' },
-  { group: null, key: 'payable', label: 'Total Payable' },
+  { group: null, key: 'todayCashInHand', label: "Today's Cash In Hand" },
+  { group: null, key: 'netCashInHand', label: 'Complete Cash In Hand' },
+  { group: null, key: 'todayCustomerDebt', label: "Today's Customer Debt" },
+  { group: null, key: 'customerDebt', label: 'Complete Customer Debt' },
+  { group: null, key: 'todayPayable', label: "Today's Payable" },
+  { group: null, key: 'payable', label: 'Complete Payable' },
 ];
 
 const StatCard = ({ label, value, tone = 'text-gray-800' }) => (
@@ -163,9 +166,12 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
           hue="orange"
           formatValue={formatCurrency}
           series={[
-            { label: 'Net Cash', value: d.netCashInHand || 0 },
-            { label: 'Customer Debt', value: d.customerDebt || 0 },
-            { label: 'Payable', value: d.payable || 0 },
+            { label: "Today's Cash", value: d.todayCashInHand || 0 },
+            { label: 'Complete Cash', value: d.netCashInHand || 0 },
+            { label: "Today's Debt", value: d.todayCustomerDebt || 0 },
+            { label: 'Complete Debt', value: d.customerDebt || 0 },
+            { label: "Today's Payable", value: d.todayPayable || 0 },
+            { label: 'Complete Payable', value: d.payable || 0 },
           ]}
         />
       )}
@@ -177,9 +183,12 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
       <StatCard label="Sales" value={formatCurrency(salesTotal)} tone="text-green-600" />
       <StatCard label="Purchases" value={formatCurrency(purchasesTotal)} tone="text-amber-600" />
       <StatCard label="Expenses" value={formatCurrency(expensesTotal)} tone="text-red-600" />
-      <StatCard label="Net Cash In Hand" value={formatCurrency(d.netCashInHand)} />
-      <StatCard label="Customer Debt" value={formatCurrency(d.customerDebt)} tone="text-red-600" />
-      <StatCard label="Total Payable" value={formatCurrency(d.payable)} tone="text-red-600" />
+      <StatCard label="Today's Cash In Hand" value={formatCurrency(d.todayCashInHand)} />
+      <StatCard label="Complete Cash In Hand" value={formatCurrency(d.netCashInHand)} />
+      <StatCard label="Today's Customer Debt" value={formatCurrency(d.todayCustomerDebt)} tone="text-red-600" />
+      <StatCard label="Complete Customer Debt" value={formatCurrency(d.customerDebt)} tone="text-red-600" />
+      <StatCard label="Today's Payable" value={formatCurrency(d.todayPayable)} tone="text-red-600" />
+      <StatCard label="Complete Payable" value={formatCurrency(d.payable)} tone="text-red-600" />
     </div>
   );
 
@@ -191,9 +200,12 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
       ['Purchases count', d.purchases?.count ?? 0],
       ['Expenses total', formatCurrency(expensesTotal)],
       ['Expenses count', d.expenses?.count ?? 0],
-      ['Net cash in hand', formatCurrency(d.netCashInHand)],
-      ['Customer debt (receivable)', formatCurrency(d.customerDebt)],
-      ['Total payable', formatCurrency(d.payable)],
+      ["Today's cash in hand", formatCurrency(d.todayCashInHand)],
+      ['Complete cash in hand', formatCurrency(d.netCashInHand)],
+      ["Today's customer debt (receivable)", formatCurrency(d.todayCustomerDebt)],
+      ['Complete customer debt (receivable)', formatCurrency(d.customerDebt)],
+      ["Today's payable", formatCurrency(d.todayPayable)],
+      ['Complete payable', formatCurrency(d.payable)],
       ['Net profit (sales − purchases − expenses)', formatCurrency(netProfit)],
       ['Profit margin', `${profitMargin.toFixed(1)}%`],
       ['Net position (debt − payable)', formatCurrency((d.customerDebt || 0) - (d.payable || 0))],
@@ -237,7 +249,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
                   <label className="text-xs font-medium text-gray-600 mb-1 block">{label}</label>
                   <input
                     type="number"
-                    value={group ? form.data[group]?.[key] : form.data[key]}
+                    value={(group ? form.data[group]?.[key] : form.data[key]) ?? 0}
                     onChange={(e) => setFieldValue(group, key, e.target.value)}
                     className="border border-gray-300 rounded px-3 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />

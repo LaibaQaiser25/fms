@@ -80,20 +80,21 @@ app.use('/api/customers', customersRoutes);
 app.use('/api/production', productionRoutes);
 app.use('/api/raw-materials', rawMaterialsRoutes);
 app.use('/api/raw-material-consumption', rawMaterialConsumptionRoutes);
-app.use('/api/cashbook', cashbookRoutes);
+// Owner-only — Manager/Guest are blocked from Cashbook per role policy (see middleware/requireOwner.js)
+app.use('/api/cashbook', requireOwner, cashbookRoutes);
 
-// Owner-only — first role-gated route in the app (see middleware/requireOwner.js)
+// Owner-only — Manager/Guest are blocked from Reports per role policy (see middleware/requireOwner.js)
 app.use('/api/reports', requireOwner, reportsRoutes);
 
 startCronJobs(); // Start the cron jobs when the server starts
 
 // NLP routes with error handling
-// if (nlpSearch) {
+if (typeof nlpSearch === 'function') {
   app.use('/api/nlp', nlpSearch);
-//   console.log('✅ NLP route mounted at /api/nlp');
-// } else {
-//   console.warn('⚠️  NLP route not available - module failed to load');
-// }
+  console.log('✅ NLP route mounted at /api/nlp');
+} else {
+  console.warn('⚠️  NLP route not available - module failed to load or is disabled');
+}
 
 app.listen(process.env.PORT || 5000, () =>
      { console.log('🚀 Server running on port ' + (process.env.PORT || 5000)); });

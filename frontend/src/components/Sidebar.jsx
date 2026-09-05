@@ -25,7 +25,9 @@ const pathIsInGroup = (pathname, groupPaths) => groupPaths.some((p) => pathname.
 export default function Sidebar({ collapsed = false, onToggleCollapse }) {
   const location = useLocation();
   const { user } = useAuth();
-  const isOwner = user?.role?.toLowerCase() === 'owner';
+  const role = user?.role?.toLowerCase();
+  const isOwner = role === 'owner';
+  const isGuest = role === 'guest';
 
   const ledgerActive = pathIsInGroup(location.pathname, LEDGER_PATHS);
   const inventoryActive = pathIsInGroup(location.pathname, INVENTORY_PATHS);
@@ -188,7 +190,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           <Tooltip label="Dashboard" />
         </div>
 
-        {/* Ledger */}
+        {/* Ledger — hidden from Guest */}
+        {!isGuest && (
         <div className="relative group" ref={ledgerRef}>
           <button
             ref={ledgerBtnRef}
@@ -233,8 +236,10 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
             </div>
           )}
         </div>
+        )}
 
-        {/* Inventory */}
+        {/* Inventory — hidden from Guest */}
+        {!isGuest && (
         <div className="relative group" ref={inventoryRef}>
           <button
             ref={inventoryBtnRef}
@@ -288,18 +293,24 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
             </div>
           )}
         </div>
+        )}
 
+        {/* Finance + Team — hidden entirely from Guest (dashboard-only role) */}
+        {!isGuest && (
+        <>
         <div className="my-2.5 border-t border-white/[0.07]" />
 
         {sectionLabel('Finance')}
 
-        <div className="relative group">
-          <NavLink to="/cashbook" className={link} style={navStyle}>
-            <Wallet size={19} strokeWidth={2} className="shrink-0" />
-            {!collapsed && 'Cashbook'}
-          </NavLink>
-          <Tooltip label="Cashbook" />
-        </div>
+        {isOwner && (
+          <div className="relative group">
+            <NavLink to="/cashbook" className={link} style={navStyle}>
+              <Wallet size={19} strokeWidth={2} className="shrink-0" />
+              {!collapsed && 'Cashbook'}
+            </NavLink>
+            <Tooltip label="Cashbook" />
+          </div>
+        )}
         {isOwner && (
           <div className="relative group">
             <NavLink to="/reports" className={link} style={navStyle}>
@@ -309,13 +320,15 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
             <Tooltip label="Reports" />
           </div>
         )}
-        <div className="relative group">
-          <NavLink to="/analytics" className={link} style={navStyle}>
-            <LineChart size={19} strokeWidth={2} className="shrink-0" />
-            {!collapsed && 'Analytics'}
-          </NavLink>
-          <Tooltip label="Analytics" />
-        </div>
+        {isOwner && (
+          <div className="relative group">
+            <NavLink to="/analytics" className={link} style={navStyle}>
+              <LineChart size={19} strokeWidth={2} className="shrink-0" />
+              {!collapsed && 'Analytics'}
+            </NavLink>
+            <Tooltip label="Analytics" />
+          </div>
+        )}
         <div className="relative group">
           <NavLink to="/expenses" className={link} style={navStyle}>
             <Receipt size={19} strokeWidth={2} className="shrink-0" />
@@ -333,6 +346,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           </NavLink>
           <Tooltip label="Employees" />
         </div>
+        </>
+        )}
       </nav>
 
       {/* Collapse toggle */}

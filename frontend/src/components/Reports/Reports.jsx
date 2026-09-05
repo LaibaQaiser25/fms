@@ -191,9 +191,12 @@ export default function Reports() {
                   <th className="px-4 py-3 text-right font-semibold">Sales</th>
                   <th className="px-4 py-3 text-right font-semibold">Purchases</th>
                   <th className="px-4 py-3 text-right font-semibold">Expenses</th>
-                  <th className="px-4 py-3 text-right font-semibold">Net Cash</th>
-                  <th className="px-4 py-3 text-right font-semibold">Debt</th>
-                  <th className="px-4 py-3 text-right font-semibold">Payable</th>
+                  <th className="px-4 py-3 text-right font-semibold">Today's Cash</th>
+                  <th className="px-4 py-3 text-right font-semibold">Complete Cash</th>
+                  <th className="px-4 py-3 text-right font-semibold">Today's Debt</th>
+                  <th className="px-4 py-3 text-right font-semibold">Complete Debt</th>
+                  <th className="px-4 py-3 text-right font-semibold">Today's Payable</th>
+                  <th className="px-4 py-3 text-right font-semibold">Complete Payable</th>
                 </tr>
               </thead>
               <tbody>
@@ -224,8 +227,11 @@ export default function Reports() {
                     <td className="px-4 py-3 text-right text-green-600 font-medium">{formatCurrency(r.data?.sales?.total)}</td>
                     <td className="px-4 py-3 text-right text-amber-600 font-medium">{formatCurrency(r.data?.purchases?.total)}</td>
                     <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.expenses?.total)}</td>
+                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(r.data?.todayCashInHand)}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatCurrency(r.data?.netCashInHand)}</td>
+                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.todayCustomerDebt)}</td>
                     <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.customerDebt)}</td>
+                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.todayPayable)}</td>
                     <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.payable)}</td>
                   </tr>
                 ))}

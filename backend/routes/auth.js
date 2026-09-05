@@ -39,8 +39,8 @@ router.post('/register', authRateLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    // DB check constraint (users_role_check) only allows exactly 'Owner' / 'Manager'
-    const ALLOWED_ROLES = ['Owner', 'Manager'];
+    // DB check constraint (users_role_check) only allows exactly 'Owner' / 'Manager' / 'Guest'
+    const ALLOWED_ROLES = ['Owner', 'Manager', 'Guest'];
     const requestedRole = role
       ? ALLOWED_ROLES.find((r) => r.toLowerCase() === String(role).toLowerCase())
       : 'Manager';

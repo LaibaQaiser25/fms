@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Mail, Lock, AlertCircle } from 'lucide-react';
+import { X, Mail, Lock, AlertCircle, ShieldCheck, UserCog, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+const ROLES = [
+  { value: 'owner', label: 'Owner', Icon: ShieldCheck },
+  { value: 'manager', label: 'Manager', Icon: UserCog },
+  { value: 'guest', label: 'Guest', Icon: Eye },
+];
 
 export default function Login({ isOpen, onClose }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
+  const [selectedRole, setSelectedRole] = useState('owner');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth();
@@ -49,6 +56,16 @@ export default function Login({ isOpen, onClose }) {
         return;
       }
 
+      // The account's real role always wins — the tab just picks which
+      // dashboard the person meant to land on, so a mismatch blocks entry
+      // instead of silently landing them somewhere else.
+      const accountRole = data.user?.role?.toLowerCase();
+      if (accountRole !== selectedRole) {
+        setError(`This account is a ${data.user.role} account. Select "${data.user.role}" above to continue.`);
+        setIsLoading(false);
+        return;
+      }
+
       // Store token and user info
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -88,6 +105,31 @@ export default function Login({ isOpen, onClose }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-8 py-8 space-y-6">
+          {/* Role Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Login as
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {ROLES.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => { setSelectedRole(value); setError(''); }}
+                  className={`flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 transition font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                    selectedRole === value
+                      ? 'border-green-500 bg-green-50 text-green-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon size={20} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Error Message */}
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">

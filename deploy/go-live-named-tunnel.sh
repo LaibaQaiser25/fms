@@ -57,7 +57,7 @@ cloudflared tunnel route dns "${TUNNEL_NAME}" "${BACKEND_HOST}" || true
 cloudflared tunnel route dns "${TUNNEL_NAME}" "${N8N_HOST}" || true
 
 echo "==> Installing cloudflared systemd service"
-sudo cloudflared --config /home/myuser/.cloudflared/${TUNNEL_NAME}.yml service install
+sudo cloudflared --config "${HOME}/.cloudflared/${TUNNEL_NAME}.yml" service install
 sudo systemctl enable --now cloudflared
 sudo systemctl restart cloudflared
 for i in $(seq 1 15); do

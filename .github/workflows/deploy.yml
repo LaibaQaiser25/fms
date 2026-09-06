@@ -29,7 +29,7 @@ jobs:
             -o UserKnownHostsFile=/dev/null \
             -o ConnectTimeout=15 \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "cd /home/myuser/fms && \
+            "cd ${{ secrets.VPS_REPO_PATH }} && \
              git pull --ff-only origin main && \
              sg docker -c 'docker compose up -d --build backend' && \
              sg docker -c 'docker compose ps backend'"

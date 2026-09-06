@@ -297,6 +297,57 @@ docker compose exec -T db psql -U fms_app -d fms_db < ~/backup-YYYY-MM-DD.sql
 
 ---
 
+## 8. Auto-deploy: GitHub Actions → VPS (and how to move it)
+
+The repo includes `.github/workflows/deploy.yml`. On every push to `main` that
+touches `backend/**`, `docker-compose.yml`, `deploy/**`, or `.env.example`,
+GitHub Actions SSHes into the VPS and runs:
+
+```bash
+cd <repo path> && git pull --ff-only origin main
+docker compose up -d --build backend   # migrations auto-run on boot
+```
+
+The frontend is NOT deployed by this workflow — Vercel handles it via its own
+GitHub integration.
+
+### What is machine-specific (GitHub secrets, not in the repo)
+
+The workflow reads four **repository secrets** (Settings → Secrets and variables →
+Actions). None of them live in the repo, so the workflow file itself is portable:
+
+| Secret | Current value | What it's for |
+|--------|---------------|---------------|
+| `VPS_HOST` | `158.220.94.68` | VPS IP/hostname |
+| `VPS_USER` | `myuser` | SSH user |
+| `VPS_SSH_KEY` | base64 of the deploy private key | SSH auth (must be base64, single line) |
+| `VPS_REPO_PATH` | `/home/myuser/fms` | absolute path of the repo checkout on the VPS |
+
+### Migrating auto-deploy to a new VPS
+
+The workflow file moves with the repo automatically. To point it at a new machine:
+
+1. **On the NEW VPS**, generate a fresh deploy key and authorize it:
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N "" -C "github-actions-deploy-fms"
+   cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
+   chmod 600 ~/.ssh/authorized_keys
+   base64 -w 0 ~/.ssh/github_deploy   # copy this output
+   ```
+2. **In GitHub** (repo → Settings → Secrets and variables → Actions), update:
+   - `VPS_HOST` → the new VPS IP
+   - `VPS_USER` → the new machine's user
+   - `VPS_SSH_KEY` → the base64 output from step 1 (replaces the old key)
+   - `VPS_REPO_PATH` → where you cloned the repo on the new machine
+3. **Test**: Actions tab → "Deploy backend to VPS" → Run workflow, and confirm it
+   goes green.
+4. **(Optional) Revoke the old key**: remove the old public key from the old VPS's
+   `~/.ssh/authorized_keys` (or just decommission the old VPS).
+
+> No workflow file change is needed — the four secrets fully describe the target.
+
+---
+
 ## Appendix A — Migrating existing data from the current VPS
 
 `setup.sh` provisions an **empty** database. If you're moving and want to keep

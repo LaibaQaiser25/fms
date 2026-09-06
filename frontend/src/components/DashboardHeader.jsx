@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
+import { API_BASE_URL } from '../config';
 
 export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, setSearchResults, setSearchSQL }) {
   const [query, setQuery] = useState('');
@@ -32,7 +33,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
     if (!query.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/nlp/nlp-search', {
+      const res = await fetch(`${API_BASE_URL}/nlp/nlp-search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query })

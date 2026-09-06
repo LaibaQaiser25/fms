@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 
 const NLPSearch = () => {
   const [query, setQuery] = useState('');
@@ -19,7 +20,7 @@ const NLPSearch = () => {
     try {
       console.log('🔍 NLP Search Query:', query);
 
-      const res = await fetch('http://localhost:5000/api/nlp/nlp-search', {
+      const res = await fetch(`${API_BASE_URL}/nlp/nlp-search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query })

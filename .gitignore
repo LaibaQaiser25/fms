@@ -1,0 +1,5 @@
+# Local deployment env / secrets — never commit
+.env
+deploy/
+backend/.env
+backend/.gitignore

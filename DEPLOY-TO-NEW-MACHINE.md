@@ -20,7 +20,9 @@ by scripts committed in the repo under `deploy/`.
 | Twilio Account SID + **current** Auth Token | Twilio console | required only if you want WhatsApp alerts working |
 
 > If you are **migrating from the existing VPS** (keeping data), read
-> "Appendix A — migrating existing data" first and do those steps.
+> "Appendix A — migrating existing data" first and do those steps, and use
+> **Option B in step 5** (reuse the existing Cloudflare tunnel) rather than
+> creating a new one.
 
 ---
 
@@ -135,7 +137,15 @@ Nothing is public yet — that's the next step.
 
 ## 5. Expose it publicly via a Cloudflare named tunnel
 
-### 5a. Install cloudflared
+There are two scenarios. Pick the one that applies:
+
+- **Option A — brand-new tunnel + brand-new domain** (first-ever deployment): follow 5a–5d.
+- **Option B — reusing the EXISTING tunnel + domain** (migrating to a new VPS, keeping
+  `ittefaqbuilder.com`): **skip 5b–5d** and go straight to 5e. This is the common case
+  when moving VPSes — the tunnel record + DNS routes already exist in Cloudflare, so the
+  new machine just needs to fetch the tunnel's credentials and run it.
+
+### 5a. Install cloudflared (both options)
 
 ```bash
 sudo mkdir -p --mode=0755 /usr/share/keyrings
@@ -146,42 +156,97 @@ sudo apt-get update && sudo apt-get install -y cloudflared
 
 (For non-Ubuntu, use the instructions at https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
 
-### 5b. Authorize this machine (the ONE interactive step)
+### 5b. [Option A only] Authorize this machine (the ONE interactive step)
 
 ```bash
 cloudflared tunnel login
 ```
 
 This prints a URL. Open it in a browser logged into your Cloudflare account
-(the account that owns `ittefaqbuilder.com`) and click Authorize. It saves
+(the account that owns the domain) and click Authorize. It saves
 `~/.cloudflared/cert.pem` on this machine. This cannot be scripted — Cloudflare
 requires the browser round-trip.
 
-> The username in the go-live script's config path is `myuser`. If your new
-> machine's user is different, adjust the `credentials-file` line after the script
-> writes the config (step 5c) — or edit `deploy/go-live-named-tunnel.sh` first.
-
-### 5c. Run the go-live script
+### 5c. [Option A only] Run the go-live script
 
 ```bash
 bash deploy/go-live-named-tunnel.sh ittefaqbuilder.com
 ```
 
 This does everything else automatically:
-1. Creates the named tunnel `fms` (idempotent) and symlinks its credentials file.
+1. Creates the named tunnel `fms` and symlinks its credentials file.
 2. Writes the ingress config: `api.ittefaqbuilder.com → http://localhost:5000`
    and `n8n.ittefaqbuilder.com → http://localhost:5678`.
 3. Adds the two DNS CNAME routes in Cloudflare.
 4. Installs cloudflared as a systemd service (survives reboots) and waits until active.
 5. Updates `N8N_PUBLIC_URL` in `.env` and recreates the n8n container.
 
-### 5d. Verify publicly
+> Note: the script's config uses `~/.cloudflared/<tunnel>.json` — it now resolves via
+> `$HOME`, so it works for any user.
+
+### 5d. [Option A only] Verify publicly
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api.ittefaqbuilder.com/auth/login \
   -H 'Content-Type: application/json' -d '{"username":"x","password":"y"}'   # expect 401
 curl -s -o /dev/null -w "%{http_code}\n" https://n8n.ittefaqbuilder.com/healthz  # expect 200
 ```
+
+### 5e. [Option B] Reuse the existing tunnel on a new machine
+
+The tunnel `fms` (and its DNS routes for `api.` + `n8n.`) already exist in your
+Cloudflare account. Do **not** run `go-live-named-tunnel.sh` — it would try to
+create a tunnel that already exists. Instead:
+
+```bash
+# 1. One-time: authorize this machine (same interactive step as 5b)
+cloudflared tunnel login
+
+# 2. Fetch the existing tunnel's credentials onto this machine
+cloudflared tunnel token --cred-file ~/.cloudflared/fms.json fms
+
+# 3. Write the ingress config (same as the go-live script writes)
+cat > ~/.cloudflared/fms.yml <<'EOF'
+tunnel: fms
+credentials-file: /home/<YOUR_USER>/.cloudflared/fms.json
+
+ingress:
+  - hostname: api.ittefaqbuilder.com
+    service: http://localhost:5000
+  - hostname: n8n.ittefaqbuilder.com
+    service: http://localhost:5678
+  - service: http_status:404
+EOF
+
+# 4. Run the tunnel once to confirm it connects (Ctrl+C after you see it register)
+cloudflared --config ~/.cloudflared/fms.yml tunnel run fms
+
+# 5. Install as a systemd service so it survives reboots
+sudo cloudflared --config ~/.cloudflared/fms.yml service install
+sudo systemctl enable --now cloudflared
+systemctl status cloudflared --no-pager | head -8
+
+# 6. Update n8n's public webhook URL in .env and recreate n8n
+sed -i "s|^N8N_PUBLIC_URL=.*|N8N_PUBLIC_URL=https://n8n.ittefaqbuilder.com/|" .env
+docker compose up -d n8n
+```
+
+> **Replace `/home/<YOUR_USER>`** in step 3 with your actual home directory.
+
+**Cutover — old vs new machine:** cloudflared supports multiple connectors on one
+tunnel (HA), so both VPSes can run it briefly without conflict. The safe sequence is:
+1. Bring the new machine's tunnel up (step 4/5 above).
+2. Verify `https://api.ittefaqbuilder.com` and `https://n8n.ittefaqbuilder.com` respond
+   (traffic may hit either machine — that's fine, the DB/backend are being migrated in
+   the same window).
+3. Stop cloudflared on the OLD machine (`sudo systemctl stop cloudflared`) once the new
+   one is confirmed, so traffic flows only to the new VPS.
+4. Verify again from a clean browser session.
+
+> There is no "delete the old tunnel" step needed — the tunnel record is shared; the old
+> machine just stops being a connector. If you ever want to fully remove the old machine's
+> local copy: `cloudflared tunnel cleanup fms` (optional) or just delete its
+> `~/.cloudflared` files.
 
 ---
 

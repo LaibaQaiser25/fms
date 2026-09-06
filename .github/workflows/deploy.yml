@@ -16,22 +16,20 @@ jobs:
     name: Pull + rebuild backend on VPS
     runs-on: ubuntu-latest
     steps:
-      - name: Write SSH key from base64 secret
+      - name: Decode SSH key
         run: |
           echo "${{ secrets.VPS_SSH_KEY }}" | base64 -d > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
+
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key_path: /tmp/deploy_key
-          script: |
-            set -e
-            cd /home/myuser/fms
-            git pull --ff-only origin main
-            # Rebuild + restart backend (migrations auto-run on boot).
-            # `sg docker` is used because the deploy user's docker-group
-            # membership isn't active in non-login shells.
-            sg docker -c "docker compose up -d --build backend"
-            sg docker -c "docker compose ps backend"
+        run: |
+          set -e
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd /home/myuser/fms && \
+             git pull --ff-only origin main && \
+             sg docker -c 'docker compose up -d --build backend' && \
+             sg docker -c 'docker compose ps backend'"

@@ -42,7 +42,7 @@ fi
 echo "==> Writing tunnel config to ~/.cloudflared/${TUNNEL_NAME}.yml"
 cat > ~/.cloudflared/${TUNNEL_NAME}.yml <<EOF
 tunnel: ${TUNNEL_NAME}
-credentials-file: /home/myuser/.cloudflared/${TUNNEL_NAME}.json
+credentials-file: ${HOME}/.cloudflared/${TUNNEL_NAME}.json
 
 ingress:
   - hostname: ${BACKEND_HOST}

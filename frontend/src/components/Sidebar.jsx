@@ -11,6 +11,7 @@ import {
   LineChart,
   Receipt,
   Users,
+  Lock,
   ChevronDown,
   ChevronLeft,
 } from 'lucide-react';
@@ -346,6 +347,15 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           </NavLink>
           <Tooltip label="Employees" />
         </div>
+        {isOwner && (
+          <div className="relative group">
+            <NavLink to="/privacy" className={link} style={navStyle}>
+              <Lock size={19} strokeWidth={2} className="shrink-0" />
+              {!collapsed && 'Privacy'}
+            </NavLink>
+            <Tooltip label="Privacy" />
+          </div>
+        )}
         </>
         )}
       </nav>

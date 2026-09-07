@@ -5,11 +5,11 @@ import * as productsApi from '../api/productsApi';
 import { capitalizeFirstLetter } from '../utils/text';
 import { ACCENT_GRADIENT_STYLE } from '../theme';
 
-const emptyForm = { type: '', name: '', category_id: '', size: '', unit: '', description: '' };
+const emptyForm = { type: '', name: '', category_id: '', size: '', unit: '', description: '', quantity: '' };
 
-const emptyExcelRow = { type: '', name: '', category_name: '', size: '', unit: '', description: '' };
+const emptyExcelRow = { type: '', name: '', category_name: '', size: '', unit: '', description: '', quantity: '' };
 
-const TEMPLATE_HEADERS = ['Type', 'Name', 'Category / Unit', 'Size', 'Description'];
+const TEMPLATE_HEADERS = ['Type', 'Name', 'Category / Unit', 'Size', 'Quantity', 'Description'];
 
 const normalizeType = (raw) => {
   const v = String(raw || '').trim().toLowerCase().replace(/\s+/g, '_');
@@ -123,7 +123,7 @@ export default function ProductsManager() {
   };
 
   const handleTypeChange = (value) => {
-    setForm({ ...emptyForm, type: value, name: form.name, description: form.description });
+    setForm({ ...emptyForm, type: value, name: form.name, description: form.description, quantity: form.quantity });
     setCategorySearch('');
     setLockedMessage('');
   };
@@ -250,6 +250,9 @@ export default function ProductsManager() {
     if (!form.name) return alert('Name is required');
     if (form.type === 'stock' && !form.category_id) return alert('Category is required');
     if (form.type === 'raw_material' && !form.unit) return alert('Unit is required');
+    if (form.quantity === '' || Number.isNaN(Number(form.quantity)) || Number(form.quantity) < 0) {
+      return alert('Quantity is required');
+    }
 
     try {
       if (editing) {
@@ -272,7 +275,8 @@ export default function ProductsManager() {
       category_id: item.category_id || '',
       size: item.size || '',
       unit: item.unit || '',
-      description: item.description || ''
+      description: item.description || '',
+      quantity: item.quantity ?? ''
     });
     setCategorySearch(item.category_name || '');
     setShowForm(true);
@@ -295,7 +299,7 @@ export default function ProductsManager() {
       if (i !== index) return row;
       if (field === 'type') {
         // Type change resets the fields that only apply to the other type.
-        return { ...emptyExcelRow, type: value, name: row.name, description: row.description };
+        return { ...emptyExcelRow, type: value, name: row.name, description: row.description, quantity: row.quantity };
       }
       return { ...row, [field]: value };
     }));
@@ -315,13 +319,14 @@ export default function ProductsManager() {
   const handleDownloadTemplate = () => {
     const sheet = XLSX.utils.aoa_to_sheet([
       TEMPLATE_HEADERS,
-      ['stock', 'Cement Block', 'Blocks', '4x8', 'High quality block'],
-      ['raw_material', 'Cement', 'Bag', '', 'Ordinary Portland Cement']
+      ['stock', 'Cement Block', 'Blocks', '4x8', '100', 'High quality block'],
+      ['raw_material', 'Cement', 'Bag', '', '50', 'Ordinary Portland Cement']
     ]);
     const instructions = XLSX.utils.aoa_to_sheet([
       ['Type must be exactly: stock  or  raw_material'],
       [`Category / Unit: for Type=stock enter a category name; for Type=raw_material enter one of: ${units.map((u) => u.name).join(', ') || 'Bag, Truck, Cft'}`],
       ['Size only applies to Type=stock (optional)'],
+      ['Quantity is required for every row'],
       ['Delete the two example rows on the Products sheet before importing your real data']
     ]);
     const wb = XLSX.utils.book_new();
@@ -347,6 +352,7 @@ export default function ProductsManager() {
           const name = String(r.Name ?? r.name ?? '').trim();
           const categoryOrUnit = String(r['Category / Unit'] ?? r.Category ?? r.Unit ?? r.category ?? r.unit ?? '').trim();
           const size = String(r.Size ?? r.size ?? '').trim();
+          const quantity = String(r.Quantity ?? r.quantity ?? '').trim();
           const description = String(r.Description ?? r.description ?? '').trim();
           return {
             type,
@@ -354,6 +360,7 @@ export default function ProductsManager() {
             category_name: type === 'stock' ? categoryOrUnit : '',
             unit: type === 'raw_material' ? normalizeUnit(categoryOrUnit, units) : '',
             size: type === 'stock' ? size : '',
+            quantity,
             description
           };
         })
@@ -381,6 +388,9 @@ export default function ProductsManager() {
       if (!row.name.trim()) return alert(`Row ${rowNum}: name is required`);
       if (row.type === 'stock' && !row.category_name.trim()) return alert(`Row ${rowNum}: category is required`);
       if (row.type === 'raw_material' && !row.unit) return alert(`Row ${rowNum}: unit is required`);
+      if (row.quantity === '' || Number.isNaN(Number(row.quantity)) || Number(row.quantity) < 0) {
+        return alert(`Row ${rowNum}: quantity is required`);
+      }
     }
 
     setExcelSaving(true);
@@ -391,6 +401,7 @@ export default function ProductsManager() {
         category_name: row.type === 'stock' ? row.category_name.trim() : undefined,
         size: row.type === 'stock' ? (row.size.trim() || undefined) : undefined,
         unit: row.type === 'raw_material' ? row.unit : undefined,
+        quantity: Number(row.quantity),
         description: row.description.trim() || undefined
       })));
       closeExcelGrid();
@@ -618,7 +629,7 @@ export default function ProductsManager() {
               <table className="w-full text-sm min-w-[900px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 sticky top-0">
-                    {['Category *', 'Name *', 'Category Name / Unit *', 'Size', 'Description', ''].map((h) => (
+                    {['Category *', 'Name *', 'Category Name / Unit *', 'Size', 'Quantity *', 'Description', ''].map((h) => (
                       <th key={h} className="px-2 py-2 text-left font-bold text-gray-700 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -675,6 +686,17 @@ export default function ProductsManager() {
                           value={row.size}
                           disabled={row.type !== 'stock'}
                           onChange={(e) => updateExcelRow(i, 'size', e.target.value)}
+                        />
+                      </td>
+                      <td className="p-1">
+                        <input
+                          className={inp}
+                          placeholder="Quantity"
+                          type="number"
+                          min="0"
+                          value={row.quantity}
+                          onChange={(e) => updateExcelRow(i, 'quantity', e.target.value)}
+                          onWheel={(e) => e.target.blur()}
                         />
                       </td>
                       <td className="p-1">
@@ -831,9 +853,20 @@ export default function ProductsManager() {
                   onChange={(e) => setForm({ ...form, size: capitalizeFirstLetter(e.target.value) })}
                 />
 
-                {/* 4. Description */}
+                {/* 4. Quantity */}
                 <input
                   className={inp}
+                  placeholder="Quantity *"
+                  type="number"
+                  min="0"
+                  value={form.quantity}
+                  onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                  onWheel={(e) => e.target.blur()}
+                />
+
+                {/* 5. Description */}
+                <input
+                  className={`${inp} col-span-2`}
                   placeholder="Description"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: capitalizeFirstLetter(e.target.value) })}
@@ -860,7 +893,16 @@ export default function ProductsManager() {
                   ))}
                 </select>
                 <input
-                  className={`${inp} col-span-2`}
+                  className={inp}
+                  placeholder="Quantity *"
+                  type="number"
+                  min="0"
+                  value={form.quantity}
+                  onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                  onWheel={(e) => e.target.blur()}
+                />
+                <input
+                  className={inp}
                   placeholder="Description"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: capitalizeFirstLetter(e.target.value) })}
@@ -964,7 +1006,7 @@ export default function ProductsManager() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {['Name', 'Category / Unit', 'Size', 'Description', 'Actions'].map(h => (
+                    {['Name', 'Category / Unit', 'Size', 'Quantity', 'Description', 'Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-left font-bold text-gray-700">{h}</th>
                     ))}
                   </tr>
@@ -977,6 +1019,7 @@ export default function ProductsManager() {
                         {item.type === 'stock' ? (item.category_name || '—') : (item.unit || '—')}
                       </td>
                       <td className="px-4 py-3 text-gray-500">{item.size || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{item.quantity ?? '—'}</td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{item.description || '—'}</td>
                       <td className="px-4 py-3">
                         <button onClick={() => handleEdit(item)}

@@ -220,6 +220,7 @@ export const FilterBar = ({ filters, onFilterChange, onSearch }) => {
               <Input
                 key={filter.key}
                 type="text"
+                label={filter.label}
                 placeholder={filter.label}
                 value={filter.value}
                 onChange={(e) => onFilterChange(filter.key, e.target.value)}

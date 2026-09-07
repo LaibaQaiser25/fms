@@ -20,6 +20,7 @@ const rawMaterialsRoutes = require('./routes/rawMaterials');
 const rawMaterialConsumptionRoutes = require('./routes/rawMaterialConsumption');
 const cashbookRoutes = require('./routes/cashbook');
 const reportsRoutes = require('./routes/reports');
+const usersRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const webhooksRoutes = require('./routes/webhooks');
 const authMiddleware = require('./middleware/authMiddleware');
@@ -85,6 +86,9 @@ app.use('/api/cashbook', requireOwner, cashbookRoutes);
 
 // Owner-only — Manager/Guest are blocked from Reports per role policy (see middleware/requireOwner.js)
 app.use('/api/reports', requireOwner, reportsRoutes);
+
+// Owner-only — user management (create users, edit others' username/email/password, change own password)
+app.use('/api/users', requireOwner, usersRoutes);
 
 startCronJobs(); // Start the cron jobs when the server starts
 

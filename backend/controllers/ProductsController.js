@@ -91,8 +91,9 @@ class ProductsController {
    * - unit only applies to 'raw_material'
    */
   static async createProduct(req, res) {
+    const client = await pool.connect();
     try {
-      const { name, type, category_id, size, unit, description } = req.body;
+      const { name, type, category_id, size, unit, description, quantity } = req.body;
 
       if (!name || !type) {
         return res.status(400).json({ error: 'Name and type are required' });
@@ -100,6 +101,10 @@ class ProductsController {
 
       if (!['stock', 'raw_material'].includes(type)) {
         return res.status(400).json({ error: 'Invalid type' });
+      }
+
+      if (quantity === undefined || quantity === null || quantity === '' || Number.isNaN(Number(quantity)) || Number(quantity) < 0) {
+        return res.status(400).json({ error: 'Quantity is required' });
       }
 
       const isStock = type === 'stock';
@@ -112,9 +117,11 @@ class ProductsController {
         unitId = unitResult.rows[0].id;
       }
 
-      const result = await pool.query(
-        `INSERT INTO products (name, type, category_id, size, unit_id, description)
-         VALUES ($1, $2, $3, $4, $5, $6)
+      await client.query('BEGIN');
+
+      const result = await client.query(
+        `INSERT INTO products (name, type, category_id, size, unit_id, description, quantity)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         [
           name,
@@ -122,18 +129,47 @@ class ProductsController {
           isStock ? (category_id || null) : null,
           isStock ? (size || null) : null,
           isStock ? null : unitId,
-          description || null
+          description || null,
+          Number(quantity)
         ]
       );
 
-      res.status(201).json(result.rows[0]);
+      const newProduct = result.rows[0];
+
+      // A brand-new product's quantity seeds a matching stock/raw_materials row,
+      // linked via product_id, so it shows up on those pages immediately —
+      // only on creation, never on edit (updateProduct doesn't do this).
+      if (isStock) {
+        let categoryName = null;
+        if (category_id) {
+          const catResult = await client.query('SELECT name FROM product_categories WHERE id = $1', [category_id]);
+          categoryName = catResult.rows[0]?.name || null;
+        }
+        await client.query(
+          `INSERT INTO stock (name, unit_price, quantity, product_id, category)
+           VALUES ($1, 0, $2, $3, $4)`,
+          [name, Number(quantity), newProduct.id, categoryName]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO raw_materials (name, unit, quantity, product_id)
+           VALUES ($1, $2, $3, $4)`,
+          [name, unit, Number(quantity), newProduct.id]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.status(201).json(newProduct);
     } catch (err) {
+      await client.query('ROLLBACK');
       if (err.code === '23505') {
         const isStock = req.body.type !== 'raw_material';
         const sizeNote = isStock && req.body.size ? ` with size "${req.body.size}"` : '';
         return res.status(400).json({ error: `A ${isStock ? 'stock' : 'raw material'} product named "${req.body.name}"${sizeNote} already exists${isStock && !req.body.size ? ' — add a size to tell them apart' : ''}` });
       }
       res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
     }
   }
 
@@ -168,6 +204,9 @@ class ProductsController {
       if (row.type === 'raw_material' && !unitIdByName.has(String(row.unit || '').toLowerCase())) {
         return res.status(400).json({ error: `Row ${rowNum}: unit is required` });
       }
+      if (row.quantity === undefined || row.quantity === null || row.quantity === '' || Number.isNaN(Number(row.quantity)) || Number(row.quantity) < 0) {
+        return res.status(400).json({ error: `Row ${rowNum}: quantity is required` });
+      }
     }
 
     const client = await pool.connect();
@@ -200,8 +239,8 @@ class ProductsController {
         const unitId = isStock ? null : unitIdByName.get(String(row.unit).toLowerCase());
 
         const result = await client.query(
-          `INSERT INTO products (name, type, category_id, size, unit_id, description)
-           VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO products (name, type, category_id, size, unit_id, description, quantity)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING *`,
           [
             row.name,
@@ -209,10 +248,28 @@ class ProductsController {
             isStock ? categoryId : null,
             isStock ? (row.size || null) : null,
             unitId,
-            row.description || null
+            row.description || null,
+            Number(row.quantity)
           ]
         );
-        created.push(result.rows[0]);
+        const newProduct = result.rows[0];
+        created.push(newProduct);
+
+        // Same as the single-product path: a new product's quantity seeds a
+        // matching stock/raw_materials row, linked via product_id.
+        if (isStock) {
+          await client.query(
+            `INSERT INTO stock (name, unit_price, quantity, product_id, category)
+             VALUES ($1, 0, $2, $3, $4)`,
+            [row.name, Number(row.quantity), newProduct.id, row.category_name.trim()]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO raw_materials (name, unit, quantity, product_id)
+             VALUES ($1, $2, $3, $4)`,
+            [row.name, row.unit, Number(row.quantity), newProduct.id]
+          );
+        }
       }
 
       await client.query('COMMIT');
@@ -233,10 +290,14 @@ class ProductsController {
    */
   static async updateProduct(req, res) {
     try {
-      const { name, type, category_id, size, unit, description } = req.body;
+      const { name, type, category_id, size, unit, description, quantity } = req.body;
 
       if (!['stock', 'raw_material'].includes(type)) {
         return res.status(400).json({ error: 'Invalid type' });
+      }
+
+      if (quantity === undefined || quantity === null || quantity === '' || Number.isNaN(Number(quantity)) || Number(quantity) < 0) {
+        return res.status(400).json({ error: 'Quantity is required' });
       }
 
       const isStock = type === 'stock';
@@ -251,8 +312,8 @@ class ProductsController {
 
       const result = await pool.query(
         `UPDATE products
-         SET name = $1, type = $2, category_id = $3, size = $4, unit_id = $5, description = $6, updated_at = NOW()
-         WHERE id = $7
+         SET name = $1, type = $2, category_id = $3, size = $4, unit_id = $5, description = $6, quantity = $7, updated_at = NOW()
+         WHERE id = $8
          RETURNING *`,
         [
           name,
@@ -261,6 +322,7 @@ class ProductsController {
           isStock ? (size || null) : null,
           unitId,
           description || null,
+          Number(quantity),
           req.params.id
         ]
       );

@@ -1,0 +1,9 @@
+# Local deployment secrets — never commit
+.env
+deploy/.env.n8n
+deploy/n8n-backup/
+backend/.env
+backend/.gitignore
+
+# CLI tooling runtime state
+.commandcode/

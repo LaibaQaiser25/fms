@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, AlertCircle, ShieldCheck, UserCog, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { AUTH_BASE_URL } from '../config';
 
 const ROLES = [
   { value: 'owner', label: 'Owner', Icon: ShieldCheck },
@@ -30,7 +31,7 @@ export default function Login({ isOpen, onClose }) {
 
     try {
       console.log('Attempting login with username:', form.username);
-      const response = await fetch('http://localhost:5000/auth/login', {
+      const response = await fetch(`${AUTH_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

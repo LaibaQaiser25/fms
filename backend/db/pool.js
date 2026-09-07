@@ -1,7 +1,7 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-console.log('🔍 DB URL:', process.env.DATABASE_URL); // debug line
+console.log('🔍 DB: connecting...'); // avoid logging the full DATABASE_URL (contains credentials)
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

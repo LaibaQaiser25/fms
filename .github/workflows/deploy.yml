@@ -1,0 +1,35 @@
+name: Deploy backend to VPS
+
+on:
+  push:
+    branches: [main]
+    # Only run when backend/deployment files change — frontend deploys via Vercel.
+    paths:
+      - 'backend/**'
+      - 'docker-compose.yml'
+      - '.env.example'
+      - 'deploy/**'
+  workflow_dispatch: # allow manual trigger from the Actions tab
+
+jobs:
+  deploy:
+    name: Pull + rebuild backend on VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode SSH key
+        run: |
+          echo "${{ secrets.VPS_SSH_KEY }}" | base64 -d > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+      - name: Deploy over SSH
+        run: |
+          set -e
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd ${{ secrets.VPS_REPO_PATH }} && \
+             git pull --ff-only origin main && \
+             sg docker -c 'docker compose up -d --build backend' && \
+             sg docker -c 'docker compose ps backend'"

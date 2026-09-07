@@ -39,31 +39,28 @@ function App() {
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/contact" element={<ContactPage />} />
 
-        {/* Protected Routes - Require authentication. Guest is dashboard-only:
-            it's allowed through this outer gate (so /dashboard works) but the
-            nested ProtectedRoute below excludes it from every other route,
-            and ProtectedRoute redirects a denied role back to /dashboard. */}
+        {/* Protected Routes - Require authentication. Guest now has the same
+            page access as Manager (Layout's click-blocker makes every action
+            on those pages a no-op for Guest — see components/Layout.jsx) —
+            only the innermost Owner-only group stays off-limits to both. */}
         <Route element={<ProtectedRoute allowedRoles={['owner', 'manager', 'guest']} />}>
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<RoleDashboard />} />
-            {/* Owner + Manager only — Guest cannot reach any of these */}
-            <Route element={<ProtectedRoute allowedRoles={['owner', 'manager']} />}>
-              <Route path="/stock" element={<StockManager />} />
-              <Route path="/products" element={<ProductsManager />} />
-              <Route path="/ledger" element={<CustomerLedger />} />
-              <Route path="/purchase-ledger" element={<PurchaseLedger />} />
-              <Route path="/raw-materials" element={<RawMaterialsList />} />
-              <Route path="/production" element={<ProductionList />} />
-              <Route path="/expenses" element={<ExpenseList />} />
-              <Route path="/assets" element={<AssetList />} />
-              <Route path="/employees" element={<EmployeeList />} />
-              {/* Owner-only — Analytics, Cashbook, Reports, and Privacy (user management) are off-limits to Manager and Guest */}
-              <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/cashbook" element={<Cashbook />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/privacy" element={<Privacy />} />
-              </Route>
+            <Route path="/stock" element={<StockManager />} />
+            <Route path="/products" element={<ProductsManager />} />
+            <Route path="/ledger" element={<CustomerLedger />} />
+            <Route path="/purchase-ledger" element={<PurchaseLedger />} />
+            <Route path="/raw-materials" element={<RawMaterialsList />} />
+            <Route path="/production" element={<ProductionList />} />
+            <Route path="/expenses" element={<ExpenseList />} />
+            <Route path="/assets" element={<AssetList />} />
+            <Route path="/employees" element={<EmployeeList />} />
+            {/* Owner-only — Analytics, Cashbook, Reports, and Privacy (user management) are off-limits to Manager and Guest */}
+            <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/cashbook" element={<Cashbook />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/privacy" element={<Privacy />} />
             </Route>
           </Route>
         </Route>

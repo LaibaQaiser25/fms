@@ -28,7 +28,6 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
   const { user } = useAuth();
   const role = user?.role?.toLowerCase();
   const isOwner = role === 'owner';
-  const isGuest = role === 'guest';
 
   const ledgerActive = pathIsInGroup(location.pathname, LEDGER_PATHS);
   const inventoryActive = pathIsInGroup(location.pathname, INVENTORY_PATHS);
@@ -191,8 +190,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           <Tooltip label="Dashboard" />
         </div>
 
-        {/* Ledger — hidden from Guest */}
-        {!isGuest && (
+        {/* Ledger */}
         <div className="relative group" ref={ledgerRef}>
           <button
             ref={ledgerBtnRef}
@@ -237,10 +235,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
             </div>
           )}
         </div>
-        )}
 
-        {/* Inventory — hidden from Guest */}
-        {!isGuest && (
+        {/* Inventory */}
         <div className="relative group" ref={inventoryRef}>
           <button
             ref={inventoryBtnRef}
@@ -294,11 +290,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
             </div>
           )}
         </div>
-        )}
 
-        {/* Finance + Team — hidden entirely from Guest (dashboard-only role) */}
-        {!isGuest && (
-        <>
         <div className="my-2.5 border-t border-white/[0.07]" />
 
         {sectionLabel('Finance')}
@@ -355,8 +347,6 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
             </NavLink>
             <Tooltip label="Privacy" />
           </div>
-        )}
-        </>
         )}
       </nav>
 

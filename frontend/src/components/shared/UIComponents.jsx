@@ -161,9 +161,13 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     pages.push(i);
   }
 
+  // data-guest-allow: paging through a list is still just "viewing" — the
+  // Layout-level guest click-blocker (see components/Layout.jsx) exempts
+  // anything carrying this attribute.
   return (
     <div className="flex items-center justify-center gap-2 mt-6">
       <button
+        data-guest-allow="true"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
         className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
@@ -173,7 +177,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 
       {startPage > 1 && (
         <>
-          <button onClick={() => onPageChange(1)} className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100">
+          <button data-guest-allow="true" onClick={() => onPageChange(1)} className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100">
             1
           </button>
           {startPage > 2 && <span className="px-2">...</span>}
@@ -183,6 +187,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       {pages.map((page) => (
         <button
           key={page}
+          data-guest-allow="true"
           onClick={() => onPageChange(page)}
           className={`px-3 py-1 border rounded ${currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 hover:bg-gray-100'}`}
         >
@@ -193,13 +198,14 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       {endPage < totalPages && (
         <>
           {endPage < totalPages - 1 && <span className="px-2">...</span>}
-          <button onClick={() => onPageChange(totalPages)} className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100">
+          <button data-guest-allow="true" onClick={() => onPageChange(totalPages)} className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100">
             {totalPages}
           </button>
         </>
       )}
 
       <button
+        data-guest-allow="true"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
         className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
@@ -266,7 +272,7 @@ export const Alert = ({ type = 'info', message, onClose }) => {
     <div className={`border ${colors[type]} rounded p-4 mb-4 flex justify-between items-center`}>
       <span>{message}</span>
       {onClose && (
-        <button onClick={onClose} className="font-bold text-lg">
+        <button data-guest-allow="true" onClick={onClose} className="font-bold text-lg">
           ×
         </button>
       )}

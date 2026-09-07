@@ -50,7 +50,7 @@ function FitText({ children, className = '' }) {
   );
 }
 
-function Dashboard({ readOnly = false }) {
+function Dashboard() {
   const alertRefresh = useContext(AlertRefreshContext);
   const outletContext = useOutletContext();
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
@@ -91,7 +91,6 @@ function Dashboard({ readOnly = false }) {
   };
 
   const openPaymentPopover = () => {
-    if (readOnly) return;
     if (paymentPopoverTimeout.current) {
       clearTimeout(paymentPopoverTimeout.current);
       paymentPopoverTimeout.current = null;
@@ -135,37 +134,33 @@ function Dashboard({ readOnly = false }) {
         <div className="grid grid-cols-4 gap-4">
           <button
             onClick={() => setShowNewSaleModal(true)}
-            disabled={readOnly}
-            className={`flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg transition font-semibold ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-600'}`}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold"
           >
             <ShoppingCart className="w-5 h-5" />
             New Sale
           </button>
          <button
   onClick={() => setShowNewPurchaseModal(true)}
-  disabled={readOnly}
-  className={`flex items-center justify-center gap-2 px-6 py-3 bg-violet-600 active:bg-violet-800 text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-700 cursor-pointer'}`}
+  className="flex items-center justify-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
 >
   <Package className="w-5 h-5" />
   New Purchase
 </button>
           <button
             onClick={() => setShowAddProductionModal(true)}
-            disabled={readOnly}
-            className={`flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg transition font-semibold ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}`}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold"
           >
             <Package className="w-5 h-5" />
             New Production
           </button>
           <div
             className="relative"
-            onMouseEnter={readOnly ? undefined : openPaymentPopover}
-            onMouseLeave={readOnly ? undefined : closePaymentPopoverWithDelay}
+            onMouseEnter={openPaymentPopover}
+            onMouseLeave={closePaymentPopoverWithDelay}
           >
             <button
               onClick={() => setShowPaymentPopover(prev => !prev)}
-              disabled={readOnly}
-              className={`w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg transition font-semibold ${readOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-600'}`}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
             >
               <BarChart3 className="w-5 h-5" />
               Add Payment

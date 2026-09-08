@@ -1,6 +1,19 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Shield, Clock, Users, Award, BarChart } from 'lucide-react';
+import {
+  ArrowRight, Shield, Clock, Users, Award, BarChart,
+  LayoutGrid, Columns, Fence, Droplets, Layers, ShieldCheck,
+} from 'lucide-react';
 import PublicLayout from '../layouts/PublicLayout';
+import HeroSlideshow from '../components/HeroSlideshow';
+import ImageCarousel from '../components/ImageCarousel';
+
+const HERO_SLIDES = [
+  '/gallery/white-gazebo-balustrade-veranda.jpeg',
+  '/gallery/slate-look-pavers-driveway-grey.jpeg',
+  '/gallery/concrete-slabs-large-stack-yard-1.jpeg',
+  '/gallery/zigzag-pavers-grey-white-pathway.jpeg',
+  '/gallery/pavers-pattern-samples-yard-overview.jpeg',
+];
 
 const HERO_STATS = [
   { value: '30+', label: 'Years Experience', icon: <Award size={24} className="text-[#6ee7b7]" /> },
@@ -14,6 +27,26 @@ const STRENGTHS = [
   { icon: Users, title: 'Expert Team', desc: 'Decades of combined experience in precast construction and engineering.', glow: 'rgba(59,130,246,0.3)', accent: '#93c5fd' },
 ];
 
+const CATEGORIES = [
+  { icon: LayoutGrid, title: 'Interlocking Pavers', desc: 'Driveways, walkways & courtyards in dozens of patterns.', image: '/gallery/clover-pavers-driveway-house.jpeg' },
+  { icon: Columns, title: 'Precast Beams & Structural', desc: 'Engineered beams and columns for heavy-duty builds.', image: '/gallery/precast-beam-ceiling-brick-columns.jpeg' },
+  { icon: Fence, title: 'Boundary Walls & Fencing', desc: 'Durable precast panels for secure, low-maintenance perimeters.', image: '/gallery/precast-boundary-wall-panels-2.jpeg' },
+  { icon: Droplets, title: 'Drainage & Infrastructure', desc: 'Precast pipes and culverts built for long service life.', image: '/gallery/concrete-drain-pipes-stacked-pyramid.jpeg' },
+  { icon: Layers, title: 'Balustrades & Railings', desc: 'Ornamental precast railings for verandas and boundaries.', image: '/gallery/white-balustrade-railing-with-post-cap.jpeg' },
+  { icon: ShieldCheck, title: 'Quality-Controlled Curing', desc: 'Every batch cured and inspected before it leaves our yard.', image: '/gallery/concrete-slab-molds-curing-yard-1.jpeg' },
+];
+
+const FEATURED_PROJECTS = [
+  { src: '/gallery/hexagon-textured-pavers-closeup.jpeg', title: 'Hexagon Textured Pavers' },
+  { src: '/gallery/star-pattern-pavers.jpeg', title: 'Star Pattern Custom Design' },
+  { src: '/gallery/chevron-pavers-red-black-grey-closeup.jpeg', title: 'Chevron Pattern Pavers' },
+  { src: '/gallery/zigzag-pavers-courtyard-garden.jpeg', title: 'Courtyard Landscaping' },
+  { src: '/gallery/worker-laying-zigzag-pavers.jpeg', title: 'Precision On-Site Installation' },
+  { src: '/gallery/workers-laying-diamond-pavers-house.jpeg', title: 'Residential Diamond Pavers' },
+  { src: '/gallery/herringbone-pavers-pathway-lawn.jpeg', title: 'Herringbone Garden Walkways' },
+  { src: '/gallery/hexagon-wave-pavers-white-red-pathway.jpeg', title: 'Wave Pattern Pathways' },
+];
+
 const BANNER_STATS = [
   { value: '500+', label: 'Projects Completed' },
   { value: '30+', label: 'Years Experience' },
@@ -21,48 +54,19 @@ const BANNER_STATS = [
   { value: '50+', label: 'Expert Engineers' },
 ];
 
-const GALLERY = [
-  { src: '/gallery/clover-pavers-driveway-house.jpeg', label: 'Clover Paver Driveway' },
-  { src: '/gallery/star-pattern-pavers.jpeg', label: 'Star Pattern Pavers' },
-  { src: '/gallery/hexagon-textured-pavers-closeup.jpeg', label: 'Hexagon Textured Pavers' },
-  { src: '/gallery/zigzag-pavers-courtyard-garden.jpeg', label: 'Zigzag Courtyard Pavers' },
-  { src: '/gallery/white-balustrade-railing-with-post-cap.jpeg', label: 'Precast Balustrade Railing' },
-  { src: '/gallery/precast-boundary-wall-panels-1.jpeg', label: 'Precast Boundary Wall' },
-  { src: '/gallery/chevron-pavers-red-black-grey-closeup.jpeg', label: 'Chevron Pattern Pavers' },
-  { src: '/gallery/worker-laying-zigzag-pavers.jpeg', label: 'Craftsmanship On-Site' },
-];
-
 export default function HomePage() {
   return (
     <PublicLayout>
 
       {/* ---------------------------------- Hero ---------------------------------- */}
-      <section className="relative text-white pt-16 pb-24 md:pt-24 md:pb-28 overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, #0f0c29 0%, #1a1a6e 25%, #0d4f3c 60%, #0a2e1a 100%)',
-        }}>
+      <section className="relative text-white pt-24 pb-32 md:pt-32 md:pb-40 overflow-hidden">
 
-        {/* 3D layered glow orbs */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div style={{
-            position: 'absolute', top: '-10%', left: '-5%',
-            width: '600px', height: '600px', borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(99,102,241,0.35) 0%, transparent 70%)',
-            filter: 'blur(60px)',
-          }} />
-          <div style={{
-            position: 'absolute', bottom: '-15%', right: '-5%',
-            width: '700px', height: '700px', borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 70%)',
-            filter: 'blur(80px)',
-          }} />
-          <div style={{
-            position: 'absolute', top: '40%', left: '40%',
-            width: '400px', height: '400px', borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%)',
-            filter: 'blur(50px)',
-          }} />
-        </div>
+        <HeroSlideshow images={HERO_SLIDES} />
+
+        {/* Dark overlay for legibility over the slideshow */}
+        <div className="absolute inset-0" style={{
+          background: 'linear-gradient(135deg, rgba(15,12,41,0.92) 0%, rgba(26,26,110,0.82) 35%, rgba(13,79,60,0.88) 100%)',
+        }} />
 
         {/* grid lines */}
         <div className="absolute inset-0 opacity-5" style={{
@@ -70,86 +74,64 @@ export default function HomePage() {
           backgroundSize: '60px 60px',
         }} />
 
-        <div className="relative max-w-7xl mx-auto px-6">
+        <div className="relative max-w-4xl mx-auto px-6 text-center">
+          <span className="inline-block px-5 py-2 rounded-full text-xs font-bold tracking-widest uppercase mb-8"
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              color: '#6ee7b7',
+              backdropFilter: 'blur(10px)',
+            }}>
+            Est. Since 1990 · ISO Certified
+          </span>
 
-          {/* Headline + visual */}
-          <div className="grid md:grid-cols-2 items-center gap-12 lg:gap-16">
+          <h1 className="font-bold leading-tight mb-6"
+            style={{
+              fontSize: 'clamp(2.5rem, 6vw, 4.75rem)',
+              background: 'linear-gradient(135deg, #ffffff 0%, #a5f3d0 40%, #818cf8 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>
+            Premium Precast<br />Solutions
+          </h1>
 
-            {/* Left: text content */}
-            <div className="text-center md:text-left">
-              <span className="inline-block px-5 py-2 rounded-full text-xs font-bold tracking-widest uppercase mb-8"
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  color: '#6ee7b7',
-                  backdropFilter: 'blur(10px)',
-                }}>
-                Est. Since 1990 · ISO Certified
-              </span>
+          <p className="text-lg leading-relaxed mb-10 max-w-xl mx-auto"
+            style={{ color: 'rgba(255,255,255,0.7)' }}>
+            Bin-Zahid &amp; Partners delivers world-class precast concrete products — durable, cost-effective, and always on time.
+          </p>
 
-              <h1 className="font-bold leading-tight mb-6"
-                style={{
-                  fontSize: 'clamp(2.5rem, 5vw, 4.5rem)',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #a5f3d0 40%, #818cf8 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}>
-                Premium Precast<br />Solutions
-              </h1>
-
-              <p className="text-lg leading-relaxed mb-10 max-w-lg mx-auto md:mx-0"
-                style={{ color: 'rgba(255,255,255,0.65)' }}>
-                Bin-Zahid &amp; Partners delivers world-class precast concrete products — durable, cost-effective, and always on time.
-              </p>
-
-              <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-                <Link to="/services"
-                  className="inline-flex items-center gap-2 font-bold px-8 py-4 rounded-xl transition hover:opacity-90"
-                  style={{
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    color: '#fff',
-                    boxShadow: '0 8px 32px rgba(16,185,129,0.4)',
-                  }}>
-                  Explore Services <ArrowRight size={18} />
-                </Link>
-                <Link to="/contact"
-                  className="inline-flex items-center gap-2 font-semibold px-8 py-4 rounded-xl transition hover:bg-white/10"
-                  style={{
-                    background: 'rgba(255,255,255,0.07)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#fff',
-                    backdropFilter: 'blur(10px)',
-                  }}>
-                  Contact Us
-                </Link>
-              </div>
-            </div>
-
-            {/* Right: visual */}
-            <div className="relative w-full max-w-lg mx-auto md:max-w-none">
-              {/* Decorative glow behind image */}
-              <div className="absolute -inset-4 bg-emerald-500/20 blur-3xl rounded-full" />
-
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                <img
-                  src="/gallery/white-gazebo-balustrade-veranda.jpeg"
-                  alt="Precast balustrade veranda built by Bin-Zahid & Partners"
-                  className="w-full h-auto object-cover transform hover:scale-105 transition duration-700"
-                />
-                {/* Subtle overlay to match the dark theme */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0f0c29]/60 to-transparent" />
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-4 justify-center">
+            <Link to="/services"
+              className="inline-flex items-center gap-2 font-bold px-8 py-4 rounded-xl transition hover:opacity-90"
+              style={{
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                color: '#fff',
+                boxShadow: '0 8px 32px rgba(16,185,129,0.4)',
+              }}>
+              Explore Services <ArrowRight size={18} />
+            </Link>
+            <Link to="/contact"
+              className="inline-flex items-center gap-2 font-semibold px-8 py-4 rounded-xl transition hover:bg-white/10"
+              style={{
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                color: '#fff',
+                backdropFilter: 'blur(10px)',
+              }}>
+              Contact Us
+            </Link>
           </div>
+        </div>
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-20 md:mt-24">
+        {/* Stat cards, floating over the bottom edge of the hero */}
+        <div className="relative max-w-7xl mx-auto px-6 mt-20 md:mt-24">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {HERO_STATS.map((s) => (
               <div key={s.label}
                 className="flex flex-col items-start p-8 rounded-3xl transition-all duration-300 hover:-translate-y-1"
                 style={{
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
                   border: '1px solid rgba(255,255,255,0.15)',
                   backdropFilter: 'blur(24px)',
                   boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
@@ -216,38 +198,55 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* --------------------------------- Gallery --------------------------------- */}
-      <section className="py-24" style={{ background: '#0a0a1a' }}>
+      {/* ------------------------------ Product Categories -------------------------- */}
+      <section className="py-24" style={{ background: '#0a1a12' }}>
         <div className="max-w-7xl mx-auto px-6">
+          <header className="text-center max-w-2xl mx-auto mb-16">
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6ee7b7' }}>What We Manufacture</span>
+            <h2 className="text-4xl font-bold mt-3" style={{
+              background: 'linear-gradient(135deg, #fff 0%, #a5f3d0 100%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+            }}>Product Categories</h2>
+          </header>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {CATEGORIES.map(({ icon: Icon, title, desc, image }) => (
+              <div key={title}
+                className="group relative rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
+                style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="relative h-48">
+                  <img src={image} alt={title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
+                  <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 30%, rgba(10,26,18,0.9) 100%)' }} />
+                  <div className="absolute bottom-4 left-4 w-11 h-11 rounded-xl flex items-center justify-center"
+                    style={{ background: 'rgba(110,231,183,0.15)', border: '1px solid rgba(110,231,183,0.3)', backdropFilter: 'blur(6px)' }}>
+                    <Icon size={20} style={{ color: '#6ee7b7' }} />
+                  </div>
+                </div>
+                <div className="p-6" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ----------------------------- Featured Projects ---------------------------- */}
+      <section className="py-24" style={{ background: '#0a0a1a' }}>
+        <div className="max-w-6xl mx-auto px-6">
           <header className="text-center max-w-2xl mx-auto mb-16">
             <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6ee7b7' }}>Our Work</span>
             <h2 className="text-4xl font-bold mt-3 mb-4" style={{
               background: 'linear-gradient(135deg, #fff 0%, #a5f3d0 100%)',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-            }}>From Our Factory Floor</h2>
+            }}>Featured Projects</h2>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
               Real projects, real pavers, real craftsmanship — a look at what we produce and install.
             </p>
           </header>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5">
-            {GALLERY.map((item) => (
-              <div key={item.src}
-                className="group relative aspect-square rounded-2xl overflow-hidden"
-                style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-                <img
-                  src={item.src}
-                  alt={item.label}
-                  className="w-full h-full object-cover transition duration-500 group-hover:scale-110"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-4"
-                  style={{ background: 'linear-gradient(180deg, transparent 40%, rgba(10,10,26,0.9) 100%)' }}>
-                  <p className="text-white text-sm font-semibold">{item.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ImageCarousel slides={FEATURED_PROJECTS} />
         </div>
       </section>
 

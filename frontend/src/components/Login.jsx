@@ -88,8 +88,8 @@ export default function Login({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md mx-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="text-white px-8 py-6 flex justify-between items-center" style={{ background: '#1a1a1a', borderBottom: '3px solid #b91c1c' }}>
           <div>
@@ -192,12 +192,6 @@ export default function Login({ isOpen, onClose }) {
               'Login to Dashboard'
             )}
           </button>
-
-          {/* Test Credentials */}
-          <div className="text-center text-xs text-gray-500 pt-2">
-            <p>Demo credentials:</p>
-            <p>Username: <span className="font-mono">admin</span> | Password: <span className="font-mono">password123</span></p>
-          </div>
         </form>
 
         {/* Footer */}

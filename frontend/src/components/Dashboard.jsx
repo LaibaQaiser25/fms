@@ -120,14 +120,14 @@ function Dashboard() {
           </button>
          <button
   onClick={() => setShowNewPurchaseModal(true)}
-  className="flex items-center justify-center gap-2 px-6 py-3 bg-[#7f1d1d] hover:bg-red-950 active:bg-black text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
+  className="flex items-center justify-center gap-2 px-6 py-3 bg-[#4a0d0d] hover:bg-[#320808] active:bg-black text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
 >
   <Package className="w-5 h-5" />
   New Purchase
 </button>
           <button
             onClick={() => setShowAddProductionModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition font-semibold"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-semibold"
           >
             <Package className="w-5 h-5" />
             New Production
@@ -139,7 +139,7 @@ function Dashboard() {
           >
             <button
               onClick={() => setShowPaymentPopover(prev => !prev)}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#b8860b] text-white rounded-lg hover:bg-[#96690a] transition font-semibold"
             >
               <BarChart3 className="w-5 h-5" />
               Add Payment
@@ -170,7 +170,7 @@ function Dashboard() {
                       setShowPaymentPopover(false);
                       setShowPurchasePaymentModal(true);
                     }}
-                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7f1d1d] text-white rounded-lg hover:bg-red-950 transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
+                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-[#4a0d0d] text-white rounded-lg hover:bg-[#320808] transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
                   >
                     <Package className="w-4 h-4" />
                     Purchase Payment

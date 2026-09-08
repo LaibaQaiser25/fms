@@ -1,7 +1,8 @@
-import { Bell, AlertCircle, Search, LogOut, User } from 'lucide-react';
+import { Bell, AlertCircle, Search, LogOut, User, Palette } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
 import { API_BASE_URL } from '../config';
 
@@ -10,6 +11,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
   const [loading, setLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const alertsRef = useRef(null);
 
@@ -57,9 +59,10 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
   return (
     <nav
       style={{
-        background: '#1a1a1a',
-        borderBottom: '3px solid #b91c1c',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+        background: 'var(--nav-bg)',
+        borderBottom: 'var(--nav-border-width) solid var(--nav-border-color)',
+        boxShadow: 'var(--nav-shadow)',
+        backdropFilter: 'var(--nav-blur)',
         position: 'fixed',
         top: 0,
         left: 0,
@@ -73,9 +76,9 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
         <Link to="/" className="flex items-center gap-3 group">
           <div
             className="relative w-10 h-10 rounded-xl overflow-hidden"
-            style={{ border: '2px solid #b91c1c' }}
+            style={{ border: 'var(--logo-border)', boxShadow: 'var(--logo-glow)' }}
           >
-            <img src="../logo3.png" alt="Bin-Zahid Logo" className="w-full h-full object-cover" />
+            <img src="../logo.jpeg" alt="Bin-Zahid Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <div
@@ -86,6 +89,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                 fontWeight: '700',
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
+                textShadow: 'var(--title-glow)',
               }}
             >
               Bin-Zahid & Partners'
@@ -96,7 +100,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                 fontFamily: "'Cormorant Garamond', serif",
                 letterSpacing: '0.2em',
                 textTransform: 'uppercase',
-                color: '#ef4444',
+                color: 'var(--color-text-accent)',
               }}
             >
               Precast Solutions
@@ -117,7 +121,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.07)',
             }}
-            onFocus={e => { e.target.style.border = '1px solid rgba(239,68,68,0.5)'; }}
+            onFocus={e => { e.target.style.border = '1px solid color-mix(in srgb, var(--color-text-accent) 50%, transparent)'; }}
             onBlur={e => { e.target.style.border = '1px solid rgba(255,255,255,0.07)'; }}
           />
           <button
@@ -125,12 +129,23 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
             disabled={loading}
             className="absolute right-2 top-1/2 -translate-y-1/2 transition-all duration-200"
             style={{ color: 'rgba(255,255,255,0.6)' }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-accent)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
           >
             <Search className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          title={theme === 'construction' ? 'Switch to Classic theme' : 'Switch to Construction theme'}
+          className="flex items-center gap-2 h-11 px-3.5 mr-3 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-white/[0.05]"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)' }}
+        >
+          <Palette className="w-4 h-4" />
+          <span className="hidden lg:inline">{theme === 'construction' ? 'Construction' : 'Classic'}</span>
+        </button>
 
         {/* Profile + Alerts — one unified control, no gap between them */}
         <div
@@ -167,7 +182,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                   <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                     <p className="text-sm font-semibold text-white">{user?.username || 'User'}</p>
                     <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{user?.email}</p>
-                    <p className="text-xs uppercase tracking-wider mt-2" style={{ color: '#ef4444' }}>
+                    <p className="text-xs uppercase tracking-wider mt-2" style={{ color: 'var(--color-text-accent)' }}>
                       Role: {user?.role || 'manager'}
                     </p>
                   </div>

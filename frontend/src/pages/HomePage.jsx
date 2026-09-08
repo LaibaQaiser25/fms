@@ -172,7 +172,7 @@ export default function HomePage() {
                   <h3 className="font-bold text-gray-900 mb-2">{title}</h3>
                   <ul className="space-y-1.5">
                     {links.map((l) => {
-                      const linkClass = "inline-flex items-center gap-1 text-sm text-gray-600 hover:text-red-700 transition";
+                      const linkClass = "inline-flex items-center gap-1 text-sm text-gray-600 hover:text-[#b91c1c] transition";
                       return (
                         <li key={l.label}>
                           {l.to.startsWith('#') ? (

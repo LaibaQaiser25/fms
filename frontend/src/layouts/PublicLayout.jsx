@@ -96,7 +96,7 @@ export default function PublicLayout({ children }) {
                         </div>
 
                         {/* Right Side */}
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
                             <button
                                 onClick={() => setIsLoginOpen(true)}
                                 className="hidden md:block text-sm font-bold px-6 py-2.5 rounded-lg transition hover:opacity-90"
@@ -155,19 +155,19 @@ export default function PublicLayout({ children }) {
                 <div className="max-w-7xl mx-auto px-4">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-red-500">About Us</h3>
+                            <h3 className="font-bold text-lg mb-4 text-[#ef4444]">About Us</h3>
                             <p className="text-gray-300 text-sm">Leading precast concrete solutions for modern construction.</p>
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-red-500">Quick Links</h3>
+                            <h3 className="font-bold text-lg mb-4 text-[#ef4444]">Quick Links</h3>
                             <ul className="text-gray-300 text-sm space-y-2">
-                                <li><Link to="/about" className="hover:text-red-500">About</Link></li>
-                                <li><Link to="/services" className="hover:text-red-500">Services</Link></li>
-                                <li><Link to="/contact" className="hover:text-red-500">Contact</Link></li>
+                                <li><Link to="/about" className="hover:text-[#ef4444]">About</Link></li>
+                                <li><Link to="/services" className="hover:text-[#ef4444]">Services</Link></li>
+                                <li><Link to="/contact" className="hover:text-[#ef4444]">Contact</Link></li>
                             </ul>
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-red-500">Contact</h3>
+                            <h3 className="font-bold text-lg mb-4 text-[#ef4444]">Contact</h3>
                             <p className="text-gray-300 text-sm">Sugar Mill Road, Near Kuthiala Sayedan, Mandi Bahauddin</p>
                             <p className="text-gray-300 text-sm mt-2">Email: nasir_mirza202@yahoo.com</p>
                             <p className="text-gray-300 text-sm">Mirza Zahid Nasir: +92 345 7579505</p>
@@ -176,13 +176,13 @@ export default function PublicLayout({ children }) {
                                 href="https://wa.me/923457579505"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-red-500 text-sm hover:underline inline-block mt-1"
+                                className="text-[#ef4444] text-sm hover:underline inline-block mt-1"
                             >
                                 WhatsApp us anytime
                             </a>
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-red-500">Follow Us</h3>
+                            <h3 className="font-bold text-lg mb-4 text-[#ef4444]">Follow Us</h3>
                             <p className="text-gray-300 text-sm">Facebook: اتفاق بلڈرز کی تیار چھتیں اور دیواریں منڈی بہاؤالدین</p>
                         </div>
                     </div>

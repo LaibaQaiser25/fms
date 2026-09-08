@@ -2,3 +2,77 @@
 /* @tailwind base;
 @tailwind components;
 @tailwind utilities; */
+
+/* ---- Theme tokens ------------------------------------------------------
+   Two selectable themes for the logged-in app only (sidebar, header,
+   dashboard, login) — toggled via context/ThemeContext.jsx, which sets
+   data-theme on <html>. The public marketing site never reads these; it
+   always uses the fixed construction palette hardcoded in its own files.
+
+   "construction": flat red/maroon/grey/gold, matching the public site.
+   "generic": the original dark gradient/glow/backdrop-blur "AI" look. */
+
+:root,
+[data-theme="construction"] {
+  --color-brand: #b91c1c;
+  --color-brand-hover: #991b1b;
+  --color-brand-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+
+  --color-sale: #b91c1c;
+  --color-sale-hover: #991b1b;
+  --color-purchase: #4a0d0d;
+  --color-purchase-hover: #320808;
+  --color-production: #4b5563;
+  --color-production-hover: #374151;
+  --color-payment: #b8860b;
+  --color-payment-hover: #96690a;
+
+  --color-text-accent: #9b4c4c;
+
+  --nav-bg: #1a1a1a;
+  --nav-border-width: 3px;
+  --nav-border-color: #b91c1c;
+  --nav-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  --nav-blur: none;
+
+  --panel-bg: #1a1a1a;
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --panel-blur: none;
+
+  --logo-border: 2px solid #b91c1c;
+  --logo-glow: none;
+  --title-glow: none;
+}
+
+[data-theme="generic"] {
+  --color-brand: linear-gradient(135deg, #581cd4, #059669);
+  --color-brand-hover: linear-gradient(135deg, #4c17b8, #047d57);
+  --color-brand-shadow: 0 0 20px rgba(88, 28, 212, 0.45), 0 0 40px rgba(5, 150, 105, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --color-sale: #22c55e;
+  --color-sale-hover: #16a34a;
+  --color-purchase: #7c3aed;
+  --color-purchase-hover: #6d28d9;
+  --color-production: #3b82f6;
+  --color-production-hover: #2563eb;
+  --color-payment: #f97316;
+  --color-payment-hover: #ea580c;
+
+  --color-text-accent: #6ee7b7;
+
+  --nav-bg: linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%);
+  --nav-border-width: 1px;
+  --nav-border-color: rgba(255, 255, 255, 0.07);
+  --nav-shadow: 0 4px 40px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(139, 92, 246, 0.3);
+  --nav-blur: blur(12px);
+
+  --panel-bg: linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%);
+  --panel-border: rgba(255, 255, 255, 0.07);
+  --panel-shadow: 0 8px 40px rgba(0, 0, 0, 0.85), 0 1px 0 rgba(139, 92, 246, 0.3);
+  --panel-blur: blur(12px);
+
+  --logo-border: none;
+  --logo-glow: 0 0 20px rgba(88, 28, 212, 0.5), 0 0 40px rgba(5, 150, 105, 0.3);
+  --title-glow: 0 0 20px rgba(139, 92, 246, 0.4);
+}

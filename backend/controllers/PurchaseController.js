@@ -966,6 +966,7 @@ class PurchaseController {
         )
       ]);
 
+      res.set('Cache-Control', 'private, max-age=10');
       res.json({
         success: true,
         data: {

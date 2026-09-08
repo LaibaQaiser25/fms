@@ -1,4 +1,5 @@
 import PublicLayout from '../layouts/PublicLayout';
+import PageHero from '../components/PageHero';
 import { Building2, Home, Factory, Zap } from 'lucide-react';
 
 export default function ServicesPage() {
@@ -7,43 +8,48 @@ export default function ServicesPage() {
       icon: Home,
       title: 'Residential Precast',
       description: 'High-quality precast elements for residential buildings including stairs, columns, and beams.',
+      image: '/gallery/white-balustrade-railing-with-post-cap.jpeg',
     },
     {
       icon: Building2,
       title: 'Commercial Solutions',
       description: 'Customized precast products designed for commercial and retail construction projects.',
+      image: '/gallery/slate-look-pavers-driveway-grey.jpeg',
     },
     {
       icon: Factory,
       title: 'Industrial Components',
       description: 'Heavy-duty precast units engineered for industrial applications and warehouses.',
+      image: '/gallery/precast-beam-ceiling-brick-columns.jpeg',
     },
     {
       icon: Zap,
       title: 'Custom Design',
       description: 'Bespoke precast solutions tailored to your specific project requirements.',
+      image: '/gallery/star-pattern-pavers.jpeg',
     },
     {
       icon: Building2,
       title: 'Bridge Components',
       description: 'Specialized precast units for infrastructure and bridge construction projects.',
+      image: '/gallery/concrete-drain-pipes-stacked-pyramid.jpeg',
     },
     {
       icon: Home,
       title: 'Finishing Solutions',
       description: 'Aesthetic precast panels and finishes for modern architectural designs.',
+      image: '/gallery/hexagon-textured-pavers-closeup.jpeg',
     },
   ];
 
   return (
     <PublicLayout>
-      {/* Hero Section */}
-      <div className="bg-green-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl font-bold mb-4">Our Services</h1>
-          <p className="text-xl text-green-100">Comprehensive precast solutions for every project</p>
-        </div>
-      </div>
+      <PageHero
+        eyebrow="What We Do"
+        title="Our Services"
+        subtitle="Comprehensive precast solutions for every project"
+        image="/gallery/precast-beam-ceiling-brick-columns.jpeg"
+      />
 
       {/* Services Grid */}
       <div className="py-16">
@@ -52,13 +58,20 @@ export default function ServicesPage() {
             {services.map((service, i) => {
               const Icon = service.icon;
               return (
-                <div key={i} className="bg-white p-8 rounded-lg shadow hover:shadow-lg hover:-translate-y-1 transition">
-                  <Icon className="text-green-600 mb-4" size={40} />
-                  <h3 className="text-xl font-bold mb-3 text-gray-900">{service.title}</h3>
-                  <p className="text-gray-600">{service.description}</p>
-                  <button className="mt-6 text-green-600 font-semibold hover:text-green-700">
-                    Learn More →
-                  </button>
+                <div key={i} className="bg-white rounded-lg shadow hover:shadow-lg hover:-translate-y-1 transition overflow-hidden">
+                  <div className="relative h-44">
+                    <img src={service.image} alt={service.title} className="w-full h-full object-cover" />
+                    <div className="absolute -bottom-5 left-6 w-12 h-12 rounded-xl bg-white shadow flex items-center justify-center">
+                      <Icon className="text-green-600" size={22} />
+                    </div>
+                  </div>
+                  <div className="p-8 pt-9">
+                    <h3 className="text-xl font-bold mb-3 text-gray-900">{service.title}</h3>
+                    <p className="text-gray-600">{service.description}</p>
+                    <button className="mt-6 text-green-600 font-semibold hover:text-green-700">
+                      Learn More →
+                    </button>
+                  </div>
                 </div>
               );
             })}

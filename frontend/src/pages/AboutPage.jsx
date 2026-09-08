@@ -1,4 +1,5 @@
 import PublicLayout from '../layouts/PublicLayout';
+import PageHero from '../components/PageHero';
 import { Users, Award, Zap } from 'lucide-react';
 
 export default function AboutPage() {
@@ -11,13 +12,12 @@ export default function AboutPage() {
 
   return (
     <PublicLayout>
-      {/* Hero Section */}
-      <div className="bg-blue-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl font-bold mb-4">About Bin-Zahid & Partners</h1>
-          <p className="text-xl text-blue-100">Building Dreams with Precision</p>
-        </div>
-      </div>
+      <PageHero
+        eyebrow="Since 2005"
+        title="About Bin-Zahid & Partners"
+        subtitle="Building Dreams with Precision"
+        image="/gallery/concrete-slab-molds-curing-yard-1.jpeg"
+      />
 
       {/* Company Description */}
       <div className="py-16">
@@ -35,13 +35,13 @@ export default function AboutPage() {
                 Today, we employ over 200 skilled professionals and operate state-of-the-art manufacturing facilities across multiple regions.
               </p>
             </div>
-            <div className="bg-gradient-to-br from-blue-100 to-green-100 rounded-lg h-80 flex items-center justify-center overflow-hidden">
-  <img 
-    src="../pic3.jpg" 
-    alt="19 Years of Excellence" 
-    className="w-full h-full object-cover rounded-lg"
-  />
-</div>
+            <div className="rounded-lg h-80 overflow-hidden shadow-lg">
+              <img
+                src="/gallery/workers-laying-diamond-pavers-house.jpeg"
+                alt="Our team laying precast pavers on-site"
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -59,6 +59,27 @@ export default function AboutPage() {
               <div key={i} className="text-center">
                 <div className="text-4xl font-bold text-green-600 mb-2">{stat.number}</div>
                 <p className="text-gray-600">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Facility Gallery */}
+      <div className="py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12">Inside Our Facility</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { src: '/gallery/pavers-pattern-samples-yard-overview.jpeg', label: 'Curing Yard' },
+              { src: '/gallery/precast-beam-ceiling-brick-columns.jpeg', label: 'Precast Beam Production' },
+              { src: '/gallery/concrete-drain-pipes-stacked-pyramid.jpeg', label: 'Drainage Pipe Manufacturing' },
+            ].map((item) => (
+              <div key={item.src} className="rounded-lg overflow-hidden h-56 shadow group relative">
+                <img src={item.src} alt={item.label} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" />
+                <div className="absolute inset-0 flex items-end p-4" style={{ background: 'linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.65) 100%)' }}>
+                  <p className="text-white text-sm font-semibold">{item.label}</p>
+                </div>
               </div>
             ))}
           </div>

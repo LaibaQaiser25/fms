@@ -1,4 +1,5 @@
 import PublicLayout from '../layouts/PublicLayout';
+import PageHero from '../components/PageHero';
 import { useState } from 'react';
 import { Phone, Mail, MapPin, MessageCircle } from 'lucide-react';
 
@@ -25,13 +26,12 @@ export default function ContactPage() {
 
   return (
     <PublicLayout>
-      {/* Hero Section */}
-      <div className="bg-green-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl font-bold mb-4">Contact Us</h1>
-          <p className="text-xl text-green-100">Get in touch with our team</p>
-        </div>
-      </div>
+      <PageHero
+        eyebrow="Let's Talk"
+        title="Contact Us"
+        subtitle="Get in touch with our team"
+        image="/gallery/precast-boundary-wall-panels-2.jpeg"
+      />
 
       {/* Contact Section */}
       <div className="py-16">

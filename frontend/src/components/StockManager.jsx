@@ -224,15 +224,13 @@ export default function StockManager() {
         {/* --- BUTTONS --- */}
         <div className="flex gap-2">
           <button onClick={() => setShowCalculator(!showCalculator)}
-            style={showCalculator ? undefined : ACCENT_GRADIENT_STYLE}
-            className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showCalculator ? 'bg-gray-600 hover:bg-gray-700' : ''}`}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showCalculator ? 'bg-gray-600 hover:bg-gray-700' : 'bg-black hover:bg-gray-900'}`}
           >
             {showCalculator ? '✕ Close Calc' : '󱐋 Calculator'}
           </button>
 
           <button onClick={() => { resetForm(); setShowForm(!showForm); }}
-            style={showForm ? undefined : ACCENT_GRADIENT_STYLE}
-            className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showForm ? 'bg-gray-600 hover:bg-gray-700' : ''}`}>
+            className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showForm ? 'bg-gray-600 hover:bg-gray-700' : 'bg-black hover:bg-gray-900'}`}>
             {showForm ? '✕ Cancel' : '+ Add Item'}
           </button>
         </div>

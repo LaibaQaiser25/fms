@@ -5,8 +5,7 @@ import NewPurchaseModal from './Purchase/NewPurchaseModal';
 import AddPaymentModal from './Payments/AddPaymentModal';
 import PurchasePaymentModal from './Payments/PurchasePaymentModal';
 import AddProductionDirect from './AddProductionDirect';
-import * as salesApi from '../api/salesApi';
-import { NavLink, Link, useOutletContext } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';
 
 // Shrinks its own font-size until the text fits on one line within its
@@ -52,7 +51,6 @@ function FitText({ children, className = '' }) {
 
 function Dashboard() {
   const alertRefresh = useContext(AlertRefreshContext);
-  const outletContext = useOutletContext();
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
   const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
@@ -61,34 +59,15 @@ function Dashboard() {
   const paymentPopoverTimeout = useRef(null);
   const [showAddProductionModal, setShowAddProductionModal] = useState(false);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
-  const [salesSummary, setSalesSummary] = useState(null);
-  const [recentOrders, setRecentOrders] = useState([]);
-  const [lowStockAlerts, setLowStockAlerts] = useState([]);
-  const [pendingPayments, setPendingPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [outletContext?.refreshTrigger?.pendingPayments]);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      // Single optimized API call replaces 4 separate calls
-      const response = await salesApi.getDashboardData();
-
-      const { salesSummary, recentOrders, lowStockAlerts, pendingPayments } = response.data.data;
-
-      setSalesSummary(salesSummary);
-      setRecentOrders(recentOrders || []);
-      setLowStockAlerts(lowStockAlerts || []);
-      setPendingPayments(pendingPayments || []);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Dashboard data comes from Layout's fetchAlerts (AlertRefreshContext), which
+  // every page already fetches on mount — no separate call here, otherwise
+  // /sales/dashboard/data ends up hit twice on every dashboard load.
+  const salesSummary = alertRefresh?.salesSummary ?? null;
+  const recentOrders = alertRefresh?.recentOrders ?? [];
+  const lowStockAlerts = alertRefresh?.lowStockAlerts ?? [];
+  const pendingPayments = alertRefresh?.pendingPayments ?? [];
+  const loading = salesSummary === null;
 
   const openPaymentPopover = () => {
     if (paymentPopoverTimeout.current) {
@@ -308,10 +287,6 @@ function Dashboard() {
         <NewPurchaseModal
           onClose={() => {
             setShowNewPurchaseModal(false);
-          }}
-          onSuccess={() => {
-            setShowNewPurchaseModal(false);
-            fetchDashboardData();
           }}
         />
       )}

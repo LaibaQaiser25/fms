@@ -1,4 +1,5 @@
 import PublicLayout from '../layouts/PublicLayout';
+import PageHero from '../components/PageHero';
 import { useState } from 'react';
 import { Star } from 'lucide-react';
 
@@ -21,13 +22,12 @@ export default function FeedbackPage() {
 
   return (
     <PublicLayout>
-      {/* Hero Section */}
-      <div className="bg-blue-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl font-bold mb-4">Customer Feedback</h1>
-          <p className="text-xl text-blue-100">We value your experience and suggestions</p>
-        </div>
-      </div>
+      <PageHero
+        eyebrow="Tell Us What You Think"
+        title="Customer Feedback"
+        subtitle="We value your experience and suggestions"
+        image="/gallery/clover-pavers-driveway-house.jpeg"
+      />
 
       {/* Feedback Form */}
       <div className="py-16">

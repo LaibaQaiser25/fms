@@ -90,7 +90,7 @@ export default function PublicLayout({ children }) {
                                 style={{
                                     background: 'linear-gradient(135deg, #581cd4, #059669)',
                                     color: '#fff',
-                                    boxShadow: '0 0 20px rgba(88,28,212,0.45), 0 0 40px rgba(5,150,105,0.25), inset 0 1px 0 rgba(255,255,255,0.15)',
+                                    boxShadow: '0 0 20px rgba(88,28,212,0.45), 0 0 40px rgba(5,150,105,0.25), inset 0 1px 0 rgba(255,255,255,0.05)',
                                 }}
                             >
                                 Login

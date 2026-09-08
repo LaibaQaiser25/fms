@@ -76,6 +76,7 @@ class RawMaterialsController {
         `SELECT * FROM raw_materials WHERE quantity <= minimum_stock ORDER BY name ASC`
       );
 
+      res.set('Cache-Control', 'private, max-age=10');
       res.json({
         success: true,
         data: result.rows

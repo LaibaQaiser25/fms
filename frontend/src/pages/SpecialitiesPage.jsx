@@ -1,28 +1,29 @@
 import PublicLayout from '../layouts/PublicLayout';
+import PageHero from '../components/PageHero';
 import { Lightbulb, Shield, Leaf, Sliders } from 'lucide-react';
 
 export default function SpecialitiesPage() {
   const specialities = [
     {
-      image: '../pic3.jpg', // Replace with your image path
+      image: '/gallery/star-pattern-pavers.jpeg',
       title: 'Innovation',
       description: 'We invest heavily in research and development to create innovative precast solutions that meet evolving market demands.',
       items: ['3D CAD Design', 'Advanced Manufacturing', 'Material Innovation'],
     },
     {
-      image: '../pic4.jpg',
+      image: '/gallery/concrete-slab-molds-curing-yard-1.jpeg',
       title: 'Quality Assurance',
       description: 'Rigorous testing and inspection at every stage ensures products meet or exceed international standards.',
       items: ['ISO 9001 Certified', 'Regular Audits', 'Lab Testing'],
     },
     {
-      image: '../pic5.jpg',
+      image: '/gallery/herringbone-pavers-with-bushes.jpeg',
       title: 'Sustainability',
       description: 'Eco-friendly manufacturing practices and sustainable material sourcing are core to our operations.',
       items: ['Green Manufacturing', 'Waste Reduction', 'Recycled Materials'],
     },
     {
-      image: '../pic1.jpg',
+      image: '/gallery/hexagon-wave-pavers-white-red-pathway.jpeg',
       title: 'Customization',
       description: 'Flexible manufacturing capabilities allow us to create custom precast solutions for unique project needs.',
       items: ['Custom Designs', 'Variable Dimensions', 'Special Finishes'],
@@ -31,13 +32,12 @@ export default function SpecialitiesPage() {
 
   return (
     <PublicLayout>
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-900 to-green-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl font-bold mb-4">Our Specialities</h1>
-          <p className="text-xl text-blue-100">What sets us apart in the industry</p>
-        </div>
-      </div>
+      <PageHero
+        eyebrow="What Sets Us Apart"
+        title="Our Specialities"
+        subtitle="The craft and standards behind every precast product we ship"
+        image="/gallery/pavers-pattern-samples-yard-overview.jpeg"
+      />
 
       {/* Specialities Cards */}
       {/* Specialities Cards */}

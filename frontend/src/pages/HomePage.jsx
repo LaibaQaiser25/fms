@@ -21,6 +21,17 @@ const BANNER_STATS = [
   { value: '50+', label: 'Expert Engineers' },
 ];
 
+const GALLERY = [
+  { src: '/gallery/clover-pavers-driveway-house.jpeg', label: 'Clover Paver Driveway' },
+  { src: '/gallery/star-pattern-pavers.jpeg', label: 'Star Pattern Pavers' },
+  { src: '/gallery/hexagon-textured-pavers-closeup.jpeg', label: 'Hexagon Textured Pavers' },
+  { src: '/gallery/zigzag-pavers-courtyard-garden.jpeg', label: 'Zigzag Courtyard Pavers' },
+  { src: '/gallery/white-balustrade-railing-with-post-cap.jpeg', label: 'Precast Balustrade Railing' },
+  { src: '/gallery/precast-boundary-wall-panels-1.jpeg', label: 'Precast Boundary Wall' },
+  { src: '/gallery/chevron-pavers-red-black-grey-closeup.jpeg', label: 'Chevron Pattern Pavers' },
+  { src: '/gallery/worker-laying-zigzag-pavers.jpeg', label: 'Craftsmanship On-Site' },
+];
+
 export default function HomePage() {
   return (
     <PublicLayout>
@@ -122,8 +133,8 @@ export default function HomePage() {
 
               <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
                 <img
-                  src="../pic1.jpg"
-                  alt="Premium Precast Concrete"
+                  src="/gallery/white-gazebo-balustrade-veranda.jpeg"
+                  alt="Precast balustrade veranda built by Bin-Zahid & Partners"
                   className="w-full h-auto object-cover transform hover:scale-105 transition duration-700"
                 />
                 {/* Subtle overlay to match the dark theme */}
@@ -138,7 +149,7 @@ export default function HomePage() {
               <div key={s.label}
                 className="flex flex-col items-start p-8 rounded-3xl transition-all duration-300 hover:-translate-y-1"
                 style={{
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%)',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
                   border: '1px solid rgba(255,255,255,0.15)',
                   backdropFilter: 'blur(24px)',
                   boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
@@ -191,7 +202,7 @@ export default function HomePage() {
                   background: 'rgba(255,255,255,0.03)',
                   border: '1px solid rgba(255,255,255,0.08)',
                   backdropFilter: 'blur(10px)',
-                  boxShadow: `0 0 40px ${glow}, inset 0 1px 0 rgba(255,255,255,0.06)`,
+                  boxShadow: `0 0 40px ${glow}, inset 0 1px 0 rgba(255,255,255,0.02)`,
                 }}>
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
                   style={{ background: `${glow}`, border: `1px solid ${accent}30` }}>
@@ -199,6 +210,41 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
                 <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* --------------------------------- Gallery --------------------------------- */}
+      <section className="py-24" style={{ background: '#0a0a1a' }}>
+        <div className="max-w-7xl mx-auto px-6">
+          <header className="text-center max-w-2xl mx-auto mb-16">
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6ee7b7' }}>Our Work</span>
+            <h2 className="text-4xl font-bold mt-3 mb-4" style={{
+              background: 'linear-gradient(135deg, #fff 0%, #a5f3d0 100%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+            }}>From Our Factory Floor</h2>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              Real projects, real pavers, real craftsmanship — a look at what we produce and install.
+            </p>
+          </header>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5">
+            {GALLERY.map((item) => (
+              <div key={item.src}
+                className="group relative aspect-square rounded-2xl overflow-hidden"
+                style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                <img
+                  src={item.src}
+                  alt={item.label}
+                  className="w-full h-full object-cover transition duration-500 group-hover:scale-110"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-4"
+                  style={{ background: 'linear-gradient(180deg, transparent 40%, rgba(10,10,26,0.9) 100%)' }}>
+                  <p className="text-white text-sm font-semibold">{item.label}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -237,7 +283,7 @@ export default function HomePage() {
             style={{
               background: 'linear-gradient(135deg, #6366f1, #10b981)',
               color: '#fff',
-              boxShadow: '0 8px 32px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.2)',
+              boxShadow: '0 8px 32px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.06)',
             }}>
             Contact Us Now <ArrowRight size={18} />
           </Link>

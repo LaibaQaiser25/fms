@@ -218,6 +218,84 @@ class CustomerLedgerController {
   }
 
   /**
+   * Update a manual ledger entry
+   * PUT /api/ledger/:id
+   * Body: { debit, credit, note }
+   */
+  static async updateLedgerEntry(req, res) {
+    try {
+      const { id } = req.params;
+      const { debit = 0, credit = 0, note } = req.body;
+
+      const existing = await pool.query('SELECT * FROM customer_ledger WHERE id = $1', [id]);
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ error: 'Ledger entry not found' });
+      }
+
+      // 'sale' and 'payment' rows are kept in sync with invoices/sales balances
+      // elsewhere — editing them here would desync those. Only manual entries
+      // (see addLedgerEntry) can be edited through this endpoint.
+      if (['sale', 'payment'].includes(existing.rows[0].transaction_type)) {
+        return res.status(400).json({
+          error: `'${existing.rows[0].transaction_type}' entries must be edited through the sale/payment endpoints, not a manual ledger edit`
+        });
+      }
+
+      const debt = debit - credit;
+
+      const result = await pool.query(
+        `UPDATE customer_ledger
+         SET debit = $1, credit = $2, debt = $3, note = $4
+         WHERE id = $5
+         RETURNING *`,
+        [debit, credit, debt, note, id]
+      );
+
+      res.json({
+        success: true,
+        message: 'Ledger entry updated',
+        data: result.rows[0]
+      });
+
+    } catch (error) {
+      console.error('❌ Error updating ledger entry:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Delete a manual ledger entry
+   * DELETE /api/ledger/:id
+   */
+  static async deleteLedgerEntry(req, res) {
+    try {
+      const { id } = req.params;
+
+      const existing = await pool.query('SELECT * FROM customer_ledger WHERE id = $1', [id]);
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ error: 'Ledger entry not found' });
+      }
+
+      if (['sale', 'payment'].includes(existing.rows[0].transaction_type)) {
+        return res.status(400).json({
+          error: `'${existing.rows[0].transaction_type}' entries must be removed through the sale/payment flow, not a manual ledger delete`
+        });
+      }
+
+      await pool.query('DELETE FROM customer_ledger WHERE id = $1', [id]);
+
+      res.json({
+        success: true,
+        message: 'Ledger entry deleted'
+      });
+
+    } catch (error) {
+      console.error('❌ Error deleting ledger entry:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * Get outstanding debts (high to low)
    * GET /api/ledger/debts/outstanding
    */

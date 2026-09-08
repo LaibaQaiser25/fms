@@ -34,3 +34,9 @@ export const getOutstandingDebts = () =>
 
 export const addLedgerEntry = (data) =>
   http.post(`/purchase-ledger`, data);
+
+export const updateLedgerEntry = (id, data) =>
+  http.put(`/purchase-ledger/${id}`, data);
+
+export const deleteLedgerEntry = (id) =>
+  http.delete(`/purchase-ledger/${id}`);

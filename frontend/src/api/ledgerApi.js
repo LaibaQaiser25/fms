@@ -21,3 +21,9 @@ export const addLedgerEntry = (data) =>
 
 export const getCustomerLedgerHistory = (customerId) =>
   http.get(`/ledger/customer/${customerId}`);
+
+export const updateLedgerEntry = (id, data) =>
+  http.put(`/ledger/${id}`, data);
+
+export const deleteLedgerEntry = (id) =>
+  http.delete(`/ledger/${id}`);

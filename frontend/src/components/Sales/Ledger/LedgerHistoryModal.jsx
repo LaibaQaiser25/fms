@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Pencil, Trash2, Check } from 'lucide-react';
 import * as ledgerApi from '../../../api/ledgerApi';
+
+// Entries of these types are written by the sale/payment flow and stay in
+// sync with invoices/sales balances elsewhere — the backend refuses to
+// edit/delete them through this manual endpoint, so hide the controls too.
+const PROTECTED_TYPES = ['sale', 'payment'];
 
 function LedgerHistoryModal({ customerId, onClose }) {
   const [ledgerData, setLedgerData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ debit: 0, credit: 0, note: '' });
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     fetchLedgerHistory();
@@ -21,6 +29,45 @@ function LedgerHistoryModal({ customerId, onClose }) {
       console.error('Error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startEdit = (entry) => {
+    setActionError('');
+    setEditingId(entry.id);
+    setEditForm({ debit: entry.debit || 0, credit: entry.credit || 0, note: entry.note || '' });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setActionError('');
+  };
+
+  const saveEdit = async (id) => {
+    try {
+      setActionError('');
+      await ledgerApi.updateLedgerEntry(id, {
+        debit: Number(editForm.debit) || 0,
+        credit: Number(editForm.credit) || 0,
+        note: editForm.note
+      });
+      setEditingId(null);
+      fetchLedgerHistory();
+    } catch (err) {
+      setActionError(err.response?.data?.error || 'Error updating entry');
+      console.error('Error:', err);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this ledger entry? This cannot be undone.')) return;
+    try {
+      setActionError('');
+      await ledgerApi.deleteLedgerEntry(id);
+      fetchLedgerHistory();
+    } catch (err) {
+      setActionError(err.response?.data?.error || 'Error deleting entry');
+      console.error('Error:', err);
     }
   };
 
@@ -114,7 +161,11 @@ function LedgerHistoryModal({ customerId, onClose }) {
         {/* Ledger Transactions */}
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Transaction History</h3>
-          
+
+          {actionError && (
+            <p className="mb-3 text-sm text-red-600 font-semibold">{actionError}</p>
+          )}
+
           {history && history.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -127,44 +178,123 @@ function LedgerHistoryModal({ customerId, onClose }) {
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">Credit (pkr)</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">Debt (pkr)</th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Notes</th>
+                    <th className="text-center py-3 px-4 font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {history.map((entry, idx) => (
-                    <tr key={entry.id} className="hover:bg-gray-50 transition">
-                      <td className="py-3 px-4 text-sm text-gray-700">
-                        {new Date(entry.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-semibold text-gray-800">
-                        {entry.invoice_no || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                          entry.transaction_type === 'sale'
-                            ? 'bg-blue-100 text-blue-800'
-                            : entry.transaction_type === 'payment'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {entry.transaction_type?.charAt(0).toUpperCase() + entry.transaction_type?.slice(1)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right text-gray-700 font-semibold">
-                        {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right text-gray-700 font-semibold">
-                        {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
-                      </td>
-                      <td className={`py-3 px-4 text-right font-bold ${
-                        entry.running_balance > 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {formatCurrency(entry.running_balance || 0)}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {entry.note || '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {history.map((entry) => {
+                    const isProtected = PROTECTED_TYPES.includes(entry.transaction_type);
+                    const isEditing = editingId === entry.id;
+                    return (
+                      <tr key={entry.id} className="hover:bg-gray-50 transition">
+                        <td className="py-3 px-4 text-sm text-gray-700">
+                          {new Date(entry.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4 text-sm font-semibold text-gray-800">
+                          {entry.invoice_no || '-'}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            entry.transaction_type === 'sale'
+                              ? 'bg-blue-100 text-blue-800'
+                              : entry.transaction_type === 'payment'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {entry.transaction_type?.charAt(0).toUpperCase() + entry.transaction_type?.slice(1)}
+                          </span>
+                        </td>
+                        {isEditing ? (
+                          <>
+                            <td className="py-2 px-4 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                value={editForm.debit}
+                                onChange={(e) => setEditForm({ ...editForm, debit: e.target.value })}
+                                className="w-24 px-2 py-1 border border-gray-300 rounded text-right text-sm"
+                              />
+                            </td>
+                            <td className="py-2 px-4 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                value={editForm.credit}
+                                onChange={(e) => setEditForm({ ...editForm, credit: e.target.value })}
+                                className="w-24 px-2 py-1 border border-gray-300 rounded text-right text-sm"
+                              />
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-400 text-sm">—</td>
+                            <td className="py-2 px-4">
+                              <input
+                                type="text"
+                                value={editForm.note}
+                                onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              />
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => saveEdit(entry.id)}
+                                  className="p-1 text-green-700 hover:bg-green-100 rounded"
+                                  title="Save"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={cancelEdit}
+                                  className="p-1 text-gray-600 hover:bg-gray-200 rounded"
+                                  title="Cancel"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-3 px-4 text-right text-gray-700 font-semibold">
+                              {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-700 font-semibold">
+                              {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
+                            </td>
+                            <td className={`py-3 px-4 text-right font-bold ${
+                              entry.running_balance > 0 ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {formatCurrency(entry.running_balance || 0)}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-gray-600">
+                              {entry.note || '-'}
+                            </td>
+                            <td className="py-3 px-4">
+                              {isProtected ? (
+                                <p className="text-center text-xs text-gray-400">Locked</p>
+                              ) : (
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => startEdit(entry)}
+                                    className="p-1 text-blue-700 hover:bg-blue-100 rounded"
+                                    title="Edit entry"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(entry.id)}
+                                    className="p-1 text-red-700 hover:bg-red-100 rounded"
+                                    title="Delete entry"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

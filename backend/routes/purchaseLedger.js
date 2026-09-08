@@ -17,4 +17,8 @@ router.get('/', PurchaseLedgerController.getFullPurchaseLedger);
 // Add manual ledger entry
 router.post('/', PurchaseLedgerController.addLedgerEntry);
 
+// Update / delete a manual ledger entry
+router.put('/:id', PurchaseLedgerController.updateLedgerEntry);
+router.delete('/:id', PurchaseLedgerController.deleteLedgerEntry);
+
 module.exports = router;

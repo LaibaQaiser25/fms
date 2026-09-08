@@ -75,7 +75,7 @@ export default function HomePage() {
         }} />
 
         <div className="relative max-w-4xl mx-auto px-6 text-center">
-          <span className="inline-block px-5 py-2 rounded-full text-xs font-bold tracking-widest uppercase mb-8"
+          {/* <span className="inline-block px-5 py-2 rounded-full text-xs font-bold tracking-widest uppercase mb-8"
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',
@@ -83,7 +83,7 @@ export default function HomePage() {
               backdropFilter: 'blur(10px)',
             }}>
             Est. Since 1990 · ISO Certified
-          </span>
+          </span> */}
 
           <h1 className="font-bold leading-tight mb-6"
             style={{

@@ -114,7 +114,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
     <div className="border-b-2 border-gray-800 pb-4 mb-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
+          <img src="/logo3.png" alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
           <div>
             <p className="text-lg font-bold text-gray-900 leading-tight">Bin-Zahid &amp; Partners'</p>
             <p className="text-xs text-gray-500 leading-tight tracking-wide">PRECAST SOLUTIONS</p>

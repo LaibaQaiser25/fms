@@ -152,7 +152,7 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
           </div>
           <div className={`bg-white p-4 rounded-lg shadow-sm `}>
             <p className="text-xs text-gray-600 font-semibold">Outstanding Debt</p>
-            <p className={`text-2xl font-bold ${summary?.total_debt > 0 ? 'text-red-600' : 'text-red-600'}`}>
+            <p className={`text-2xl font-bold ${summary?.total_debt > 0 ? 'text-red-600' : 'text-gray-800'}`}>
               {formatCurrency(summary?.total_debt)}
             </p>
           </div>
@@ -261,7 +261,7 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
                               {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
                             </td>
                             <td className={`py-3 px-4 text-right font-bold ${
-                              entry.running_balance > 0 ? 'text-red-600' : 'text-red-600'
+                              entry.running_balance > 0 ? 'text-red-600' : 'text-gray-800'
                             }`}>
                               {formatCurrency(entry.running_balance || 0)}
                             </td>

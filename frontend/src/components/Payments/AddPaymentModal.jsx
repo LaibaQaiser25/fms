@@ -200,11 +200,11 @@ function AddPaymentModal({ onClose }) {
             </div>
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold mb-1">Total Paid</p>
-              <p className="text-xl font-bold text-red-600">PKR{selectedCustomer ? totalCredit.toLocaleString() : '0'}</p>
+              <p className="text-xl font-bold text-gray-800">PKR{selectedCustomer ? totalCredit.toLocaleString() : '0'}</p>
             </div>
-            <div className={`rounded-lg p-4 border-2 ${selectedCustomer && outstandingDebt > 0 ? 'bg-red-50 border-red-200' : 'bg-red-50 border-red-200'}`}>
+            <div className={`rounded-lg p-4 border-2 ${selectedCustomer && outstandingDebt > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
               <p className="text-xs text-gray-600 font-semibold mb-1">Remaining Debt</p>
-              <p className={`text-xl font-bold ${selectedCustomer && outstandingDebt > 0 ? 'text-red-600' : 'text-red-600'}`}>
+              <p className={`text-xl font-bold ${selectedCustomer && outstandingDebt > 0 ? 'text-red-600' : 'text-gray-800'}`}>
                 PKR{selectedCustomer ? outstandingDebt.toLocaleString() : '0'}
               </p>
             </div>

@@ -147,7 +147,7 @@ export default function Reports() {
               placeholder="e.g. Aug, 2026-08, 24..."
               value={searchInput}
               onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
-              className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-[var(--color-text-accent)]"
             />
           </div>
           <div>
@@ -155,7 +155,7 @@ export default function Reports() {
             <select
               value={periodType}
               onChange={(e) => { setPeriodType(e.target.value); setPage(1); }}
-              className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-text-accent)]"
             >
               <option value="">All</option>
               <option value="daily">Daily</option>
@@ -171,7 +171,7 @@ export default function Reports() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]" />
             <p className="mt-2 text-gray-600">Loading reports...</p>
           </div>
         ) : reports.length === 0 ? (
@@ -219,7 +219,7 @@ export default function Reports() {
                         : `${formatDate(r.period_start)} – ${formatDate(r.period_end)}`}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mr-1.5 ${r.generated_by === 'auto' ? 'bg-red-100 text-red-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mr-1.5 ${r.generated_by === 'auto' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
                         {r.generated_by === 'auto' ? 'Auto' : 'Manual'}
                       </span>
                       {formatDateTime(r.created_at)}

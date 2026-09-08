@@ -6,7 +6,7 @@ import { ACCENT_GRADIENT_STYLE } from '../theme';
 
 // Cycled left-border accents for category cards — mirrors the stat-card language
 // used on the Dashboard (border-l-4 in rotating brand colors).
-const CARD_ACCENTS = ['border-red-500', 'border-red-500', 'border-red-500', 'border-amber-500', 'border-rose-500', 'border-red-500'];
+const CARD_ACCENTS = ['border-red-500', 'border-gray-500', 'border-amber-500', 'border-red-800', 'border-gray-700', 'border-red-600'];
 
 export default function StockManager() {
   const [stocks, setStocks] = useState([]);
@@ -460,7 +460,7 @@ export default function StockManager() {
                       {Number(item.unit_price).toLocaleString()}
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.quantity > 10 ? 'bg-red-100 text-red-700' : item.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.quantity > 10 ? 'bg-gray-100 text-gray-700' : item.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                         {item.quantity}
                       </span>
                     </td>

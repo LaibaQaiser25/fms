@@ -4,7 +4,7 @@ export const Button = ({ type = 'button', variant = 'primary', size = 'md', clas
   const baseStyles = 'font-semibold rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
-    primary: 'bg-red-700 hover:bg-red-800 text-white',
+    primary: 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white',
     secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
     danger: 'bg-red-600 hover:bg-red-700 text-white',
     success: 'bg-gray-700 hover:bg-gray-800 text-white',
@@ -32,7 +32,7 @@ export const Input = ({ label, error, className = '', ...props }) => {
     <div className="flex flex-col gap-1">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <input
-        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 ${error ? 'border-red-500' : ''} ${className}`}
+        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-text-accent)] ${error ? 'border-red-500' : ''} ${className}`}
         {...props}
       />
       {error && <span className="text-xs text-red-500">{error}</span>}
@@ -45,7 +45,7 @@ export const Select = ({ label, options, error, className = '', ...props }) => {
     <div className="flex flex-col gap-1">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <select
-        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 ${error ? 'border-red-500' : ''} ${className}`}
+        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-text-accent)] ${error ? 'border-red-500' : ''} ${className}`}
         {...props}
       >
         <option value="">Select an option</option>
@@ -128,7 +128,7 @@ export const Table = ({ columns, data, loading, onEdit, onDelete }) => {
               <td className="px-6 py-4 flex gap-2">
                 <button
                   onClick={() => onEdit(row)}
-                  className="text-red-700 hover:text-red-900 font-medium"
+                  className="text-[var(--color-text-accent)] hover:opacity-75 font-medium"
                 >
                   Edit
                 </button>
@@ -189,7 +189,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
           key={page}
           data-guest-allow="true"
           onClick={() => onPageChange(page)}
-          className={`px-3 py-1 border rounded ${currentPage === page ? 'bg-red-700 text-white border-red-700' : 'border-gray-300 hover:bg-gray-100'}`}
+          className={`px-3 py-1 border rounded ${currentPage === page ? 'bg-[var(--color-text-accent)] text-white border-[var(--color-text-accent)]' : 'border-gray-300 hover:bg-gray-100'}`}
         >
           {page}
         </button>

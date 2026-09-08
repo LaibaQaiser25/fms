@@ -112,7 +112,7 @@ function ProductionList() {
               }}
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 filter === status
-                  ? 'bg-red-600 text-white'
+                  ? 'bg-[var(--color-brand)] text-white'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
             >
@@ -126,7 +126,7 @@ function ProductionList() {
             }}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               filter === ''
-                ? 'bg-red-600 text-white'
+                ? 'bg-[var(--color-brand)] text-white'
                 : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
             }`}
           >
@@ -139,7 +139,7 @@ function ProductionList() {
       <div className="px-8 py-6">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]"></div>
             <p className="mt-2 text-gray-600">Loading production queue...</p>
           </div>
         ) : queue.length === 0 ? (

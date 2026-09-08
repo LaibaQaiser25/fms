@@ -129,13 +129,13 @@ function CustomerLedger() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by customer name or phone..."
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-text-accent)]"
             />
           </div>
           <select
             value={`${sortBy}-${sortOrder}`}
             onChange={(e) => handleSortChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-500 sm:w-64"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-text-accent)] sm:w-64"
           >
             {sortOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -144,7 +144,7 @@ function CustomerLedger() {
         </div>
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]"></div>
             <p className="mt-2 text-gray-600">Loading ledger...</p>
           </div>
         ) : ledger.length === 0 ? (
@@ -183,7 +183,7 @@ function CustomerLedger() {
                         {formatCurrency(entry.total_credit || 0)}
                       </td>
                       <td className={`py-4 px-6 text-right font-bold ${
-                        entry.debt > 0 ? 'text-red-600' : 'text-red-600'
+                        entry.debt > 0 ? 'text-red-600' : 'text-gray-800'
                       }`}>
                         {formatCurrency(entry.debt || 0)}
                       </td>

@@ -141,7 +141,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
   const heroProfit = (
     <div className="text-center py-5 border-b border-gray-100 mb-5">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Net Profit</p>
-      <p className={`font-bold ${netProfit >= 0 ? 'text-red-600' : 'text-red-600'}`} style={{ fontSize: 48, lineHeight: 1 }}>
+      <p className={`font-bold ${netProfit >= 0 ? 'text-gray-800' : 'text-red-600'}`} style={{ fontSize: 48, lineHeight: 1 }}>
         {formatCurrency(netProfit)}
       </p>
       <p className="text-sm text-gray-500 mt-2">{profitMargin.toFixed(1)}% margin on sales</p>

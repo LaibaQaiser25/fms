@@ -156,8 +156,8 @@ function Cashbook() {
     <th className={`py-3 px-6 font-semibold text-gray-700 ${align === 'right' ? 'text-right' : 'text-left'}`}>
       <button
         onClick={() => handleSort(column)}
-        className={`inline-flex items-center gap-1 hover:text-red-600 transition ${
-          sortBy === column ? 'text-red-600' : ''
+        className={`inline-flex items-center gap-1 hover:text-[var(--color-text-accent)] transition ${
+          sortBy === column ? 'text-[var(--color-text-accent)]' : ''
         }`}
       >
         {label}
@@ -234,7 +234,7 @@ function Cashbook() {
             count={totals?.counts?.expenses}
             tone={{ text: 'text-red-600' }}
           />
-          <div className={`rounded-lg shadow-md p-5 ${net >= 0 ? 'bg-red-600' : 'bg-red-600'}`}>
+          <div className={`rounded-lg shadow-md p-5 ${net >= 0 ? 'bg-gray-800' : 'bg-red-600'}`}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-white/90">Net Cash In-hand</p>
               <Wallet size={20} className="text-white/90" />
@@ -279,7 +279,7 @@ function Cashbook() {
                 type="date"
                 value={filters.startDate}
                 onChange={(e) => updateFilter({ startDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-text-accent)] focus:border-[var(--color-text-accent)]"
               />
             </div>
             <div>
@@ -288,7 +288,7 @@ function Cashbook() {
                 type="date"
                 value={filters.endDate}
                 onChange={(e) => updateFilter({ endDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-text-accent)] focus:border-[var(--color-text-accent)]"
               />
             </div>
             <div>
@@ -296,7 +296,7 @@ function Cashbook() {
               <select
                 value={filters.categoryId}
                 onChange={(e) => updateFilter({ categoryId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-text-accent)] focus:border-[var(--color-text-accent)]"
               >
                 <option value="">All categories</option>
                 {categories.map((c) => (
@@ -309,7 +309,7 @@ function Cashbook() {
               <select
                 value={filters.paymentType}
                 onChange={(e) => updateFilter({ paymentType: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-text-accent)] focus:border-[var(--color-text-accent)]"
               >
                 <option value="">All payment types</option>
                 {paymentTypes.map((t) => (
@@ -324,7 +324,7 @@ function Cashbook() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Party, reference or note"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--color-text-accent)] focus:border-[var(--color-text-accent)]"
               />
             </div>
           </div>
@@ -339,7 +339,7 @@ function Cashbook() {
                   onClick={() => toggleType(opt.value)}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${
                     active
-                      ? 'bg-red-600 text-white border-red-600'
+                      ? 'bg-[var(--color-brand)] text-white border-[var(--color-brand)]'
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                   }`}
                 >
@@ -371,7 +371,7 @@ function Cashbook() {
         {/* Entries */}
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]"></div>
             <p className="mt-2 text-gray-600">Loading cashbook...</p>
           </div>
         ) : entries.length === 0 ? (
@@ -421,7 +421,7 @@ function Cashbook() {
                           {entry.payment_type || '-'}
                         </td>
                         <td className={`py-4 px-6 text-right font-bold whitespace-nowrap ${
-                          entry.direction === 'in' ? 'text-red-600' : 'text-red-600'
+                          entry.direction === 'in' ? 'text-gray-800' : 'text-red-600'
                         }`}>
                           {entry.direction === 'in' ? '+' : '−'}{formatCurrency(entry.amount)}
                         </td>

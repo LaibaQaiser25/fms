@@ -151,11 +151,11 @@ function Analytics() {
 
   const AnalyticsCard = ({ title, value, icon: Icon, trend, subtext, color = 'blue' }) => {
     const colorClasses = {
-      blue: 'border-red-500 text-red-600',
-      green: 'border-red-500 text-red-600',
+      blue: 'border-[var(--color-text-accent)] text-[var(--color-text-accent)]',
+      green: 'border-gray-700 text-gray-800',
       orange: 'border-orange-500 text-orange-600',
       red: 'border-red-500 text-red-600',
-      purple: 'border-red-500 text-red-600',
+      purple: 'border-red-800 text-red-900',
     };
 
     return (
@@ -171,11 +171,11 @@ function Analytics() {
         {trend !== undefined && (
           <div className="flex items-center gap-1 mt-3 text-sm">
             {trend >= 0 ? (
-              <TrendingUp className="w-4 h-4 text-red-600" />
+              <TrendingUp className="w-4 h-4 text-gray-800" />
             ) : (
               <TrendingDown className="w-4 h-4 text-red-600" />
             )}
-            <span className={trend >= 0 ? 'text-red-600' : 'text-red-600'}>
+            <span className={trend >= 0 ? 'text-gray-800' : 'text-red-600'}>
               {Math.abs(trend)}% vs prev period
             </span>
           </div>
@@ -196,19 +196,19 @@ function Analytics() {
       <div className="px-8 py-4 bg-white border-b border-gray-200 flex gap-4">
         <button
           onClick={() => setPeriod('today')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           Today
         </button>
         <button
           onClick={() => setPeriod('week')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Week
         </button>
         <button
           onClick={() => setPeriod('month')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Month
         </button>

@@ -925,7 +925,7 @@ export default function ProductsManager() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <button
             onClick={() => handleTypeFilterChange('stock')}
-            className="group text-left bg-white border-l-4 border-red-500 border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+            className="group text-left bg-white border-l-4 border-[var(--color-text-accent)] border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={ACCENT_GRADIENT_STYLE}>
@@ -944,7 +944,7 @@ export default function ProductsManager() {
 
           <button
             onClick={() => handleTypeFilterChange('raw_material')}
-            className="group text-left bg-white border-l-4 border-red-500 border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+            className="group text-left bg-white border-l-4 border-gray-500 border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={ACCENT_GRADIENT_STYLE}>

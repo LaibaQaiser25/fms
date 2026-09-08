@@ -43,7 +43,7 @@ function ProductionList() {
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'low':
-        return 'bg-green-100 text-green-800';
+        return 'bg-red-100 text-red-800';
       case 'normal':
         return 'bg-yellow-100 text-yellow-800';
       case 'high':
@@ -85,11 +85,11 @@ function ProductionList() {
             <p className="text-gray-600 text-sm font-semibold">Pending</p>
             <p className="text-3xl font-bold text-gray-800">{stats.pending_count}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
             <p className="text-gray-600 text-sm font-semibold">In Progress</p>
             <p className="text-3xl font-bold text-gray-800">{stats.in_progress_count}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
             <p className="text-gray-600 text-sm font-semibold">Completed</p>
             <p className="text-3xl font-bold text-gray-800">{stats.completed_count}</p>
           </div>
@@ -112,7 +112,7 @@ function ProductionList() {
               }}
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 filter === status
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-red-600 text-white'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
             >
@@ -126,7 +126,7 @@ function ProductionList() {
             }}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               filter === ''
-                ? 'bg-blue-600 text-white'
+                ? 'bg-red-600 text-white'
                 : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
             }`}
           >
@@ -139,7 +139,7 @@ function ProductionList() {
       <div className="px-8 py-6">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
             <p className="mt-2 text-gray-600">Loading production queue...</p>
           </div>
         ) : queue.length === 0 ? (
@@ -183,9 +183,9 @@ function ProductionList() {
                             item.status === 'pending'
                               ? 'bg-yellow-100 text-yellow-800'
                               : item.status === 'in_progress'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-red-100 text-red-800'
                               : item.status === 'completed'
-                              ? 'bg-green-100 text-green-800'
+                              ? 'bg-red-100 text-red-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
@@ -200,7 +200,7 @@ function ProductionList() {
                       </td>
                       <td className="py-4 px-6 text-center">
                         {item.completed_at && (
-                          <p className="text-xs text-green-600 font-semibold">
+                          <p className="text-xs text-red-600 font-semibold">
                             ✓ {new Date(item.completed_at).toLocaleDateString()}
                           </p>
                         )}

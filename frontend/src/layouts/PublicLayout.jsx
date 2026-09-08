@@ -51,8 +51,8 @@ export default function PublicLayout({ children }) {
                         {/* Logo */}
                         <Link to="/" className="flex items-center gap-3 group">
                             <div className="relative w-10 h-10 rounded-xl overflow-hidden"
-                                style={{ border: '2px solid #b91c1c' }}>
-                                <img src="../logo.png" alt="Bin-Zahid Logo" className="w-full h-full object-cover" />
+                                style={{ border: '1px solid #b91c1c' }}>
+                                <img src="../logo3.png" alt="Bin-Zahid Logo" className="w-full h-full object-cover" />
                             </div>
                             <div>
                                 <div className="font-bold text-white text-lg leading-tight"

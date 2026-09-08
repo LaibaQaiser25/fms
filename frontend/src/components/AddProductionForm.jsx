@@ -54,7 +54,7 @@ function AddProductionForm({ item, onClose, onSubmit }) {
           )}
 
           {/* Product Info */}
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+          <div className="bg-red-50 p-3 rounded-lg border border-red-200">
             <p className="text-sm font-semibold text-gray-700">Product:</p>
             <p className="text-lg font-bold text-gray-800">{item.product_name}</p>
             <p className="text-sm text-gray-600">Required Quantity: {item.quantity} units</p>
@@ -66,7 +66,7 @@ function AddProductionForm({ item, onClose, onSubmit }) {
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500"
             >
               <option value="low">🟢 Low</option>
               <option value="normal">🟡 Normal</option>
@@ -82,7 +82,7 @@ function AddProductionForm({ item, onClose, onSubmit }) {
               value={notes}
               onChange={(e) => setNotes(capitalizeFirstLetter(e.target.value))}
               placeholder="Add any special instructions for production..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 text-sm"
               rows="3"
             />
           </div>
@@ -106,7 +106,7 @@ function AddProductionForm({ item, onClose, onSubmit }) {
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
+            className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
           >
             {loading ? 'Adding...' : 'Add to Production'}
           </button>

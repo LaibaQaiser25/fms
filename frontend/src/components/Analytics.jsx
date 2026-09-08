@@ -151,11 +151,11 @@ function Analytics() {
 
   const AnalyticsCard = ({ title, value, icon: Icon, trend, subtext, color = 'blue' }) => {
     const colorClasses = {
-      blue: 'border-blue-500 text-blue-600',
-      green: 'border-green-500 text-green-600',
+      blue: 'border-red-500 text-red-600',
+      green: 'border-red-500 text-red-600',
       orange: 'border-orange-500 text-orange-600',
       red: 'border-red-500 text-red-600',
-      purple: 'border-purple-500 text-purple-600',
+      purple: 'border-red-500 text-red-600',
     };
 
     return (
@@ -171,11 +171,11 @@ function Analytics() {
         {trend !== undefined && (
           <div className="flex items-center gap-1 mt-3 text-sm">
             {trend >= 0 ? (
-              <TrendingUp className="w-4 h-4 text-green-600" />
+              <TrendingUp className="w-4 h-4 text-red-600" />
             ) : (
               <TrendingDown className="w-4 h-4 text-red-600" />
             )}
-            <span className={trend >= 0 ? 'text-green-600' : 'text-red-600'}>
+            <span className={trend >= 0 ? 'text-red-600' : 'text-red-600'}>
               {Math.abs(trend)}% vs prev period
             </span>
           </div>
@@ -187,28 +187,28 @@ function Analytics() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      {/* <div className="px-8 py-6 bg-gradient-to-r from-blue-600 to-blue-800 text-white">
+      {/* <div className="px-8 py-6 bg-gradient-to-r from-red-600 to-red-800 text-white">
         <h1 className="text-3xl font-bold mb-2">Analytics Dashboard</h1>
-        <p className="text-blue-100">Real-time business analytics and performance metrics</p>
+        <p className="text-red-100">Real-time business analytics and performance metrics</p>
       </div> */}
 
       {/* Period Selector */}
       <div className="px-8 py-4 bg-white border-b border-gray-200 flex gap-4">
         <button
           onClick={() => setPeriod('today')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           Today
         </button>
         <button
           onClick={() => setPeriod('week')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Week
         </button>
         <button
           onClick={() => setPeriod('month')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Month
         </button>
@@ -218,7 +218,7 @@ function Analytics() {
       <div className="px-8 py-6 flex-1">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
             <p className="mt-2 text-gray-600">Loading analytics...</p>
           </div>
         ) : (
@@ -350,15 +350,15 @@ function Analytics() {
             <div className="bg-white rounded-lg shadow-md p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4">Performance Summary</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="border-l-4 border-green-500 pl-4">
+                <div className="border-l-4 border-red-500 pl-4">
                   <p className="text-sm text-gray-600 font-semibold mb-2">Profit Margin</p>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-2xl font-bold text-red-600">
                     {metrics.totalSalesRevenue > 0 ? ((metrics.profit / metrics.totalSalesRevenue) * 100).toFixed(2) : 0}%
                   </p>
                 </div>
-                <div className="border-l-4 border-blue-500 pl-4">
+                <div className="border-l-4 border-red-500 pl-4">
                   <p className="text-sm text-gray-600 font-semibold mb-2">Revenue per Customer</p>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-2xl font-bold text-red-600">
                     {formatCurrency(metrics.totalCustomers > 0 ? metrics.totalSalesRevenue / metrics.totalCustomers : 0)}
                   </p>
                 </div>

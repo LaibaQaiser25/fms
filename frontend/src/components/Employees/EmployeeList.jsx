@@ -96,7 +96,7 @@ const EmployeeList = () => {
     { key: 'type_name', label: 'Type' },
     { key: 'email', label: 'Email' },
     { key: 'salary', label: 'Salary', render: (val) => `PKR ${parseFloat(val).toFixed(2)}` },
-    { key: 'status', label: 'Status', render: (val) => <span className={`px-2 py-1 rounded text-sm ${val === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{val}</span> },
+    { key: 'status', label: 'Status', render: (val) => <span className={`px-2 py-1 rounded text-sm ${val === 'active' ? 'bg-red-100 text-red-800' : 'bg-red-100 text-red-800'}`}>{val}</span> },
   ];
 
   const filterOptions = [

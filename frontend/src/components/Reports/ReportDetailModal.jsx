@@ -141,7 +141,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
   const heroProfit = (
     <div className="text-center py-5 border-b border-gray-100 mb-5">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Net Profit</p>
-      <p className={`font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`} style={{ fontSize: 48, lineHeight: 1 }}>
+      <p className={`font-bold ${netProfit >= 0 ? 'text-red-600' : 'text-red-600'}`} style={{ fontSize: 48, lineHeight: 1 }}>
         {formatCurrency(netProfit)}
       </p>
       <p className="text-sm text-gray-500 mt-2">{profitMargin.toFixed(1)}% margin on sales</p>
@@ -180,7 +180,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
 
   const statCards = (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
-      <StatCard label="Sales" value={formatCurrency(salesTotal)} tone="text-green-600" />
+      <StatCard label="Sales" value={formatCurrency(salesTotal)} tone="text-red-600" />
       <StatCard label="Purchases" value={formatCurrency(purchasesTotal)} tone="text-amber-600" />
       <StatCard label="Expenses" value={formatCurrency(expensesTotal)} tone="text-red-600" />
       <StatCard label="Today's Cash In Hand" value={formatCurrency(d.todayCashInHand)} />
@@ -240,7 +240,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
                 type="text"
                 value={form.label}
                 onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
-                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -251,7 +251,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
                     type="number"
                     value={(group ? form.data[group]?.[key] : form.data[key]) ?? 0}
                     onChange={(e) => setFieldValue(group, key, e.target.value)}
-                    className="border border-gray-300 rounded px-3 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="border border-gray-300 rounded px-3 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
               ))}

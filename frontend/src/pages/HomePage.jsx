@@ -11,7 +11,7 @@ import ImageCarousel from '../components/ImageCarousel';
 const HERO_SLIDES = [
   '/gallery/slate-look-pavers-driveway-grey.jpeg',
   '/gallery/concrete-slabs-large-stack-yard-1.jpeg',
-  '/gallery/pavers-pattern-samples-yard-overview.jpeg',
+  '/gallery/concrete-slabs-large-stack-yard-2.jpeg',
 ];
 
 const HERO_STATS = [
@@ -57,7 +57,7 @@ const FEATURED_PROJECTS = [
   { src: '/gallery/zigzag-pavers-courtyard-garden.jpeg', title: 'Courtyard Landscaping' },
   { src: '/gallery/worker-laying-zigzag-pavers.jpeg', title: 'Precision On-Site Installation' },
   { src: '/gallery/workers-laying-diamond-pavers-house.jpeg', title: 'Residential Diamond Pavers' },
-  { src: '/gallery/herringbone-pavers-pathway-lawn.jpeg', title: 'Herringbone Garden Walkways' },
+  { src: '/gallery/herringbone-pavers-with-bushes.jpeg', title: 'Herringbone Garden Walkways' },
   { src: '/gallery/hexagon-wave-pavers-white-red-pathway.jpeg', title: 'Wave Pattern Pathways' },
 ];
 
@@ -263,14 +263,14 @@ export default function HomePage() {
           </div>
 
           {/* Featured project spotlight — interactive carousel */}
-          <div className="mt-16">
+          <div className="mt-16 max-w-3xl mx-auto">
             <h3 className="text-xl font-bold text-white mb-6">Featured Project Spotlight</h3>
             <ImageCarousel slides={FEATURED_PROJECTS} />
           </div>
 
           {/* Closing wide banner */}
           <div className="relative rounded-lg overflow-hidden h-56 md:h-64 mt-16">
-            <img src="/gallery/pavers-pattern-samples-yard-overview.jpeg" alt="Bin-Zahid & Partners manufacturing yard"
+            <img src="/gallery/precast-beams-stacked-1.jpeg" alt="Bin-Zahid & Partners manufacturing yard"
               className="absolute inset-0 w-full h-full object-cover" />
             <div className="absolute inset-0 flex items-center" style={{
               background: 'linear-gradient(90deg, rgba(15,12,12,0.94) 0%, rgba(15,12,12,0.6) 55%, transparent 100%)',

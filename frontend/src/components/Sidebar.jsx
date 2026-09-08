@@ -126,20 +126,20 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
     `flex items-center rounded-2xl text-[14.5px] font-medium transition-all duration-200 ease-out ${collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
     } ${isActive
       ? 'font-bold'
-      : 'text-white/60 hover:text-[#6ee7b7] hover:bg-white/[0.05]'
+      : 'text-white/60 hover:text-[#ef4444] hover:bg-white/[0.05]'
     }`;
 
   const subLink = ({ isActive }) =>
     `flex items-center gap-3 px-5 py-3.5 rounded-xl text-[15px] font-medium whitespace-nowrap transition-all duration-150 ease-out ${isActive
       ? 'font-bold'
-      : 'text-white/55 hover:text-[#6ee7b7] hover:bg-white/[0.06]'
+      : 'text-white/55 hover:text-[#ef4444] hover:bg-white/[0.06]'
     }`;
 
   const groupToggle = (isActiveGroup) =>
     `w-full flex items-center rounded-2xl text-[14.5px] font-medium transition-all duration-200 ease-out ${collapsed ? 'justify-center p-3' : 'justify-between gap-3 px-4 py-3'
     } ${isActiveGroup
-      ? 'text-[#6ee7b7] bg-white/[0.06]'
-      : 'text-white/60 hover:text-[#6ee7b7] hover:bg-white/[0.05]'
+      ? 'text-[#ef4444] bg-white/[0.06]'
+      : 'text-white/60 hover:text-[#ef4444] hover:bg-white/[0.05]'
     }`;
 
   // Expanded: drops below the button at full width. Collapsed: flies out beside the rail.
@@ -170,10 +170,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
     <aside
       className={`fixed top-[76px] left-0 h-[calc(100vh-76px)] flex flex-col z-30 transition-[width] duration-300 ease-in-out ${collapsed ? 'w-20' : 'w-56'}`}
       style={{
-        background: 'linear-gradient(160deg, #000000 0%, #05001a 45%, #000d08 100%)',
-        borderRight: '1px solid rgba(255,255,255,0.07)',
-        boxShadow: '4px 0 40px rgba(0,0,0,0.8), 1px 0 0 rgba(139,92,246,0.3)',
-        backdropFilter: 'blur(12px)',
+        background: '#1a1a1a',
+        borderRight: '3px solid #b91c1c',
+        boxShadow: '2px 0 10px rgba(0,0,0,0.5)',
       }}
     >
 
@@ -209,7 +208,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
               <ChevronDown
                 size={15}
                 strokeWidth={2.3}
-                className={`shrink-0 text-white/40 transition-transform duration-200 ease-out ${openGroup === 'ledger' ? 'rotate-180 text-[#6ee7b7]' : ''}`}
+                className={`shrink-0 text-white/40 transition-transform duration-200 ease-out ${openGroup === 'ledger' ? 'rotate-180 text-[#ef4444]' : ''}`}
               />
             )}
           </button>
@@ -255,7 +254,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
               <ChevronDown
                 size={15}
                 strokeWidth={2.3}
-                className={`shrink-0 text-white/40 transition-transform duration-200 ease-out ${openGroup === 'inventory' ? 'rotate-180 text-[#6ee7b7]' : ''}`}
+                className={`shrink-0 text-white/40 transition-transform duration-200 ease-out ${openGroup === 'inventory' ? 'rotate-180 text-[#ef4444]' : ''}`}
               />
             )}
           </button>
@@ -357,7 +356,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           onClick={onToggleCollapse}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand' : 'Collapse'}
-          className={`w-full flex items-center rounded-2xl text-[14.5px] font-medium text-white/60 hover:text-[#6ee7b7] hover:bg-white/[0.05] transition-all duration-200 ease-out ${collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
+          className={`w-full flex items-center rounded-2xl text-[14.5px] font-medium text-white/60 hover:text-[#ef4444] hover:bg-white/[0.05] transition-all duration-200 ease-out ${collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
             }`}
         >
           <ChevronLeft

@@ -113,21 +113,21 @@ function Dashboard() {
         <div className="grid grid-cols-4 gap-4">
           <button
             onClick={() => setShowNewSaleModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-red-700 text-white rounded-lg hover:bg-red-800 transition font-semibold"
           >
             <ShoppingCart className="w-5 h-5" />
             New Sale
           </button>
          <button
   onClick={() => setShowNewPurchaseModal(true)}
-  className="flex items-center justify-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
+  className="flex items-center justify-center gap-2 px-6 py-3 bg-[#7f1d1d] hover:bg-red-950 active:bg-black text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
 >
   <Package className="w-5 h-5" />
   New Purchase
 </button>
           <button
             onClick={() => setShowAddProductionModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition font-semibold"
           >
             <Package className="w-5 h-5" />
             New Production
@@ -139,7 +139,7 @@ function Dashboard() {
           >
             <button
               onClick={() => setShowPaymentPopover(prev => !prev)}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
             >
               <BarChart3 className="w-5 h-5" />
               Add Payment
@@ -160,7 +160,7 @@ function Dashboard() {
                       setShowPaymentPopover(false);
                       setShowAddPaymentModal(true);
                     }}
-                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
+                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-red-700 text-white rounded-lg hover:bg-red-800 transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
                   >
                     <ShoppingCart className="w-4 h-4" />
                     Sale Payment
@@ -170,7 +170,7 @@ function Dashboard() {
                       setShowPaymentPopover(false);
                       setShowPurchasePaymentModal(true);
                     }}
-                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
+                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7f1d1d] text-white rounded-lg hover:bg-red-950 transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
                   >
                     <Package className="w-4 h-4" />
                     Purchase Payment
@@ -186,13 +186,13 @@ function Dashboard() {
       <div className="px-8 py-6">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-700"></div>
             <p className="mt-2 text-gray-600">Loading dashboard...</p>
           </div>
         ) : (
           <div className="grid grid-cols-4 gap-6 mb-6">
             {/* Card 1: Today's Sales Summary */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-700">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Today's Sales</h3>
               <FitText className="font-bold text-gray-800">{formatCurrency(salesSummary?.total_amount)}</FitText>
               <p className="text-xs text-gray-500 mt-2">Total Sales: {salesSummary?.total_sales || 0}</p>
@@ -200,7 +200,7 @@ function Dashboard() {
             </div>
 
             {/* Card 2: Recent Orders */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-gray-700">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Recent Orders</h3>
               <FitText className="font-bold text-gray-800">{recentOrders.length}</FitText>
               <p className="text-xs text-gray-500 mt-2">New orders today</p>
@@ -255,9 +255,9 @@ function Dashboard() {
                       <td className="py-3 px-4 text-gray-700">{order.customer_name}</td>
                       <td className="py-3 px-4 text-gray-700 font-semibold">{formatCurrency(order.total_amount)}</td>
                       <td className="py-3 px-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${order.status === 'ready' ? 'bg-gray-200 text-gray-900' :
                           order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            order.status === 'delivered' ? 'bg-blue-100 text-blue-800' :
+                            order.status === 'delivered' ? 'bg-red-100 text-red-800' :
                               'bg-gray-100 text-gray-800'
                           }`}>
                           {order.status.charAt(0).toUpperCase() + order.status.slice(1)}

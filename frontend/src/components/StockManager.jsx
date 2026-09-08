@@ -6,7 +6,7 @@ import { ACCENT_GRADIENT_STYLE } from '../theme';
 
 // Cycled left-border accents for category cards — mirrors the stat-card language
 // used on the Dashboard (border-l-4 in rotating brand colors).
-const CARD_ACCENTS = ['border-violet-500', 'border-emerald-500', 'border-blue-500', 'border-amber-500', 'border-rose-500', 'border-cyan-500'];
+const CARD_ACCENTS = ['border-red-500', 'border-red-500', 'border-red-500', 'border-amber-500', 'border-rose-500', 'border-red-500'];
 
 export default function StockManager() {
   const [stocks, setStocks] = useState([]);
@@ -333,8 +333,8 @@ export default function StockManager() {
             <div></div>
             <div></div>
             <div className="text-right font-bold text-gray-800">Grand Total:</div>
-            <div className="bg-blue-50 rounded px-3 py-2 border border-blue-200">
-              <p className="text-sm font-bold text-blue-900">
+            <div className="bg-red-50 rounded px-3 py-2 border border-red-200">
+              <p className="text-sm font-bold text-red-900">
                 PKR {calculateGrandTotal().toLocaleString('en-PK', { maximumFractionDigits: 0 })}
               </p>
             </div>
@@ -426,7 +426,7 @@ export default function StockManager() {
                   </span>
                 )}
               </div>
-              <h3 className="font-semibold text-xl text-gray-800 mb-0.5 truncate group-hover:text-violet-700 transition-colors">{cat.name}</h3>
+              <h3 className="font-semibold text-xl text-gray-800 mb-0.5 truncate group-hover:text-red-700 transition-colors">{cat.name}</h3>
               <p className="text-gray-600 text-sm mb-3">{cat.items.length} item{cat.items.length === 1 ? '' : 's'}</p>
               <div className="flex items-center justify-between border-t border-gray-100 pt-3">
                 <span className="text-sm font-semibold text-gray-600">Total Quantity</span>
@@ -460,14 +460,14 @@ export default function StockManager() {
                       {Number(item.unit_price).toLocaleString()}
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.quantity > 10 ? 'bg-green-100 text-green-700' : item.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.quantity > 10 ? 'bg-red-100 text-red-700' : item.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                         {item.quantity}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-gray-500 text-xs">{item.extra || '—'}</td>
                     <td className="py-4 px-6 text-center whitespace-nowrap">
                       <button onClick={() => handleEdit(item)}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 text-violet-700 rounded hover:bg-violet-200 transition font-semibold text-sm mr-2">
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition font-semibold text-sm mr-2">
                         <Pencil className="w-3.5 h-3.5" />
                         Edit
                       </button>

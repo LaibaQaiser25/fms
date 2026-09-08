@@ -57,10 +57,9 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
   return (
     <nav
       style={{
-        background: 'linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%)',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-        boxShadow: '0 4px 40px rgba(0,0,0,0.8), 0 1px 0 rgba(139,92,246,0.3)',
-        backdropFilter: 'blur(12px)',
+        background: '#1a1a1a',
+        borderBottom: '3px solid #b91c1c',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
         position: 'fixed',
         top: 0,
         left: 0,
@@ -74,9 +73,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
         <Link to="/" className="flex items-center gap-3 group">
           <div
             className="relative w-10 h-10 rounded-xl overflow-hidden"
-            style={{
-              boxShadow: '0 0 20px rgba(88,28,212,0.5), 0 0 40px rgba(5,150,105,0.3)',
-            }}
+            style={{ border: '2px solid #b91c1c' }}
           >
             <img src="../logo.png" alt="Bin-Zahid Logo" className="w-full h-full object-cover" />
           </div>
@@ -89,7 +86,6 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                 fontWeight: '700',
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
-                textShadow: '0 0 20px rgba(139,92,246,0.4)',
               }}
             >
               Bin-Zahid & Partners'
@@ -100,7 +96,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                 fontFamily: "'Cormorant Garamond', serif",
                 letterSpacing: '0.2em',
                 textTransform: 'uppercase',
-                color: 'rgba(52,211,153,0.7)',
+                color: '#ef4444',
               }}
             >
               Precast Solutions
@@ -121,7 +117,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.07)',
             }}
-            onFocus={e => { e.target.style.border = '1px solid rgba(110,231,183,0.5)'; }}
+            onFocus={e => { e.target.style.border = '1px solid rgba(239,68,68,0.5)'; }}
             onBlur={e => { e.target.style.border = '1px solid rgba(255,255,255,0.07)'; }}
           />
           <button
@@ -129,7 +125,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
             disabled={loading}
             className="absolute right-2 top-1/2 -translate-y-1/2 transition-all duration-200"
             style={{ color: 'rgba(255,255,255,0.6)' }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#6ee7b7'; }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
             onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
           >
             <Search className="w-4 h-4" />
@@ -171,7 +167,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                   <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                     <p className="text-sm font-semibold text-white">{user?.username || 'User'}</p>
                     <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{user?.email}</p>
-                    <p className="text-xs uppercase tracking-wider mt-2" style={{ color: 'rgba(52,211,153,0.7)' }}>
+                    <p className="text-xs uppercase tracking-wider mt-2" style={{ color: '#ef4444' }}>
                       Role: {user?.role || 'manager'}
                     </p>
                   </div>

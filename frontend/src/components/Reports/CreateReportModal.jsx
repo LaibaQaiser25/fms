@@ -93,11 +93,11 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
                 onClick={() => setReportLevel(opt.value)}
                 className={`text-left px-4 py-2.5 rounded-lg border transition ${
                   reportLevel === opt.value
-                    ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
+                    ? 'border-red-600 bg-red-50 ring-1 ring-red-600'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                <p className={`text-sm font-semibold ${reportLevel === opt.value ? 'text-blue-700' : 'text-gray-800'}`}>{opt.label}</p>
+                <p className={`text-sm font-semibold ${reportLevel === opt.value ? 'text-red-700' : 'text-gray-800'}`}>{opt.label}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
               </button>
             ))}
@@ -113,7 +113,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
                 type="button"
                 onClick={() => setPeriodType(opt.value)}
                 className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
-                  periodType === opt.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  periodType === opt.value ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 {opt.label}
@@ -129,7 +129,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
               <select
                 value={month}
                 onChange={(e) => setMonth(Number(e.target.value))}
-                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 {MONTH_NAMES.map((name, idx) => (
                   <option key={name} value={idx + 1}>{name}</option>
@@ -142,7 +142,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
                 type="number"
                 value={year}
                 onChange={(e) => setYear(Number(e.target.value))}
-                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
           </div>
@@ -155,7 +155,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
               type="number"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
-              className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
             />
           </div>
         )}
@@ -193,7 +193,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
                   value={startDate}
                   max={endDate || undefined}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
               <div>
@@ -203,7 +203,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
                   value={endDate}
                   min={startDate || undefined}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
             </div>

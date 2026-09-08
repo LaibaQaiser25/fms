@@ -925,14 +925,14 @@ export default function ProductsManager() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <button
             onClick={() => handleTypeFilterChange('stock')}
-            className="group text-left bg-white border-l-4 border-violet-500 border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+            className="group text-left bg-white border-l-4 border-red-500 border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={ACCENT_GRADIENT_STYLE}>
                 <Package className="w-5 h-5 text-white" />
               </div>
             </div>
-            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-violet-700 transition-colors">Stock</h3>
+            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-red-700 transition-colors">Stock</h3>
             <p className="text-gray-600 text-sm mb-3">
               {products.filter((p) => p.type === 'stock').length} product{products.filter((p) => p.type === 'stock').length === 1 ? '' : 's'}
             </p>
@@ -944,14 +944,14 @@ export default function ProductsManager() {
 
           <button
             onClick={() => handleTypeFilterChange('raw_material')}
-            className="group text-left bg-white border-l-4 border-emerald-500 border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+            className="group text-left bg-white border-l-4 border-red-500 border-y border-r border-gray-200 rounded-xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={ACCENT_GRADIENT_STYLE}>
                 <Layers className="w-5 h-5 text-white" />
               </div>
             </div>
-            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-violet-700 transition-colors">Raw Material</h3>
+            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-red-700 transition-colors">Raw Material</h3>
             <p className="text-gray-600 text-sm mb-3">
               {products.filter((p) => p.type === 'raw_material').length} product{products.filter((p) => p.type === 'raw_material').length === 1 ? '' : 's'}
             </p>

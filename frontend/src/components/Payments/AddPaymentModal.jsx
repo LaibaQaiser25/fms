@@ -139,7 +139,7 @@ function AddPaymentModal({ onClose }) {
     }
   };
 
-  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500";
+  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500";
   const inpReadOnly = "w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed";
 
   return (
@@ -185,9 +185,9 @@ function AddPaymentModal({ onClose }) {
 
           {/* Selected Customer Info */}
           {selectedCustomer && (
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <div className="bg-red-50 rounded-lg p-4 border border-red-200">
               <h3 className="font-bold mb-2 text-sm text-gray-600 uppercase tracking-wider">Selected Customer</h3>
-              <p className="text-lg font-bold text-blue-700">{selectedCustomer.name}</p>
+              <p className="text-lg font-bold text-red-700">{selectedCustomer.name}</p>
               {selectedCustomer.phone && <p className="text-sm text-gray-600">Phone: {selectedCustomer.phone}</p>}
             </div>
           )}
@@ -200,18 +200,18 @@ function AddPaymentModal({ onClose }) {
             </div>
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <p className="text-xs text-gray-600 font-semibold mb-1">Total Paid</p>
-              <p className="text-xl font-bold text-blue-600">PKR{selectedCustomer ? totalCredit.toLocaleString() : '0'}</p>
+              <p className="text-xl font-bold text-red-600">PKR{selectedCustomer ? totalCredit.toLocaleString() : '0'}</p>
             </div>
-            <div className={`rounded-lg p-4 border-2 ${selectedCustomer && outstandingDebt > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+            <div className={`rounded-lg p-4 border-2 ${selectedCustomer && outstandingDebt > 0 ? 'bg-red-50 border-red-200' : 'bg-red-50 border-red-200'}`}>
               <p className="text-xs text-gray-600 font-semibold mb-1">Remaining Debt</p>
-              <p className={`text-xl font-bold ${selectedCustomer && outstandingDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              <p className={`text-xl font-bold ${selectedCustomer && outstandingDebt > 0 ? 'text-red-600' : 'text-red-600'}`}>
                 PKR{selectedCustomer ? outstandingDebt.toLocaleString() : '0'}
               </p>
             </div>
           </div>
 
           {/* Payment Form */}
-          <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+          <div className="bg-red-50 rounded-lg p-4 border border-red-200">
             <h3 className="font-bold mb-3 text-sm text-gray-600 uppercase tracking-wider">Record New Payment</h3>
             {selectedCustomer && outstandingDebt > 0 ? (
               <div className="space-y-4">
@@ -265,9 +265,9 @@ function AddPaymentModal({ onClose }) {
                 </div>
               </div>
             ) : selectedCustomer && outstandingDebt === 0 ? (
-              <div className="flex items-center gap-3 p-3 bg-white rounded border border-green-200">
-                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <p className="text-sm font-semibold text-green-700">Account is fully cleared!</p>
+              <div className="flex items-center gap-3 p-3 bg-white rounded border border-red-200">
+                <CheckCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <p className="text-sm font-semibold text-red-700">Account is fully cleared!</p>
               </div>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-white rounded border border-gray-200">
@@ -296,7 +296,7 @@ function AddPaymentModal({ onClose }) {
                       <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
                         <td className="p-2 text-gray-500">{new Date(entry.created_at).toLocaleDateString()}</td>
                         <td className="p-2 text-right text-red-500 font-medium">{entry.debit > 0 ? entry.debit : '-'}</td>
-                        <td className="p-2 text-right text-green-600 font-medium">{entry.credit > 0 ? entry.credit : '-'}</td>
+                        <td className="p-2 text-right text-red-600 font-medium">{entry.credit > 0 ? entry.credit : '-'}</td>
                         <td className="p-2 text-gray-400 truncate max-w-[100px]">{entry.note}</td>
                       </tr>
                     ))}
@@ -313,7 +313,7 @@ function AddPaymentModal({ onClose }) {
             <button
               onClick={handleSubmit}
               disabled={loading || !paymentAmount}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-sm hover:bg-blue-700 transition disabled:bg-gray-300"
+              className="w-full bg-red-600 text-white py-3 rounded-lg font-bold text-sm hover:bg-red-700 transition disabled:bg-gray-300"
             >
               {loading ? 'Processing...' : 'Confirm Payment'}
             </button>

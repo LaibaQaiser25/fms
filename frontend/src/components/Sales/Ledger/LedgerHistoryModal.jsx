@@ -82,7 +82,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
           <p className="mt-2 text-gray-600">Loading ledger history...</p>
         </div>
       </div>
@@ -152,7 +152,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
           </div>
           <div className={`bg-white p-4 rounded-lg shadow-sm `}>
             <p className="text-xs text-gray-600 font-semibold">Outstanding Debt</p>
-            <p className={`text-2xl font-bold ${summary?.total_debt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            <p className={`text-2xl font-bold ${summary?.total_debt > 0 ? 'text-red-600' : 'text-red-600'}`}>
               {formatCurrency(summary?.total_debt)}
             </p>
           </div>
@@ -196,9 +196,9 @@ function LedgerHistoryModal({ customerId, onClose }) {
                         <td className="py-3 px-4 text-sm">
                           <span className={`px-2 py-1 rounded text-xs font-semibold ${
                             entry.transaction_type === 'sale'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-red-100 text-red-800'
                               : entry.transaction_type === 'payment'
-                              ? 'bg-green-100 text-green-800'
+                              ? 'bg-red-100 text-red-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}>
                             {entry.transaction_type?.charAt(0).toUpperCase() + entry.transaction_type?.slice(1)}
@@ -237,7 +237,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
                               <div className="flex items-center justify-center gap-2">
                                 <button
                                   onClick={() => saveEdit(entry.id)}
-                                  className="p-1 text-green-700 hover:bg-green-100 rounded"
+                                  className="p-1 text-red-700 hover:bg-red-100 rounded"
                                   title="Save"
                                 >
                                   <Check className="w-4 h-4" />
@@ -261,7 +261,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
                               {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
                             </td>
                             <td className={`py-3 px-4 text-right font-bold ${
-                              entry.running_balance > 0 ? 'text-red-600' : 'text-green-600'
+                              entry.running_balance > 0 ? 'text-red-600' : 'text-red-600'
                             }`}>
                               {formatCurrency(entry.running_balance || 0)}
                             </td>
@@ -275,7 +275,7 @@ function LedgerHistoryModal({ customerId, onClose }) {
                                 <div className="flex items-center justify-center gap-2">
                                   <button
                                     onClick={() => startEdit(entry)}
-                                    className="p-1 text-blue-700 hover:bg-blue-100 rounded"
+                                    className="p-1 text-red-700 hover:bg-red-100 rounded"
                                     title="Edit entry"
                                   >
                                     <Pencil className="w-4 h-4" />

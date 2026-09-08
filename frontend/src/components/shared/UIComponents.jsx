@@ -4,10 +4,10 @@ export const Button = ({ type = 'button', variant = 'primary', size = 'md', clas
   const baseStyles = 'font-semibold rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
+    primary: 'bg-red-700 hover:bg-red-800 text-white',
     secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
     danger: 'bg-red-600 hover:bg-red-700 text-white',
-    success: 'bg-green-600 hover:bg-green-700 text-white',
+    success: 'bg-gray-700 hover:bg-gray-800 text-white',
   };
 
   const sizes = {
@@ -32,7 +32,7 @@ export const Input = ({ label, error, className = '', ...props }) => {
     <div className="flex flex-col gap-1">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <input
-        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-500' : ''} ${className}`}
+        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 ${error ? 'border-red-500' : ''} ${className}`}
         {...props}
       />
       {error && <span className="text-xs text-red-500">{error}</span>}
@@ -45,7 +45,7 @@ export const Select = ({ label, options, error, className = '', ...props }) => {
     <div className="flex flex-col gap-1">
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <select
-        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-500' : ''} ${className}`}
+        className={`border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 ${error ? 'border-red-500' : ''} ${className}`}
         {...props}
       >
         <option value="">Select an option</option>
@@ -128,7 +128,7 @@ export const Table = ({ columns, data, loading, onEdit, onDelete }) => {
               <td className="px-6 py-4 flex gap-2">
                 <button
                   onClick={() => onEdit(row)}
-                  className="text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-red-700 hover:text-red-900 font-medium"
                 >
                   Edit
                 </button>
@@ -189,7 +189,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
           key={page}
           data-guest-allow="true"
           onClick={() => onPageChange(page)}
-          className={`px-3 py-1 border rounded ${currentPage === page ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 hover:bg-gray-100'}`}
+          className={`px-3 py-1 border rounded ${currentPage === page ? 'bg-red-700 text-white border-red-700' : 'border-gray-300 hover:bg-gray-100'}`}
         >
           {page}
         </button>
@@ -262,10 +262,10 @@ export const FilterBar = ({ filters, onFilterChange, onSearch }) => {
 
 export const Alert = ({ type = 'info', message, onClose }) => {
   const colors = {
-    success: 'bg-green-100 text-green-800 border-green-400',
+    success: 'bg-gray-100 text-gray-900 border-gray-400',
     error: 'bg-red-100 text-red-800 border-red-400',
     warning: 'bg-yellow-100 text-yellow-800 border-yellow-400',
-    info: 'bg-blue-100 text-blue-800 border-blue-400',
+    info: 'bg-red-50 text-red-900 border-red-200',
   };
 
   return (

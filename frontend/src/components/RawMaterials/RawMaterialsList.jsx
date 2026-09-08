@@ -48,7 +48,7 @@ function RawMaterialsList() {
       <div className="px-8 py-6">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
             <p className="mt-2 text-gray-600">Loading raw materials...</p>
           </div>
         ) : materials.length === 0 ? (
@@ -94,7 +94,7 @@ function RawMaterialsList() {
                         <td className="py-4 px-6 text-center">
                           <button
                             onClick={() => handleLogUsage(material)}
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition font-semibold text-sm"
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition font-semibold text-sm"
                           >
                             <ClipboardList className="w-4 h-4" />
                             Log Usage

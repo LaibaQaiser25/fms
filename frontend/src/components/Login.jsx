@@ -91,10 +91,10 @@ export default function Login({ isOpen, onClose }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-md mx-4">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 to-green-900 text-white px-8 py-6 flex justify-between items-center">
+        <div className="text-white px-8 py-6 flex justify-between items-center" style={{ background: '#1a1a1a', borderBottom: '3px solid #b91c1c' }}>
           <div>
             <h2 className="text-2xl font-bold">Welcome Back</h2>
-            <p className="text-blue-100 text-sm">Bin-Zahid & Partners</p>
+            <p className="text-gray-300 text-sm">Bin-Zahid & Partners</p>
           </div>
           <button
             onClick={onClose}
@@ -120,7 +120,7 @@ export default function Login({ isOpen, onClose }) {
                   onClick={() => { setSelectedRole(value); setError(''); }}
                   className={`flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 transition font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                     selectedRole === value
-                      ? 'border-green-500 bg-green-50 text-green-700'
+                      ? 'border-red-700 bg-red-50 text-red-800'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
                 >
@@ -153,7 +153,7 @@ export default function Login({ isOpen, onClose }) {
                 placeholder="Enter your username"
                 required
                 disabled={isLoading}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
           </div>
@@ -172,7 +172,7 @@ export default function Login({ isOpen, onClose }) {
                 placeholder="Enter your password"
                 required
                 disabled={isLoading}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
           </div>
@@ -181,7 +181,7 @@ export default function Login({ isOpen, onClose }) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-red-700 to-red-900 text-white py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>

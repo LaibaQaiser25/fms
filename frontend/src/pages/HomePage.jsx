@@ -9,10 +9,8 @@ import HeroSlideshow from '../components/HeroSlideshow';
 import ImageCarousel from '../components/ImageCarousel';
 
 const HERO_SLIDES = [
-  '/gallery/white-gazebo-balustrade-veranda.jpeg',
   '/gallery/slate-look-pavers-driveway-grey.jpeg',
   '/gallery/concrete-slabs-large-stack-yard-1.jpeg',
-  '/gallery/zigzag-pavers-grey-white-pathway.jpeg',
   '/gallery/pavers-pattern-samples-yard-overview.jpeg',
 ];
 

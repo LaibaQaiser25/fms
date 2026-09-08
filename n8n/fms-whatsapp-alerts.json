@@ -18,27 +18,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.META_PHONE_NUMBER_ID }}/messages",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpBasicAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "From",
-              "value": "=whatsapp:{{ $env.TWILIO_WHATSAPP_FROM }}"
-            },
-            {
-              "name": "To",
-              "value": "=whatsapp:{{ $env.WHATSAPP_TO_NUMBER }}"
-            },
-            {
-              "name": "Body",
-              "value": "={{ $json.body.message }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $env.WHATSAPP_TO_NUMBER }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": {{ JSON.stringify($json.body.message) }} }\n}",
         "options": {}
       },
       "id": "1a2b3c4d-0002-4000-8000-000000000002",
@@ -47,16 +32,16 @@
       "typeVersion": 4.2,
       "position": [460, 300],
       "credentials": {
-        "httpBasicAuth": {
-          "id": "twilio-basic-auth",
-          "name": "Twilio Account Credentials"
+        "httpHeaderAuth": {
+          "id": "meta-whatsapp-header-auth",
+          "name": "Meta WhatsApp Cloud API Credentials"
         }
       }
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"status\": \"sent\",\n  \"twilioMessageSid\": $json.sid || null,\n  \"twilioStatus\": $json.status || null\n}",
+        "responseBody": "={\n  \"status\": \"sent\",\n  \"whatsappMessageId\": ($json.messages && $json.messages[0] && $json.messages[0].id) || null\n}",
         "options": {}
       },
       "id": "1a2b3c4d-0003-4000-8000-000000000003",

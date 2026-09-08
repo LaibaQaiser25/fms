@@ -2,14 +2,13 @@
 /**
  * Provision n8n for FMS on a fresh machine — workflow + credential half.
  *
- * Reads deploy/.env.n8n (and backend/.env for BACKEND_WEBHOOK_SECRET), transforms
- * the RAW repo workflows (n8n/*.json):
+ * Reads deploy/.env.n8n, transforms the RAW repo workflow (n8n/fms-whatsapp-alerts.json):
  *   - substitutes {{ $env.X }} with real values (n8n 2.x blocks $env in expressions)
- *   - swaps the placeholder credential id (twilio-basic-auth) for the real one
- *   - drops the unused "Respond to Webhook" node from the alerts workflow
- *     (responseMode=lastNode + Respond node is rejected by n8n 2.x)
- * then upserts + activates both workflows and creates the Twilio httpBasicAuth
- * credential — all via the n8n public API.
+ *   - swaps the placeholder credential id (meta-whatsapp-header-auth) for the real one
+ *   - drops the unused "Respond to Webhook" node (responseMode=lastNode + Respond
+ *     node is rejected by n8n 2.x)
+ * then upserts + activates the workflow and creates the Meta WhatsApp Cloud API
+ * httpHeaderAuth credential — all via the n8n public API.
  *
  * Requires N8N_API_KEY (created by provision-n8n.sh). Idempotent.
  */
@@ -35,24 +34,16 @@ function loadEnv(file) {
 }
 
 const n8nEnv = { ...loadEnv(path.join(ROOT, 'deploy/.env.n8n')) };
-const backendEnv = { ...loadEnv(path.join(ROOT, 'backend/.env')) };
-const secret =
-  n8nEnv.BACKEND_WEBHOOK_SECRET && n8nEnv.BACKEND_WEBHOOK_SECRET !== 'change-me'
-    ? n8nEnv.BACKEND_WEBHOOK_SECRET
-    : backendEnv.BACKEND_WEBHOOK_SECRET;
 
 const env = {
-  TWILIO_ACCOUNT_SID: n8nEnv.TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN: n8nEnv.TWILIO_AUTH_TOKEN,
-  TWILIO_WHATSAPP_FROM: n8nEnv.TWILIO_WHATSAPP_FROM,
+  META_WHATSAPP_TOKEN: n8nEnv.META_WHATSAPP_TOKEN,
+  META_PHONE_NUMBER_ID: n8nEnv.META_PHONE_NUMBER_ID,
   WHATSAPP_TO_NUMBER: n8nEnv.WHATSAPP_TO_NUMBER,
-  BACKEND_URL: n8nEnv.BACKEND_URL || 'http://backend:5000',
-  BACKEND_WEBHOOK_SECRET: secret,
   WEBHOOK_URL: n8nEnv.WEBHOOK_URL || 'http://localhost:5678/',
 };
 for (const [k, v] of Object.entries(env)) {
   if (!v || v === 'change-me') {
-    console.error(`ERROR: missing value for ${k} — fill in deploy/.env.n8n / backend/.env first.`);
+    console.error(`ERROR: missing value for ${k} — fill in deploy/.env.n8n first.`);
     process.exit(1);
   }
 }
@@ -108,18 +99,17 @@ function transformWorkflow(rawPath) {
 
 (async () => {
   const alerts = transformWorkflow(path.join(ROOT, 'n8n/fms-whatsapp-alerts.json'));
-  const inbound = transformWorkflow(path.join(ROOT, 'n8n/fms-whatsapp-inbound.json'));
 
-  // 1. Twilio credential ------------------------------------------------
+  // 1. Meta WhatsApp credential ------------------------------------------
   // The public API forbids LISTING credentials, so we derive the existing
-  // credential id from the workflows that already reference it, and verify
+  // credential id from the workflow that already references it, and verify
   // it still exists (GET by id). If none is found, create one.
   let credId = null;
   const list = await api('GET', '/api/v1/workflows');
   if (list.status === 200 && list.json?.data) {
     for (const w of list.json.data) {
       for (const n of w.nodes || []) {
-        const id = n.credentials?.httpBasicAuth?.id;
+        const id = n.credentials?.httpHeaderAuth?.id;
         if (!id) continue;
         const check = await api('GET', `/api/v1/credentials/${id}`);
         if (check.status === 200) credId = id;
@@ -130,12 +120,11 @@ function transformWorkflow(rawPath) {
   }
   if (!credId) {
     const created = await api('POST', '/api/v1/credentials', {
-      name: 'Twilio Account Credentials',
-      type: 'httpBasicAuth',
+      name: 'Meta WhatsApp Cloud API Credentials',
+      type: 'httpHeaderAuth',
       data: {
-        user: env.TWILIO_ACCOUNT_SID,
-        password: env.TWILIO_AUTH_TOKEN,
-        allowedHttpRequestDomains: 'all',
+        name: 'Authorization',
+        value: `Bearer ${env.META_WHATSAPP_TOKEN}`,
       },
     });
     if (created.status !== 201 && created.status !== 200) {
@@ -143,38 +132,36 @@ function transformWorkflow(rawPath) {
       process.exit(1);
     }
     credId = created.json.id;
-    console.log('Twilio credential created:', credId);
+    console.log('Meta WhatsApp credential created:', credId);
   } else {
-    console.log('Reusing Twilio credential from existing workflow ref:', credId);
+    console.log('Reusing Meta WhatsApp credential from existing workflow ref:', credId);
   }
 
-  // 2. Workflows (upsert by name, then activate) --------------------------
+  // 2. Workflow (upsert by name, then activate) --------------------------
   const existing = (list.json?.data || []).reduce((m, w) => { m[w.name] = w; return m; }, {});
 
-  for (const wf of [alerts, inbound]) {
-    wf.nodes.forEach((n) => {
-      if (n.credentials?.httpBasicAuth) n.credentials.httpBasicAuth.id = credId;
-    });
-    const payload = { name: wf.name, nodes: wf.nodes, connections: wf.connections, settings: wf.settings || {} };
-    let id = existing[wf.name]?.id;
-    if (id) {
-      const upd = await api('PUT', `/api/v1/workflows/${id}`, payload);
-      if (upd.status !== 200) { console.error(`update failed for ${wf.name}:`, upd.text); process.exit(1); }
-    } else {
-      const created = await api('POST', '/api/v1/workflows', payload);
-      if (created.status !== 200 && created.status !== 201) {
-        console.error(`create failed for ${wf.name}:`, created.text);
-        process.exit(1);
-      }
-      id = created.json.id;
-    }
-    const act = await api('POST', `/api/v1/workflows/${id}/activate`);
-    if (act.status !== 200 && act.status !== 201) {
-      console.error(`activate failed for ${wf.name}:`, act.text);
+  alerts.nodes.forEach((n) => {
+    if (n.credentials?.httpHeaderAuth) n.credentials.httpHeaderAuth.id = credId;
+  });
+  const payload = { name: alerts.name, nodes: alerts.nodes, connections: alerts.connections, settings: alerts.settings || {} };
+  let id = existing[alerts.name]?.id;
+  if (id) {
+    const upd = await api('PUT', `/api/v1/workflows/${id}`, payload);
+    if (upd.status !== 200) { console.error(`update failed for ${alerts.name}:`, upd.text); process.exit(1); }
+  } else {
+    const created = await api('POST', '/api/v1/workflows', payload);
+    if (created.status !== 200 && created.status !== 201) {
+      console.error(`create failed for ${alerts.name}:`, created.text);
       process.exit(1);
     }
-    console.log(`workflow ready & active: ${wf.name} (${id})`);
+    id = created.json.id;
   }
+  const act = await api('POST', `/api/v1/workflows/${id}/activate`);
+  if (act.status !== 200 && act.status !== 201) {
+    console.error(`activate failed for ${alerts.name}:`, act.text);
+    process.exit(1);
+  }
+  console.log(`workflow ready & active: ${alerts.name} (${id})`);
 
-  console.log('\nDONE. n8n workflows + credential provisioned from code.');
+  console.log('\nDONE. n8n workflow + credential provisioned from code.');
 })().catch((e) => { console.error('FAILED:', e.message); process.exit(1); });

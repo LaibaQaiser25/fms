@@ -41,7 +41,8 @@ services:
     environment:
       N8N_SECURE_COOKIE: "false"
       N8N_HOST: "0.0.0.0"
-      # Public webhook base used for Twilio callback / browser editor.
+      # Public webhook base used by n8n itself for the browser editor and any
+      # webhook URLs it generates.
       N8N_WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}
       GENERIC_TIMEZONE: "Asia/Karachi"
     depends_on:

@@ -57,7 +57,7 @@ export default function AboutPage() {
               { number: '200+', label: 'Expert Staff' },
             ].map((stat, i) => (
               <div key={i} className="text-center">
-                <div className="text-4xl font-bold text-green-600 mb-2">{stat.number}</div>
+                <div className="text-4xl font-bold text-red-700 mb-2">{stat.number}</div>
                 <p className="text-gray-600">{stat.label}</p>
               </div>
             ))}
@@ -92,17 +92,17 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-center mb-12">Our Values</h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white p-8 rounded-lg shadow">
-              <Award className="text-blue-600 mb-4" size={32} />
+              <Award className="text-red-700 mb-4" size={32} />
               <h3 className="text-xl font-bold mb-3">Quality First</h3>
               <p className="text-gray-600">Every product undergoes rigorous testing to meet international standards.</p>
             </div>
             <div className="bg-white p-8 rounded-lg shadow">
-              <Zap className="text-green-600 mb-4" size={32} />
+              <Zap className="text-red-900 mb-4" size={32} />
               <h3 className="text-xl font-bold mb-3">Innovation</h3>
               <p className="text-gray-600">We invest in R&D to create cutting-edge precast solutions.</p>
             </div>
             <div className="bg-white p-8 rounded-lg shadow">
-              <Users className="text-blue-700 mb-4" size={32} />
+              <Users className="text-gray-700 mb-4" size={32} />
               <h3 className="text-xl font-bold mb-3">Customer Focus</h3>
               <p className="text-gray-600">Your success is our success - we're committed to excellence.</p>
             </div>
@@ -117,12 +117,12 @@ export default function AboutPage() {
           <div className="grid md:grid-cols-4 gap-8">
             {team.map((member, i) => (
               <div key={i} className="bg-white rounded-lg overflow-hidden shadow text-center">
-                <div className="bg-gradient-to-br from-blue-100 to-green-100 py-12 text-5xl">
+                <div className="bg-gradient-to-br from-gray-100 to-red-100 py-12 text-5xl">
                   {member.image}
                 </div>
                 <div className="p-6">
                   <h3 className="font-bold text-lg mb-1">{member.name}</h3>
-                  <p className="text-green-600 font-semibold text-sm">{member.role}</p>
+                  <p className="text-red-700 font-semibold text-sm">{member.role}</p>
                 </div>
               </div>
             ))}

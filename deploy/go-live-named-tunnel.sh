@@ -84,6 +84,4 @@ echo "    Variables -> add VITE_API_URL -> Redeploy)"
 echo
 echo " Also verify:"
 echo "   curl https://${BACKEND_HOST}/auth/login  (expect 401, not 502)"
-echo "   Twilio console: point the WhatsApp message webhook at"
-echo "   https://${N8N_HOST}/webhook/twilio-incoming"
 echo "============================================================"

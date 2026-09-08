@@ -36,7 +36,7 @@ export default function FeedbackPage() {
             {submitted ? (
               <div className="text-center py-12">
                 <div className="text-5xl mb-4">✓</div>
-                <h2 className="text-2xl font-bold text-green-600 mb-2">Thank You!</h2>
+                <h2 className="text-2xl font-bold text-red-700 mb-2">Thank You!</h2>
                 <p className="text-gray-600">Your feedback has been received. We appreciate your input!</p>
               </div>
             ) : (
@@ -50,7 +50,7 @@ export default function FeedbackPage() {
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="Enter your full name"
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-green-600"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-red-600"
                   />
                 </div>
 
@@ -84,14 +84,14 @@ export default function FeedbackPage() {
                     value={form.message}
                     onChange={(e) => setForm({ ...form, message: e.target.value })}
                     placeholder="Share your feedback, suggestions, or experience with us..."
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-green-600 resize-none"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-red-600 resize-none"
                   />
                 </div>
 
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-3 rounded-lg font-bold hover:shadow-lg transition"
+                  className="w-full bg-gradient-to-r from-red-700 to-red-900 text-white py-3 rounded-lg font-bold hover:shadow-lg transition"
                 >
                   Submit Feedback
                 </button>

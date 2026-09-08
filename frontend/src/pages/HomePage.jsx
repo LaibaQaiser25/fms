@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Shield, Clock, Users, Award, BarChart,
+  ArrowRight, ChevronRight, Shield, Clock, Users, Award,
   LayoutGrid, Columns, Fence, Droplets, Layers, ShieldCheck,
+  Building2, MessageCircle,
 } from 'lucide-react';
 import PublicLayout from '../layouts/PublicLayout';
 import HeroSlideshow from '../components/HeroSlideshow';
@@ -16,15 +17,30 @@ const HERO_SLIDES = [
 ];
 
 const HERO_STATS = [
-  { value: '30+', label: 'Years Experience', icon: <Award size={24} className="text-[#6ee7b7]" /> },
-  { value: '500+', label: 'Projects Done', icon: <BarChart size={24} className="text-[#6ee7b7]" /> },
-  { value: '200+', label: 'Happy Clients', icon: <Users size={24} className="text-[#6ee7b7]" /> },
+  { value: '30+', label: 'Years Experience' },
+  { value: '500+', label: 'Projects Done' },
+  { value: '200+', label: 'Happy Clients' },
+];
+
+const QUICK_LINKS = [
+  {
+    icon: Building2, accent: '#b91c1c', title: 'Company',
+    links: [{ label: 'About Us', to: '/about' }, { label: 'Our Specialities', to: '/specialities' }],
+  },
+  {
+    icon: LayoutGrid, accent: '#7f1d1d', title: 'Our Work',
+    links: [{ label: 'Services', to: '/services' }, { label: 'Featured Projects', to: '#our-work' }],
+  },
+  {
+    icon: MessageCircle, accent: '#52525b', title: 'Connect',
+    links: [{ label: 'Contact Us', to: '/contact' }, { label: 'Leave Feedback', to: '/feedback' }],
+  },
 ];
 
 const STRENGTHS = [
-  { icon: Shield, title: 'Quality Guaranteed', desc: 'ISO certified manufacturing with strict quality control at every stage.', glow: 'rgba(99,102,241,0.3)', accent: '#818cf8' },
-  { icon: Clock, title: 'On-Time Delivery', desc: 'Reliable logistics ensuring your projects always stay on schedule.', glow: 'rgba(16,185,129,0.3)', accent: '#6ee7b7' },
-  { icon: Users, title: 'Expert Team', desc: 'Decades of combined experience in precast construction and engineering.', glow: 'rgba(59,130,246,0.3)', accent: '#93c5fd' },
+  { icon: Shield, title: 'Quality Guaranteed', desc: 'ISO certified manufacturing with strict quality control at every stage.', accent: '#b91c1c' },
+  { icon: Clock, title: 'On-Time Delivery', desc: 'Reliable logistics ensuring your projects always stay on schedule.', accent: '#7f1d1d' },
+  { icon: Users, title: 'Expert Team', desc: 'Decades of combined experience in precast construction and engineering.', accent: '#52525b' },
 ];
 
 const CATEGORIES = [
@@ -54,109 +70,129 @@ const BANNER_STATS = [
   { value: '50+', label: 'Expert Engineers' },
 ];
 
+function MosaicPhoto({ image, title, className }) {
+  return (
+    <div className={`group relative rounded-lg overflow-hidden ${className}`}
+      style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+      <img src={image} alt={title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.88) 100%)' }} />
+      <p className="absolute bottom-4 left-4 right-4 text-white text-sm font-bold leading-snug">{title}</p>
+    </div>
+  );
+}
+
+function MosaicStat({ value, label, accent, className }) {
+  return (
+    <div className={`flex flex-col items-center justify-center text-center p-6 rounded-lg ${className}`}
+      style={{ background: accent, border: '1px solid rgba(255,255,255,0.15)' }}>
+      <p className="text-3xl font-extrabold text-white mb-2">{value}</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-white/85 leading-snug">{label}</p>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <PublicLayout>
 
       {/* ---------------------------------- Hero ---------------------------------- */}
-      <section className="relative text-white pt-24 pb-32 md:pt-32 md:pb-40 overflow-hidden">
+      <section className="relative text-white overflow-hidden" style={{ borderBottom: '4px solid #b91c1c' }}>
+        <HeroSlideshow images={HERO_SLIDES} showDots />
 
-        <HeroSlideshow images={HERO_SLIDES} />
-
-        {/* Dark overlay for legibility over the slideshow */}
         <div className="absolute inset-0" style={{
-          background: 'linear-gradient(135deg, rgba(15,12,41,0.92) 0%, rgba(26,26,110,0.82) 35%, rgba(13,79,60,0.88) 100%)',
+          background: 'linear-gradient(115deg, rgba(17,15,15,0.95) 0%, rgba(17,15,15,0.82) 45%, rgba(17,15,15,0.55) 100%)',
         }} />
 
-        {/* grid lines */}
-        <div className="absolute inset-0 opacity-5" style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-          backgroundSize: '60px 60px',
-        }} />
+        <div className="relative max-w-7xl mx-auto px-6 pt-20 pb-24 md:pt-28 md:pb-32">
+          <div className="grid lg:grid-cols-5 gap-12 items-end">
 
-        <div className="relative max-w-4xl mx-auto px-6 text-center">
-          {/* <span className="inline-block px-5 py-2 rounded-full text-xs font-bold tracking-widest uppercase mb-8"
-            style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: '#6ee7b7',
-              backdropFilter: 'blur(10px)',
-            }}>
-            Est. Since 1990 · ISO Certified
-          </span> */}
+            {/* Left: headline, CTAs, inline stats */}
+            <div className="lg:col-span-3">
+              <span className="inline-block px-5 py-2 rounded text-xs font-bold tracking-widest uppercase mb-8"
+                style={{ background: '#b91c1c', color: '#fff' }}>
+                Est. Since 1990 · ISO Certified
+              </span>
 
-          <h1 className="font-bold leading-tight mb-6"
-            style={{
-              fontSize: 'clamp(2.5rem, 6vw, 4.75rem)',
-              background: 'linear-gradient(135deg, #ffffff 0%, #a5f3d0 40%, #818cf8 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}>
-            Premium Precast<br />Solutions
-          </h1>
+              <h1 className="font-bold leading-tight mb-6 text-white"
+                style={{ fontSize: 'clamp(2.5rem, 5.5vw, 4.25rem)' }}>
+                Premium Precast<br />Solutions
+              </h1>
 
-          <p className="text-lg leading-relaxed mb-10 max-w-xl mx-auto"
-            style={{ color: 'rgba(255,255,255,0.7)' }}>
-            Bin-Zahid &amp; Partners delivers world-class precast concrete products — durable, cost-effective, and always on time.
-          </p>
+              <p className="text-lg leading-relaxed mb-10 max-w-lg"
+                style={{ color: 'rgba(255,255,255,0.7)' }}>
+                Bin-Zahid &amp; Partners delivers world-class precast concrete products — durable, cost-effective, and always on time.
+              </p>
 
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Link to="/services"
-              className="inline-flex items-center gap-2 font-bold px-8 py-4 rounded-xl transition hover:opacity-90"
-              style={{
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                color: '#fff',
-                boxShadow: '0 8px 32px rgba(16,185,129,0.4)',
-              }}>
-              Explore Services <ArrowRight size={18} />
-            </Link>
-            <Link to="/contact"
-              className="inline-flex items-center gap-2 font-semibold px-8 py-4 rounded-xl transition hover:bg-white/10"
-              style={{
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                color: '#fff',
-                backdropFilter: 'blur(10px)',
-              }}>
-              Contact Us
-            </Link>
+              <div className="flex flex-wrap gap-4 mb-12">
+                <Link to="/services"
+                  className="inline-flex items-center gap-2 font-bold px-8 py-4 rounded-lg transition hover:opacity-90"
+                  style={{ background: '#b91c1c', color: '#fff', boxShadow: '0 4px 14px rgba(0,0,0,0.4)' }}>
+                  Explore Services <ArrowRight size={18} />
+                </Link>
+                <Link to="/contact"
+                  className="inline-flex items-center gap-2 font-semibold px-8 py-4 rounded-lg transition hover:bg-white/10"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff' }}>
+                  Contact Us
+                </Link>
+              </div>
+
+              <div className="flex flex-wrap gap-x-10 gap-y-4 pt-8" style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                {HERO_STATS.map((s) => (
+                  <div key={s.label}>
+                    <p className="text-2xl font-extrabold" style={{ color: '#ef4444' }}>{s.value}</p>
+                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.6)' }}>{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: highlight box */}
+            <div className="lg:col-span-2 flex lg:justify-end">
+              <div className="p-8 md:p-10 rounded-lg max-w-sm w-full"
+                style={{ background: '#7f1d1d', border: '1px solid rgba(255,255,255,0.15)', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+                <p className="text-xs font-bold uppercase tracking-widest mb-4 text-white/80">Our Promise</p>
+                <p className="text-3xl md:text-4xl font-extrabold leading-tight text-white">
+                  Built To Last, Delivered On Time.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
+      </section>
 
-        {/* Stat cards, floating over the bottom edge of the hero */}
-        <div className="relative max-w-7xl mx-auto px-6 mt-20 md:mt-24">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {HERO_STATS.map((s) => (
-              <div key={s.label}
-                className="flex flex-col items-start p-8 rounded-3xl transition-all duration-300 hover:-translate-y-1"
-                style={{
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  backdropFilter: 'blur(24px)',
-                  boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-                }}>
-
-                <div className="mb-6 p-4 rounded-2xl bg-[#6ee7b7]/10 border border-[#6ee7b7]/20 shadow-inner">
-                  {s.icon}
+      {/* ------------------------------- Quick Links -------------------------------- */}
+      <section className="py-14 bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid md:grid-cols-3 gap-8">
+            {QUICK_LINKS.map(({ icon: Icon, accent, title, links }) => (
+              <div key={title} className="flex gap-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: accent }}>
+                  <Icon size={20} className="text-white" />
                 </div>
-
-                <p className="text-4xl font-extrabold mb-2"
-                  style={{
-                    color: '#6ee7b7',
-                    textShadow: '0 0 30px rgba(110,231,183,0.4)',
-                  }}>
-                  {s.value}
-                </p>
-
-                <p className="text-sm font-bold tracking-widest uppercase mb-4"
-                  style={{ color: 'rgba(255,255,255,0.9)' }}>
-                  {s.label}
-                </p>
-
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  Delivering excellence and quality precast solutions across the region with precision and durability.
-                </p>
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-2">{title}</h3>
+                  <ul className="space-y-1.5">
+                    {links.map((l) => {
+                      const linkClass = "inline-flex items-center gap-1 text-sm text-gray-600 hover:text-red-700 transition";
+                      return (
+                        <li key={l.label}>
+                          {l.to.startsWith('#') ? (
+                            <a href={l.to} className={linkClass}>
+                              <ChevronRight size={14} className="text-gray-400" />
+                              {l.label}
+                            </a>
+                          ) : (
+                            <Link to={l.to} className={linkClass}>
+                              <ChevronRight size={14} className="text-gray-400" />
+                              {l.label}
+                            </Link>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               </div>
             ))}
           </div>
@@ -164,104 +200,103 @@ export default function HomePage() {
       </section>
 
       {/* ------------------------------ Why Choose Us ------------------------------ */}
-      <section className="py-24"
-        style={{ background: 'linear-gradient(180deg, #0a0a1a 0%, #0d1f2d 50%, #0a1a12 100%)' }}>
+      <section className="py-24" style={{ background: '#1a1a1a' }}>
         <div className="max-w-7xl mx-auto px-6">
 
           <header className="text-center max-w-2xl mx-auto mb-16">
-            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6ee7b7' }}>Our Strengths</span>
-            <h2 className="text-4xl font-bold mt-3" style={{
-              background: 'linear-gradient(135deg, #fff 0%, #a5f3d0 100%)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-            }}>Why Choose Us</h2>
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#ef4444' }}>Our Strengths</span>
+            <h2 className="text-4xl font-bold mt-3 text-white">Why Choose Us</h2>
           </header>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {STRENGTHS.map(({ icon: Icon, title, desc, glow, accent }) => (
+            {STRENGTHS.map(({ icon: Icon, title, desc, accent }) => (
               <div key={title}
-                className="relative p-8 rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
+                className="relative p-8 rounded-lg overflow-hidden transition-all duration-300 hover:-translate-y-1"
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: `0 0 40px ${glow}, inset 0 1px 0 rgba(255,255,255,0.02)`,
+                  background: '#232020',
+                  borderLeft: `4px solid ${accent}`,
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
                 }}>
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-                  style={{ background: `${glow}`, border: `1px solid ${accent}30` }}>
-                  <Icon size={22} style={{ color: accent }} />
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-5"
+                  style={{ background: accent }}>
+                  <Icon size={22} className="text-white" />
                 </div>
                 <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>{desc}</p>
+                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>{desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ------------------------------ Product Categories -------------------------- */}
-      <section className="py-24" style={{ background: '#0a1a12' }}>
+      {/* ---------------------------------- Our Work --------------------------------- */}
+      <section id="our-work" className="py-24" style={{ background: '#111111' }}>
         <div className="max-w-7xl mx-auto px-6">
           <header className="text-center max-w-2xl mx-auto mb-16">
-            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6ee7b7' }}>What We Manufacture</span>
-            <h2 className="text-4xl font-bold mt-3" style={{
-              background: 'linear-gradient(135deg, #fff 0%, #a5f3d0 100%)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-            }}>Product Categories</h2>
-          </header>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {CATEGORIES.map(({ icon: Icon, title, desc, image }) => (
-              <div key={title}
-                className="group relative rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
-                style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div className="relative h-48">
-                  <img src={image} alt={title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
-                  <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 30%, rgba(10,26,18,0.9) 100%)' }} />
-                  <div className="absolute bottom-4 left-4 w-11 h-11 rounded-xl flex items-center justify-center"
-                    style={{ background: 'rgba(110,231,183,0.15)', border: '1px solid rgba(110,231,183,0.3)', backdropFilter: 'blur(6px)' }}>
-                    <Icon size={20} style={{ color: '#6ee7b7' }} />
-                  </div>
-                </div>
-                <div className="p-6" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                  <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ----------------------------- Featured Projects ---------------------------- */}
-      <section className="py-24" style={{ background: '#0a0a1a' }}>
-        <div className="max-w-6xl mx-auto px-6">
-          <header className="text-center max-w-2xl mx-auto mb-16">
-            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6ee7b7' }}>Our Work</span>
-            <h2 className="text-4xl font-bold mt-3 mb-4" style={{
-              background: 'linear-gradient(135deg, #fff 0%, #a5f3d0 100%)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-            }}>Featured Projects</h2>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#ef4444' }}>What We Do</span>
+            <h2 className="text-4xl font-bold mt-3 mb-4 text-white">Our Work</h2>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
               Real projects, real pavers, real craftsmanship — a look at what we produce and install.
             </p>
           </header>
 
-          <ImageCarousel slides={FEATURED_PROJECTS} />
+          {/* Mosaic grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 md:auto-rows-[210px] gap-4 mb-6">
+            <MosaicPhoto
+              image={CATEGORIES[5].image} title={CATEGORIES[5].title}
+              className="col-span-2 md:col-span-1 md:col-start-1 md:row-start-1 md:row-span-2 h-56 md:h-auto"
+            />
+            <MosaicStat value="ISO 9001" label="Certified Since 1990" accent="#b91c1c"
+              className="md:col-start-2 md:row-start-1" />
+            <MosaicPhoto
+              image={CATEGORIES[0].image} title={CATEGORIES[0].title}
+              className="md:col-start-2 md:row-start-2 h-40 md:h-auto"
+            />
+            <MosaicPhoto
+              image={CATEGORIES[1].image} title={CATEGORIES[1].title}
+              className="col-span-2 md:col-span-1 md:col-start-3 md:row-start-1 md:row-span-2 h-56 md:h-auto"
+            />
+            <MosaicPhoto
+              image={CATEGORIES[3].image} title={CATEGORIES[3].title}
+              className="md:col-start-4 md:row-start-1 h-40 md:h-auto"
+            />
+            <MosaicStat value="500+" label="Projects Completed" accent="#7f1d1d"
+              className="md:col-start-4 md:row-start-2" />
+          </div>
+
+          {/* Featured project spotlight — interactive carousel */}
+          <div className="mt-16">
+            <h3 className="text-xl font-bold text-white mb-6">Featured Project Spotlight</h3>
+            <ImageCarousel slides={FEATURED_PROJECTS} />
+          </div>
+
+          {/* Closing wide banner */}
+          <div className="relative rounded-lg overflow-hidden h-56 md:h-64 mt-16">
+            <img src="/gallery/pavers-pattern-samples-yard-overview.jpeg" alt="Bin-Zahid & Partners manufacturing yard"
+              className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 flex items-center" style={{
+              background: 'linear-gradient(90deg, rgba(15,12,12,0.94) 0%, rgba(15,12,12,0.6) 55%, transparent 100%)',
+            }}>
+              <p className="text-white text-2xl md:text-3xl font-bold max-w-xl px-8 md:px-12 leading-snug">
+                Recognized as a Trusted Precast Manufacturer Across the Region
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ------------------------------- Stats Banner ------------------------------ */}
       <section className="py-16" style={{
-        background: 'linear-gradient(135deg, #0f0c29 0%, #1a1a6e 40%, #0d4f3c 100%)',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        background: '#7f1d1d',
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
       }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {BANNER_STATS.map((s) => (
               <div key={s.label}>
-                <p className="text-4xl font-bold" style={{ color: '#6ee7b7' }}>{s.value}</p>
-                <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{s.label}</p>
+                <p className="text-4xl font-bold text-white">{s.value}</p>
+                <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>{s.label}</p>
               </div>
             ))}
           </div>
@@ -269,21 +304,16 @@ export default function HomePage() {
       </section>
 
       {/* ----------------------------------- CTA ----------------------------------- */}
-      <section className="py-24 text-center"
-        style={{ background: 'linear-gradient(180deg, #0a1a12 0%, #0a0a1a 100%)' }}>
+      <section className="py-24 text-center" style={{ background: '#1a1a1a' }}>
         <div className="max-w-2xl mx-auto px-6">
-          <Award size={42} style={{ color: '#6ee7b7', margin: '0 auto 1.5rem' }} />
+          <Award size={42} style={{ color: '#ef4444', margin: '0 auto 1.5rem' }} />
           <h2 className="text-4xl font-bold text-white mb-4">Ready to Start Your Project?</h2>
-          <p className="mb-10" style={{ color: 'rgba(255,255,255,0.5)' }}>
+          <p className="mb-10" style={{ color: 'rgba(255,255,255,0.55)' }}>
             Get in touch with our team today for a free consultation and quote.
           </p>
           <Link to="/contact"
-            className="inline-flex items-center gap-2 font-bold px-10 py-4 rounded-xl transition"
-            style={{
-              background: 'linear-gradient(135deg, #6366f1, #10b981)',
-              color: '#fff',
-              boxShadow: '0 8px 32px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.06)',
-            }}>
+            className="inline-flex items-center gap-2 font-bold px-10 py-4 rounded-lg transition hover:opacity-90"
+            style={{ background: '#b91c1c', color: '#fff', boxShadow: '0 4px 14px rgba(0,0,0,0.4)' }}>
             Contact Us Now <ArrowRight size={18} />
           </Link>
         </div>

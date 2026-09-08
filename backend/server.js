@@ -22,7 +22,6 @@ const cashbookRoutes = require('./routes/cashbook');
 const reportsRoutes = require('./routes/reports');
 const usersRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
-const webhooksRoutes = require('./routes/webhooks');
 const authMiddleware = require('./middleware/authMiddleware');
 const requireOwner = require('./middleware/requireOwner');
 const { startCronJobs } = require('./services/cronJobs');
@@ -57,10 +56,6 @@ app.get('/testautodeployment', (req, res) => {
 
 // Auth routes
 app.use('/auth', authRoutes);
-
-// n8n-facing webhooks — no JWT (n8n has no user login), gated by a shared
-// secret header inside the route instead. Must stay ahead of the /api wall.
-app.use('/webhooks', webhooksRoutes);
 
 // Every /api/* route requires a valid JWT from here on
 app.use('/api', authMiddleware);

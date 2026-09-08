@@ -27,7 +27,7 @@ npm run lint     # eslint .
 npm run preview  # preview production build
 ```
 
-**Env files**: `backend/.env` (`DATABASE_URL`, `PORT`, `FRONTEND_URL`, `JWT_SECRET`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `OWNER_WHATSAPP`) and `frontend/.env` (`VITE_API_URL`) are gitignored — no `.env.example` currently checked in, so ask the user for values rather than guessing.
+**Env files**: `backend/.env` (`DATABASE_URL`, `PORT`, `FRONTEND_URL`, `JWT_SECRET`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `META_WHATSAPP_TOKEN`, `META_PHONE_NUMBER_ID`, `OWNER_WHATSAPP`) and `frontend/.env` (`VITE_API_URL`) are gitignored — no `.env.example` currently checked in, so ask the user for values rather than guessing.
 
 ## Architecture
 

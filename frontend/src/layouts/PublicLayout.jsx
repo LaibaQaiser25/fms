@@ -1,12 +1,28 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import LoginModal from '../components/Login';
 
 export default function PublicLayout({ children }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLoginOpen, setIsLoginOpen] = useState(false);
+    const [navHidden, setNavHidden] = useState(false);
+    const lastScrollY = useRef(0);
     const location = useLocation();
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const currentY = window.scrollY;
+            if (currentY > lastScrollY.current && currentY > 80) {
+                setNavHidden(true);
+            } else {
+                setNavHidden(false);
+            }
+            lastScrollY.current = currentY;
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     const navItems = [
         { label: 'Home', path: '/' },
@@ -22,11 +38,12 @@ export default function PublicLayout({ children }) {
     return (
         <div className="min-h-screen bg-white flex flex-col">
             {/* Navbar */}
-            <nav style={{
-                background: 'linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%)',
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
-                boxShadow: '0 4px 40px rgba(0,0,0,0.8), 0 1px 0 rgba(139,92,246,0.3)',
-                backdropFilter: 'blur(12px)',
+            <nav className="sticky top-0 z-50" style={{
+                background: '#1a1a1a',
+                borderBottom: '3px solid #b91c1c',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                transform: navHidden ? 'translateY(-100%)' : 'translateY(0)',
+                transition: 'transform 0.3s ease',
             }}>
                 <div className="max-w-7xl mx-auto px-6 py-4">
                     <div className="flex justify-between items-center">
@@ -34,9 +51,7 @@ export default function PublicLayout({ children }) {
                         {/* Logo */}
                         <Link to="/" className="flex items-center gap-3 group">
                             <div className="relative w-10 h-10 rounded-xl overflow-hidden"
-                                style={{
-                                    boxShadow: '0 0 20px rgba(88,28,212,0.5), 0 0 40px rgba(5,150,105,0.3)',
-                                }}>
+                                style={{ border: '2px solid #b91c1c' }}>
                                 <img src="../logo.png" alt="Bin-Zahid Logo" className="w-full h-full object-cover" />
                             </div>
                             <div>
@@ -47,16 +62,15 @@ export default function PublicLayout({ children }) {
                                         fontWeight: '700',
                                         letterSpacing: '0.12em',
                                         textTransform: 'uppercase',
-                                        textShadow: '0 0 20px rgba(139,92,246,0.4)',
                                     }}>
                                     Bin-Zahid & Partners'
                                 </div>
-                                <div className="text-xs" 
+                                <div className="text-xs"
                                 style={{
                                     fontFamily: "'Cormorant Garamond', serif",
                                     letterSpacing: '0.2em',
                                     textTransform: 'uppercase',
-                                    color: 'rgba(52,211,153,0.7)',
+                                    color: '#ef4444',
                                 }}>
                                     Precast Solutions
                                 </div>
@@ -71,10 +85,9 @@ export default function PublicLayout({ children }) {
                                     to={item.path}
                                     className="text-sm font-medium transition-all duration-200"
                                     style={{
-                                        color: isActive(item.path) ? '#6ee7b7' : 'rgba(255,255,255,0.6)',
-                                        borderBottom: isActive(item.path) ? '1px solid #6ee7b7' : '1px solid transparent',
+                                        color: isActive(item.path) ? '#ef4444' : 'rgba(255,255,255,0.65)',
+                                        borderBottom: isActive(item.path) ? '2px solid #ef4444' : '2px solid transparent',
                                         paddingBottom: '2px',
-                                        textShadow: isActive(item.path) ? '0 0 12px rgba(110,231,183,0.6)' : 'none',
                                     }}
                                 >
                                     {item.label}
@@ -86,11 +99,11 @@ export default function PublicLayout({ children }) {
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={() => setIsLoginOpen(true)}
-                                className="hidden md:block text-sm font-bold px-6 py-2.5 rounded-lg transition-all duration-200"
+                                className="hidden md:block text-sm font-bold px-6 py-2.5 rounded-lg transition hover:opacity-90"
                                 style={{
-                                    background: 'linear-gradient(135deg, #581cd4, #059669)',
+                                    background: '#b91c1c',
                                     color: '#fff',
-                                    boxShadow: '0 0 20px rgba(88,28,212,0.45), 0 0 40px rgba(5,150,105,0.25), inset 0 1px 0 rgba(255,255,255,0.05)',
+                                    boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
                                 }}
                             >
                                 Login
@@ -108,14 +121,14 @@ export default function PublicLayout({ children }) {
                     {/* Mobile Menu */}
                     {isMenuOpen && (
                         <div className="md:hidden mt-4 pb-4"
-                            style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                            style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                             {navItems.map(item => (
                                 <Link
                                     key={item.path}
                                     to={item.path}
                                     onClick={() => setIsMenuOpen(false)}
                                     className="block py-2.5 text-sm font-medium transition-all"
-                                    style={{ color: isActive(item.path) ? '#6ee7b7' : 'rgba(255,255,255,0.55)' }}
+                                    style={{ color: isActive(item.path) ? '#ef4444' : 'rgba(255,255,255,0.6)' }}
                                 >
                                     {item.label}
                                 </Link>
@@ -123,11 +136,7 @@ export default function PublicLayout({ children }) {
                             <button
                                 onClick={() => { setIsLoginOpen(true); setIsMenuOpen(false); }}
                                 className="mt-4 w-full py-2.5 rounded-lg font-bold text-sm"
-                                style={{
-                                    background: 'linear-gradient(135deg, #581cd4, #059669)',
-                                    color: '#fff',
-                                    boxShadow: '0 0 20px rgba(88,28,212,0.4)',
-                                }}
+                                style={{ background: '#b91c1c', color: '#fff' }}
                             >
                                 Login
                             </button>
@@ -146,19 +155,19 @@ export default function PublicLayout({ children }) {
                 <div className="max-w-7xl mx-auto px-4">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-green-400">About Us</h3>
+                            <h3 className="font-bold text-lg mb-4 text-red-500">About Us</h3>
                             <p className="text-gray-300 text-sm">Leading precast concrete solutions for modern construction.</p>
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-green-400">Quick Links</h3>
+                            <h3 className="font-bold text-lg mb-4 text-red-500">Quick Links</h3>
                             <ul className="text-gray-300 text-sm space-y-2">
-                                <li><Link to="/about" className="hover:text-green-400">About</Link></li>
-                                <li><Link to="/services" className="hover:text-green-400">Services</Link></li>
-                                <li><Link to="/contact" className="hover:text-green-400">Contact</Link></li>
+                                <li><Link to="/about" className="hover:text-red-500">About</Link></li>
+                                <li><Link to="/services" className="hover:text-red-500">Services</Link></li>
+                                <li><Link to="/contact" className="hover:text-red-500">Contact</Link></li>
                             </ul>
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-green-400">Contact</h3>
+                            <h3 className="font-bold text-lg mb-4 text-red-500">Contact</h3>
                             <p className="text-gray-300 text-sm">Sugar Mill Road, Near Kuthiala Sayedan, Mandi Bahauddin</p>
                             <p className="text-gray-300 text-sm mt-2">Email: nasir_mirza202@yahoo.com</p>
                             <p className="text-gray-300 text-sm">Mirza Zahid Nasir: +92 345 7579505</p>
@@ -167,13 +176,13 @@ export default function PublicLayout({ children }) {
                                 href="https://wa.me/923457579505"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-green-400 text-sm hover:underline inline-block mt-1"
+                                className="text-red-500 text-sm hover:underline inline-block mt-1"
                             >
                                 WhatsApp us anytime
                             </a>
                         </div>
                         <div>
-                            <h3 className="font-bold text-lg mb-4 text-green-400">Follow Us</h3>
+                            <h3 className="font-bold text-lg mb-4 text-red-500">Follow Us</h3>
                             <p className="text-gray-300 text-sm">Facebook: اتفاق بلڈرز کی تیار چھتیں اور دیواریں منڈی بہاؤالدین</p>
                         </div>
                     </div>

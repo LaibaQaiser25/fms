@@ -64,7 +64,7 @@ export default function SpecialitiesPage() {
                         {spec.items.map((item, j) => (
                           <span
                             key={j}
-                            className="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-semibold"
+                            className="bg-red-100 text-red-800 px-4 py-2 rounded-full text-sm font-semibold"
                           >
                             {item}
                           </span>
@@ -80,7 +80,7 @@ export default function SpecialitiesPage() {
       </div>
 
       {/* Stats */}
-      <div className="bg-blue-900 text-white py-16">
+      <div className="text-white py-16" style={{ background: '#1a1a1a' }}>
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Our Achievements</h2>
           <div className="grid md:grid-cols-4 gap-8 text-center">
@@ -91,8 +91,8 @@ export default function SpecialitiesPage() {
               { number: '5M+', label: 'Units Produced' },
             ].map((item, i) => (
               <div key={i}>
-                <div className="text-4xl font-bold text-green-400 mb-2">{item.number}</div>
-                <p className="text-blue-100">{item.label}</p>
+                <div className="text-4xl font-bold mb-2" style={{ color: '#ef4444' }}>{item.number}</div>
+                <p className="text-gray-300">{item.label}</p>
               </div>
             ))}
           </div>

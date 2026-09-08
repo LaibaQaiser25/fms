@@ -62,13 +62,13 @@ export default function ServicesPage() {
                   <div className="relative h-44">
                     <img src={service.image} alt={service.title} className="w-full h-full object-cover" />
                     <div className="absolute -bottom-5 left-6 w-12 h-12 rounded-xl bg-white shadow flex items-center justify-center">
-                      <Icon className="text-green-600" size={22} />
+                      <Icon className="text-red-700" size={22} />
                     </div>
                   </div>
                   <div className="p-8 pt-9">
                     <h3 className="text-xl font-bold mb-3 text-gray-900">{service.title}</h3>
                     <p className="text-gray-600">{service.description}</p>
-                    <button className="mt-6 text-green-600 font-semibold hover:text-green-700">
+                    <button className="mt-6 text-red-700 font-semibold hover:text-red-800">
                       Learn More →
                     </button>
                   </div>
@@ -90,7 +90,7 @@ export default function ServicesPage() {
               { title: 'Cost Effective', desc: 'Competitive pricing with superior quality' },
               { title: 'Durability', desc: '50+ year lifespan with minimal maintenance' },
             ].map((item, i) => (
-              <div key={i} className="bg-white p-8 rounded-lg border-l-4 border-green-600">
+              <div key={i} className="bg-white p-8 rounded-lg border-l-4 border-red-700">
                 <h3 className="text-lg font-bold mb-2 text-gray-900">{item.title}</h3>
                 <p className="text-gray-600">{item.desc}</p>
               </div>

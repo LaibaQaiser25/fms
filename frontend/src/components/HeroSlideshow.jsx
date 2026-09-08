@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export default function HeroSlideshow({ images, interval = 6000 }) {
+export default function HeroSlideshow({ images, interval = 6000, showDots = false }) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -21,6 +21,24 @@ export default function HeroSlideshow({ images, interval = 6000 }) {
           style={{ opacity: i === index ? 1 : 0, transitionDuration: '1500ms' }}
         />
       ))}
+
+      {showDots && (
+        <div className="absolute bottom-6 right-6 md:bottom-8 md:right-10 flex gap-2 z-10">
+          {images.map((src, i) => (
+            <button
+              key={src}
+              onClick={() => setIndex(i)}
+              aria-label={`Go to slide ${i + 1}`}
+              className="rounded-full transition-all"
+              style={{
+                width: i === index ? '20px' : '7px',
+                height: '7px',
+                background: i === index ? '#ef4444' : 'rgba(255,255,255,0.4)',
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

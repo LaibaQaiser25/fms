@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, Download, List } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas-pro';
+import jsPDF from 'jspdf';
 import * as invoiceApi from '../../../api/invoiceApi';
 
 function InvoiceModal({ invoiceId, onClose }) {
@@ -49,18 +50,30 @@ function InvoiceModal({ invoiceId, onClose }) {
     window.print();
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!invoiceContentRef.current) return;
-    html2pdf()
-      .set({
-        margin: 10,
-        filename: `${invoice?.invoice_no || 'invoice'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      })
-      .from(invoiceContentRef.current)
-      .save();
+    const canvas = await html2canvas(invoiceContentRef.current, { scale: 2 });
+    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pageWidth = pdf.internal.pageSize.getWidth() - 20;
+    const pageHeight = pdf.internal.pageSize.getHeight() - 20;
+    const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 10;
+
+    pdf.addImage(imgData, 'JPEG', 10, position, pageWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 10, position, pageWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save(`${invoice?.invoice_no || 'invoice'}.pdf`);
   };
 
   if (loading) {

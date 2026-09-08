@@ -20,9 +20,9 @@ for f in .env backend/.env deploy/.env.n8n; do
   if [ ! -f "$f" ]; then echo "ERROR: $f missing — copy from ${f}.example and fill in."; exit 1; fi
 done
 grep -q 'POSTGRES_PASSWORD=change-me' .env && { echo "ERROR: .env still has placeholders"; exit 1; }
-grep -qE '^(JWT_SECRET|BACKEND_WEBHOOK_SECRET|N8N_INBOUND_SECRET)=change-me' backend/.env && \
+grep -qE '^JWT_SECRET=change-me' backend/.env && \
   { echo "ERROR: backend/.env still has placeholders"; exit 1; }
-grep -qE '^(TWILIO_AUTH_TOKEN|BACKEND_WEBHOOK_SECRET)=change-me' deploy/.env.n8n && \
+grep -qE '^(META_WHATSAPP_TOKEN|META_PHONE_NUMBER_ID)=change-me' deploy/.env.n8n && \
   { echo "ERROR: deploy/.env.n8n still has placeholders"; exit 1; }
 echo "    env files OK"
 

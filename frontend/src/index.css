@@ -29,14 +29,6 @@
 
   --color-text-accent: #9b4c4c;
 
-  /* Solid (non-gradient) accent — safe for text-color/border-color/bg-color,
-     unlike --color-brand which is a gradient under the generic theme. Used
-     for badges, hover states, and small brand touches on light surfaces. */
-  --color-accent: #b91c1c;
-  --color-accent-hover: #991b1b;
-  --color-accent-soft: #fee2e2;
-  --color-accent-soft-hover: #fecaca;
-
   --nav-bg: #1a1a1a;
   --nav-border-width: 3px;
   --nav-border-color: #b91c1c;
@@ -58,7 +50,7 @@
   --color-brand-hover: linear-gradient(135deg, #4c17b8, #047d57);
   --color-brand-shadow: 0 0 20px rgba(88, 28, 212, 0.45), 0 0 40px rgba(5, 150, 105, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
-  --color-sale: #025d23;
+  --color-sale: #22c55e;
   --color-sale-hover: #16a34a;
   --color-purchase: #7c3aed;
   --color-purchase-hover: #6d28d9;
@@ -67,12 +59,7 @@
   --color-payment: #f97316;
   --color-payment-hover: #ea580c;
 
-  --color-text-accent: #0150ab;
-
-  --color-accent: #581cd4;
-  --color-accent-hover: #4c17b8;
-  --color-accent-soft: #ede9fe;
-  --color-accent-soft-hover: #ddd6fe;
+  --color-text-accent: #6ee7b7;
 
   --nav-bg: linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%);
   --nav-border-width: 1px;
@@ -88,18 +75,4 @@
   --logo-border: none;
   --logo-glow: 0 0 20px rgba(88, 28, 212, 0.5), 0 0 40px rgba(5, 150, 105, 0.3);
   --title-glow: 0 0 20px rgba(139, 92, 246, 0.4);
-}
-
-/* Selection & success are UI-state colors, not brand colors — they stay the
-   same green/grey in both themes instead of swapping with --color-accent. */
-:root {
-  --color-selected: #4b5563;
-  --color-selected-hover: #374151;
-  --color-selected-soft: #f3f4f6;
-  --color-selected-soft-hover: #e5e7eb;
-
-  --color-success: #16a34a;
-  --color-success-hover: #15803d;
-  --color-success-soft: #dcfce7;
-  --color-success-soft-hover: #bbf7d0;
 }

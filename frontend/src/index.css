@@ -58,7 +58,7 @@
   --color-brand-hover: linear-gradient(135deg, #4c17b8, #047d57);
   --color-brand-shadow: 0 0 20px rgba(88, 28, 212, 0.45), 0 0 40px rgba(5, 150, 105, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
-  --color-sale: #22c55e;
+  --color-sale: #025d23;
   --color-sale-hover: #16a34a;
   --color-purchase: #7c3aed;
   --color-purchase-hover: #6d28d9;
@@ -67,7 +67,7 @@
   --color-payment: #f97316;
   --color-payment-hover: #ea580c;
 
-  --color-text-accent: #6ee7b7;
+  --color-text-accent: #0150ab;
 
   --color-accent: #581cd4;
   --color-accent-hover: #4c17b8;

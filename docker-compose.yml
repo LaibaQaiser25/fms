@@ -23,6 +23,14 @@ services:
     restart: unless-stopped
     env_file:
       - backend/.env
+    environment:
+      # node:24-alpine defaults to UTC, but report_schedules.run_time (and the
+      # cron in services/cronJobs.js that reads it) is entered/compared as
+      # Pakistan wall-clock time via the Reports UI's plain <input type="time">
+      # (no timezone picker) — without this, a schedule set for e.g. 1:56 PM
+      # actually fires 5 hours late, at 1:56 PM UTC. Matches n8n's
+      # GENERIC_TIMEZONE below.
+      TZ: "Asia/Karachi"
     depends_on:
       db:
         condition: service_healthy

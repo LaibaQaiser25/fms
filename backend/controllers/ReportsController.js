@@ -168,15 +168,15 @@ class ReportsController {
   }
 
   /**
-   * Builds the WhatsApp text for "today's report": the same aggregates as
-   * generateSnapshot, plus the actual unpaid-invoice / unpaid-purchase rows
+   * Builds the WhatsApp text for a report: the given aggregates (from
+   * generateSnapshot) plus the actual unpaid-invoice / unpaid-purchase rows
    * behind customerDebt/payable so the message is actionable, not just a
-   * total. Shared by the on-demand endpoint and the nightly cron.
+   * total. Shared by the on-demand endpoint and the report_schedules cron
+   * (services/cronJobs.js), which calls this for whichever frequency
+   * (daily/weekly/monthly) it just generated and stored.
    */
-  static async buildDailyReportMessage() {
-    const period = resolvePeriod('daily');
-    const [data, debtRes, payableRes] = await Promise.all([
-      ReportsController.generateSnapshot(period.periodStart, period.periodEnd),
+  static async buildReportMessage(period, data) {
+    const [debtRes, payableRes] = await Promise.all([
       pool.query(
         `SELECT customer_name, outstanding_debt, invoice_no
          FROM invoices WHERE status IN ('unpaid', 'partial')
@@ -198,13 +198,20 @@ class ReportsController {
       return (shown || '• None') + extra;
     };
 
-    return `📊 *Daily Report — ${formatDisplay(period.periodStart)}*\n\n` +
+    return `📊 *Report — ${period.label}*\n\n` +
       `💵 Sales: Rs.${money(data.sales.total)} (${data.sales.count})\n` +
       `🛒 Purchases: Rs.${money(data.purchases.total)} (${data.purchases.count})\n` +
       `💸 Expenses: Rs.${money(data.expenses.total)} (${data.expenses.count})\n` +
       `🏦 Net Cash in Hand: Rs.${money(data.netCashInHand)}\n\n` +
       `📌 *Pending Customer Debt* — Total: Rs.${money(data.customerDebt)}\n${listLines(debtRes.rows, 'customer_name')}\n\n` +
       `📌 *Payable to Sellers* — Total: Rs.${money(data.payable)}\n${listLines(payableRes.rows, 'seller_name')}`;
+  }
+
+  /** Today's report, on demand — used by the manual "Send today's report" button. */
+  static async buildDailyReportMessage() {
+    const period = resolvePeriod('daily');
+    const data = await ReportsController.generateSnapshot(period.periodStart, period.periodEnd);
+    return ReportsController.buildReportMessage(period, data);
   }
 
   /** POST /api/reports/send-whatsapp — sends today's report on demand */

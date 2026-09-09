@@ -11,23 +11,11 @@ const toDateStr = (date) => {
 };
 
 const startCronJobs = () => {
-  // Every day at 8:30 PM — sends the full daily report (sales, purchases,
-  // expenses, net cash, pending customer debt, payable to sellers) instead
-  // of the old low-stock/debt-only alert format.
-  cron.schedule('30 20 * * *', async () => {
-    console.log('🕣 Sending daily report...');
-
-    try {
-      const message = await ReportsController.buildDailyReportMessage();
-      await sendWhatsApp(message);
-    } catch (error) {
-      console.error('❌ Cron job error:', error.message);
-    }
-  });
-
   // Every minute: fire any enabled report_schedules row whose run_time (and,
   // for weekly/monthly, run_day_of_week/run_day_of_month) matches right now,
-  // and that hasn't already fired today.
+  // and that hasn't already fired today. Generates + stores the snapshot
+  // (so it shows on the Reports page) and sends it to WhatsApp in the same
+  // pass, right at the configured time — no separate WhatsApp-only cron.
   cron.schedule('* * * * *', async () => {
     try {
       const now = new Date();
@@ -68,6 +56,13 @@ const startCronJobs = () => {
             [schedule.frequency, period.periodStart, period.periodEnd, period.label, JSON.stringify(data)]
           );
           console.log(`✅ Auto-generated ${schedule.frequency} report: ${period.label}`);
+
+          try {
+            const message = await ReportsController.buildReportMessage(period, data);
+            await sendWhatsApp(message);
+          } catch (whatsappError) {
+            console.error(`❌ Failed to send ${schedule.frequency} report to WhatsApp:`, whatsappError.message);
+          }
         } catch (insertError) {
           if (insertError.code === '23505') {
             console.log(`ℹ️ Skipped ${schedule.frequency} report for ${period.label} — another process already generated it`);

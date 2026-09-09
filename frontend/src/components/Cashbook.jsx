@@ -156,9 +156,7 @@ function Cashbook() {
     <th className={`py-3 px-6 font-semibold text-gray-700 ${align === 'right' ? 'text-right' : 'text-left'}`}>
       <button
         onClick={() => handleSort(column)}
-        className={`inline-flex items-center gap-1 hover:text-[var(--color-text-accent)] transition ${
-          sortBy === column ? 'text-[var(--color-text-accent)]' : ''
-        }`}
+        className="inline-flex items-center gap-1 hover:text-[var(--color-text-accent)] transition"
       >
         {label}
         <ArrowUpDown size={14} className={sortBy === column ? 'opacity-100' : 'opacity-40'} />
@@ -387,7 +385,7 @@ function Cashbook() {
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="py-3 px-6 text-left font-semibold text-gray-700" >
+                  <thead className="bg-gray-100 border-b border-gray-200">
                     <tr>
                       <SortHeader column="date" label="Date" />
                       <SortHeader column="type" label="Type" />

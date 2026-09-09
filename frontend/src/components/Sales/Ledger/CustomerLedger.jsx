@@ -144,7 +144,7 @@ function CustomerLedger() {
         </div>
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
             <p className="mt-2 text-gray-600">Loading ledger...</p>
           </div>
         ) : ledger.length === 0 ? (
@@ -190,7 +190,7 @@ function CustomerLedger() {
                       <td className="py-4 px-6 text-center">
                         <button
                           onClick={() => handleShowRecord(entry.id)}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition font-semibold text-sm"
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-[var(--color-accent-soft)] text-[var(--color-accent)] rounded hover:bg-[var(--color-accent-soft-hover)] transition font-semibold text-sm"
                         >
                           <History className="w-4 h-4" />
                           RECORD
@@ -199,7 +199,7 @@ function CustomerLedger() {
                       <td className="py-4 px-6 text-center">
                         <button
                           onClick={() => handleShowInvoices(entry.id)}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition font-semibold text-sm"
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-[var(--color-accent-soft)] text-[var(--color-accent)] rounded hover:bg-[var(--color-accent-soft-hover)] transition font-semibold text-sm"
                         >
                           <FileText className="w-4 h-4" />
                           INVOICES

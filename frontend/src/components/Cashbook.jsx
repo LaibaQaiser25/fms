@@ -22,9 +22,9 @@ const TYPE_OPTIONS = [
 ];
 
 const TYPE_BADGE = {
-  sale: 'bg-red-100 text-red-700',
-  purchase: 'bg-amber-100 text-amber-700',
-  expense: 'bg-red-100 text-red-700'
+  sale: 'bg-[var(--color-accent-soft)] text-[var(--color-sale)]',
+  purchase: 'bg-amber-100 text-[var(--color-purchase)]',
+  expense: 'bg-orange-100 text-[var(--color-payment)]'
 };
 
 const formatCurrency = (amount) =>
@@ -214,25 +214,25 @@ function Cashbook() {
             whole result set, never just the page on screen */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <SummaryCard
-            icon={<ArrowDownCircle size={20} className="text-red-600" />}
+            icon={<ArrowDownCircle size={20} className="text-[var(--color-sale)]" />}
             label="Cash In — Sales"
             value={totals?.salesIn}
             count={totals?.counts?.sales}
-            tone={{ text: 'text-red-600' }}
+            tone={{ text: 'text-[var(--color-sale)]' }}
           />
           <SummaryCard
-            icon={<ArrowUpCircle size={20} className="text-amber-600" />}
+            icon={<ArrowUpCircle size={20} className="text-[var(--color-purchase)]" />}
             label="Cash Out — Purchases"
             value={totals?.purchasesOut}
             count={totals?.counts?.purchases}
-            tone={{ text: 'text-amber-600' }}
+            tone={{ text: 'text-[var(--color-purchase)]' }}
           />
           <SummaryCard
-            icon={<Receipt size={20} className="text-red-600" />}
+            icon={<Receipt size={20} className="text-[var(--color-payment)]" />}
             label="Cash Out — Expenses"
             value={totals?.expensesOut}
             count={totals?.counts?.expenses}
-            tone={{ text: 'text-red-600' }}
+            tone={{ text: 'text-[var(--color-payment)]' }}
           />
           <div className={`rounded-lg shadow-md p-5 ${net >= 0 ? 'bg-gray-800' : 'bg-red-600'}`}>
             <div className="flex items-center justify-between">
@@ -257,7 +257,7 @@ function Cashbook() {
             value={balances?.receivable}
             parties={balances?.customersOwing}
             partyNoun="customer"
-            background="bg-red-500"
+            background="bg-[var(--color-sale)]"
           />
           <BalanceCard
             icon={<Landmark size={24} className="text-white/90" />}
@@ -266,7 +266,7 @@ function Cashbook() {
             value={balances?.payable}
             parties={balances?.sellersOwed}
             partyNoun="seller"
-            background="bg-orange-400"
+            background="bg-[var(--color-purchase)]"
           />
         </div>
 
@@ -339,7 +339,7 @@ function Cashbook() {
                   onClick={() => toggleType(opt.value)}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${
                     active
-                      ? 'bg-[var(--color-brand)] text-white border-[var(--color-brand)]'
+                      ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                   }`}
                 >
@@ -371,7 +371,7 @@ function Cashbook() {
         {/* Entries */}
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
             <p className="mt-2 text-gray-600">Loading cashbook...</p>
           </div>
         ) : entries.length === 0 ? (

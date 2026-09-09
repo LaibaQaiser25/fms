@@ -169,8 +169,8 @@ function AddProductionDirect({ onClose, onSuccess }) {
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center">
-              <Boxes className="w-5 h-5 text-red-600" />
+            <div className="w-9 h-9 rounded-lg bg-[var(--color-accent-soft)] flex items-center justify-center">
+              <Boxes className="w-5 h-5 text-[var(--color-accent)]" />
             </div>
             <h3 className="text-lg font-bold text-gray-800">Create Production Order</h3>
           </div>
@@ -196,7 +196,7 @@ function AddProductionDirect({ onClose, onSuccess }) {
             <select
               value={selectedCategoryId}
               onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 text-sm bg-white"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent-soft)] text-sm bg-white"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
@@ -217,7 +217,7 @@ function AddProductionDirect({ onClose, onSuccess }) {
               value={formData.product_name}
               onChange={(e) => handleProductNameChange(e.target.value)}
               placeholder={selectedCategoryName ? `Search within ${selectedCategoryName}...` : 'Search for a product...'}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent-soft)] text-sm"
             />
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-52 overflow-y-auto">
@@ -227,14 +227,14 @@ function AddProductionDirect({ onClose, onSuccess }) {
                   return (
                     <div
                       key={product.id}
-                      className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-red-50 cursor-pointer transition-colors"
+                      className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-[var(--color-accent-soft)] cursor-pointer transition-colors"
                       onClick={() => selectSuggestion(product)}
                       title={product.description || ''}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-sm text-gray-800">{product.name}</span>
                         {product.category_name && (
-                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-700">
+                          <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
                             {product.category_name}
                           </span>
                         )}
@@ -276,7 +276,7 @@ function AddProductionDirect({ onClose, onSuccess }) {
               onChange={handleInputChange}
               placeholder="Enter quantity"
               min="1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent-soft)] text-sm"
             />
           </div>
 
@@ -290,7 +290,7 @@ function AddProductionDirect({ onClose, onSuccess }) {
               name="priority"
               value={formData.priority}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 text-sm bg-white"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent-soft)] text-sm bg-white"
             >
               <option value="low">🟢 Low</option>
               <option value="normal">🟡 Normal</option>
@@ -310,7 +310,7 @@ function AddProductionDirect({ onClose, onSuccess }) {
               value={formData.notes}
               onChange={handleInputChange}
               placeholder="Add any special instructions..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent-soft)] text-sm"
               rows="3"
             />
           </div>
@@ -327,7 +327,7 @@ function AddProductionDirect({ onClose, onSuccess }) {
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
+            className="flex-1 py-2 bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
           >
             {loading ? 'Adding...' : 'Create Order'}
           </button>

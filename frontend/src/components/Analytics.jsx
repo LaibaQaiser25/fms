@@ -155,7 +155,7 @@ function Analytics() {
       green: 'border-gray-700 text-gray-800',
       orange: 'border-orange-500 text-orange-600',
       red: 'border-red-500 text-red-600',
-      purple: 'border-red-800 text-red-900',
+      purple: 'border-[var(--color-accent-hover)] text-[var(--color-accent-hover)]',
     };
 
     return (
@@ -196,19 +196,19 @@ function Analytics() {
       <div className="px-8 py-4 bg-white border-b border-gray-200 flex gap-4">
         <button
           onClick={() => setPeriod('today')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-[var(--color-accent)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           Today
         </button>
         <button
           onClick={() => setPeriod('week')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-[var(--color-accent)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Week
         </button>
         <button
           onClick={() => setPeriod('month')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-[var(--color-brand)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-[var(--color-accent)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Month
         </button>
@@ -218,7 +218,7 @@ function Analytics() {
       <div className="px-8 py-6 flex-1">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
             <p className="mt-2 text-gray-600">Loading analytics...</p>
           </div>
         ) : (
@@ -350,15 +350,15 @@ function Analytics() {
             <div className="bg-white rounded-lg shadow-md p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4">Performance Summary</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="border-l-4 border-red-500 pl-4">
+                <div className="border-l-4 border-[var(--color-accent)] pl-4">
                   <p className="text-sm text-gray-600 font-semibold mb-2">Profit Margin</p>
-                  <p className="text-2xl font-bold text-red-600">
+                  <p className="text-2xl font-bold text-[var(--color-accent)]">
                     {metrics.totalSalesRevenue > 0 ? ((metrics.profit / metrics.totalSalesRevenue) * 100).toFixed(2) : 0}%
                   </p>
                 </div>
-                <div className="border-l-4 border-red-500 pl-4">
+                <div className="border-l-4 border-[var(--color-accent)] pl-4">
                   <p className="text-sm text-gray-600 font-semibold mb-2">Revenue per Customer</p>
-                  <p className="text-2xl font-bold text-red-600">
+                  <p className="text-2xl font-bold text-[var(--color-accent)]">
                     {formatCurrency(metrics.totalCustomers > 0 ? metrics.totalSalesRevenue / metrics.totalCustomers : 0)}
                   </p>
                 </div>

@@ -43,7 +43,7 @@ function ConsumptionLogModal({ material, onClose, onSuccess }) {
     }
   };
 
-  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500";
+  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]";
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex z-50 overflow-y-auto p-4">
@@ -106,7 +106,7 @@ function ConsumptionLogModal({ material, onClose, onSuccess }) {
           <button
             onClick={handleSubmit}
             disabled={loading || !quantityUsed}
-            className="w-full bg-red-600 text-white py-3 rounded-lg font-bold text-sm hover:bg-red-700 transition disabled:bg-gray-300"
+            className="w-full bg-[var(--color-accent)] text-white py-3 rounded-lg font-bold text-sm hover:bg-[var(--color-accent-hover)] transition disabled:bg-gray-300"
           >
             {loading ? 'Saving...' : 'Log Usage'}
           </button>

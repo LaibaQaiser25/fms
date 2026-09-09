@@ -932,7 +932,7 @@ export default function ProductsManager() {
                 <Package className="w-5 h-5 text-white" />
               </div>
             </div>
-            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-red-700 transition-colors">Stock</h3>
+            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-[var(--color-accent)] transition-colors">Stock</h3>
             <p className="text-gray-600 text-sm mb-3">
               {products.filter((p) => p.type === 'stock').length} product{products.filter((p) => p.type === 'stock').length === 1 ? '' : 's'}
             </p>
@@ -951,7 +951,7 @@ export default function ProductsManager() {
                 <Layers className="w-5 h-5 text-white" />
               </div>
             </div>
-            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-red-700 transition-colors">Raw Material</h3>
+            <h3 className="font-semibold text-xl text-gray-800 mb-0.5 group-hover:text-[var(--color-accent)] transition-colors">Raw Material</h3>
             <p className="text-gray-600 text-sm mb-3">
               {products.filter((p) => p.type === 'raw_material').length} product{products.filter((p) => p.type === 'raw_material').length === 1 ? '' : 's'}
             </p>

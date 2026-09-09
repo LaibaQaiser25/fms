@@ -6,7 +6,7 @@ import { ACCENT_GRADIENT_STYLE } from '../theme';
 
 // Cycled left-border accents for category cards — mirrors the stat-card language
 // used on the Dashboard (border-l-4 in rotating brand colors).
-const CARD_ACCENTS = ['border-red-500', 'border-gray-500', 'border-amber-500', 'border-red-800', 'border-gray-700', 'border-red-600'];
+const CARD_ACCENTS = ['border-[var(--color-accent)]', 'border-gray-500', 'border-amber-500', 'border-[var(--color-accent-hover)]', 'border-gray-700', 'border-[var(--color-accent)]'];
 
 export default function StockManager() {
   const [stocks, setStocks] = useState([]);
@@ -426,7 +426,7 @@ export default function StockManager() {
                   </span>
                 )}
               </div>
-              <h3 className="font-semibold text-xl text-gray-800 mb-0.5 truncate group-hover:text-red-700 transition-colors">{cat.name}</h3>
+              <h3 className="font-semibold text-xl text-gray-800 mb-0.5 truncate group-hover:text-[var(--color-accent)] transition-colors">{cat.name}</h3>
               <p className="text-gray-600 text-sm mb-3">{cat.items.length} item{cat.items.length === 1 ? '' : 's'}</p>
               <div className="flex items-center justify-between border-t border-gray-100 pt-3">
                 <span className="text-sm font-semibold text-gray-600">Total Quantity</span>

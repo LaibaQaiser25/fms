@@ -186,13 +186,13 @@ function Dashboard() {
       <div className="px-8 py-6">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
             <p className="mt-2 text-gray-600">Loading dashboard...</p>
           </div>
         ) : (
           <div className="grid grid-cols-4 gap-6 mb-6">
             {/* Card 1: Today's Sales Summary */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-brand)]">
+            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-accent)]">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Today's Sales</h3>
               <FitText className="font-bold text-gray-800">{formatCurrency(salesSummary?.total_amount)}</FitText>
               <p className="text-xs text-gray-500 mt-2">Total Sales: {salesSummary?.total_sales || 0}</p>
@@ -220,7 +220,7 @@ function Dashboard() {
             </div>
 
             {/* Card 4: Pending Payments */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
+            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-payment)]">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Pending Payments</h3>
               <FitText className="font-bold text-gray-800">{formatCurrency(
                 pendingPayments.reduce((sum, p) => {

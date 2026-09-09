@@ -83,7 +83,7 @@ export default function ReportAutomationModal({ isOpen, onClose }) {
                       onChange={(e) => patch(frequency, { enabled: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-red-600 relative transition-colors">
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-[var(--color-accent)] relative transition-colors">
                       <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${s.enabled ? 'translate-x-5' : ''}`} />
                     </div>
                   </label>
@@ -97,7 +97,7 @@ export default function ReportAutomationModal({ isOpen, onClose }) {
                         type="time"
                         value={s.runTime || '23:55'}
                         onChange={(e) => patch(frequency, { runTime: e.target.value })}
-                        className="border border-gray-300 rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="border border-gray-300 rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                       />
                     </div>
 
@@ -107,7 +107,7 @@ export default function ReportAutomationModal({ isOpen, onClose }) {
                         <select
                           value={s.runDayOfWeek ?? 0}
                           onChange={(e) => patch(frequency, { runDayOfWeek: Number(e.target.value) })}
-                          className="border border-gray-300 rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          className="border border-gray-300 rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                         >
                           {DAY_NAMES.map((name, idx) => (
                             <option key={name} value={idx}>{name}</option>
@@ -122,7 +122,7 @@ export default function ReportAutomationModal({ isOpen, onClose }) {
                         <select
                           value={s.runDayOfMonth ?? 1}
                           onChange={(e) => patch(frequency, { runDayOfMonth: Number(e.target.value) })}
-                          className="border border-gray-300 rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          className="border border-gray-300 rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                         >
                           {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
                             <option key={day} value={day}>{day}</option>

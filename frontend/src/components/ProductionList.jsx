@@ -85,11 +85,11 @@ function ProductionList() {
             <p className="text-gray-600 text-sm font-semibold">Pending</p>
             <p className="text-3xl font-bold text-gray-800">{stats.pending_count}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-accent)]">
             <p className="text-gray-600 text-sm font-semibold">In Progress</p>
             <p className="text-3xl font-bold text-gray-800">{stats.in_progress_count}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-sale)]">
             <p className="text-gray-600 text-sm font-semibold">Completed</p>
             <p className="text-3xl font-bold text-gray-800">{stats.completed_count}</p>
           </div>
@@ -112,7 +112,7 @@ function ProductionList() {
               }}
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 filter === status
-                  ? 'bg-[var(--color-brand)] text-white'
+                  ? 'bg-[var(--color-accent)] text-white'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
             >
@@ -126,7 +126,7 @@ function ProductionList() {
             }}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               filter === ''
-                ? 'bg-[var(--color-brand)] text-white'
+                ? 'bg-[var(--color-accent)] text-white'
                 : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
             }`}
           >
@@ -139,7 +139,7 @@ function ProductionList() {
       <div className="px-8 py-6">
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
             <p className="mt-2 text-gray-600">Loading production queue...</p>
           </div>
         ) : queue.length === 0 ? (

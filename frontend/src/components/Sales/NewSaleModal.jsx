@@ -256,7 +256,7 @@ function NewSaleModal({ onClose }) {
     }
   };
 
-  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500";
+  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]";
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex z-50 overflow-y-auto">
@@ -312,8 +312,8 @@ function NewSaleModal({ onClose }) {
 
                 {/* Customer Details */}
                 {selectedCustomer && (
-                  <div className="mb-4 p-3 bg-red-50 rounded border border-red-200">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Selected: <span className="text-red-600">{selectedCustomer.name}</span></p>
+                  <div className="mb-4 p-3 bg-[var(--color-accent-soft)] rounded border border-[var(--color-accent-soft-hover)]">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">Selected: <span className="text-[var(--color-accent)]">{selectedCustomer.name}</span></p>
                     <p className="text-xs text-gray-600">{selectedCustomer.phone || ''}</p>
                   </div>
                 )}
@@ -387,7 +387,7 @@ function NewSaleModal({ onClose }) {
 
                       {/* Price */}
                       <input
-                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]"
                         placeholder="Price"
                         type="number"
                         value={item.price}
@@ -399,7 +399,7 @@ function NewSaleModal({ onClose }) {
                       <input
                         className={`w-20 border rounded px-3 py-2 text-sm focus:outline-none ${isItemOverStock(item)
                           ? 'border-red-500 bg-red-50 focus:border-red-600'
-                          : 'border-gray-300 focus:border-red-500'
+                          : 'border-gray-300 focus:border-[var(--color-accent)]'
                           }`}
                         placeholder="Qty"
                         type="number"

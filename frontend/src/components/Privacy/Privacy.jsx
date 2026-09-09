@@ -236,10 +236,10 @@ export default function Privacy() {
                     <td className="px-6 py-4">{u.username}</td>
                     <td className="px-6 py-4">{u.email}</td>
                     <td className="px-6 py-4">
-                      <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800">{u.role}</span>
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-[var(--color-accent-soft)] text-[var(--color-accent-hover)]">{u.role}</span>
                     </td>
                     <td className="px-6 py-4 flex gap-3">
-                      <button onClick={() => openEditModal(u)} className="text-red-600 hover:text-red-800 font-medium">
+                      <button onClick={() => openEditModal(u)} className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] font-medium">
                         Edit
                       </button>
                       <button onClick={() => openPasswordModal(u)} className="text-orange-600 hover:text-orange-800 font-medium">

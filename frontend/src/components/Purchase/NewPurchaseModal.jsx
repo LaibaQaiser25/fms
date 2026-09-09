@@ -334,7 +334,7 @@ function NewPurchaseModal({ onClose }) {
     }
   };
 
-  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500";
+  const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]";
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex z-50 overflow-y-auto">
@@ -390,8 +390,8 @@ function NewPurchaseModal({ onClose }) {
 
                 {/* Seller Details */}
                 {selectedSeller && (
-                  <div className="mb-4 p-3 bg-red-50 rounded border border-red-200">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Selected: <span className="text-red-600">{selectedSeller.name}</span></p>
+                  <div className="mb-4 p-3 bg-[var(--color-accent-soft)] rounded border border-[var(--color-accent-soft-hover)]">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">Selected: <span className="text-[var(--color-accent)]">{selectedSeller.name}</span></p>
                     <p className="text-xs text-gray-600">{selectedSeller.phone || ''}</p>
                   </div>
                 )}
@@ -521,7 +521,7 @@ function NewPurchaseModal({ onClose }) {
 
                       {/* Price */}
                       <input
-                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]"
                         placeholder="Price"
                         type="number"
                         value={item.price}
@@ -531,7 +531,7 @@ function NewPurchaseModal({ onClose }) {
 
                       {/* Quantity */}
                       <input
-                        className="w-20 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                        className="w-20 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]"
                         placeholder="Qty"
                         type="number"
                         min="1"

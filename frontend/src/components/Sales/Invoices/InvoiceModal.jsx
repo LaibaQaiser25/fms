@@ -80,7 +80,7 @@ function InvoiceModal({ invoiceId, onClose }) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
           <p className="mt-2 text-gray-600">Loading invoice...</p>
         </div>
       </div>
@@ -173,7 +173,7 @@ function InvoiceModal({ invoiceId, onClose }) {
                   }}
                   className={`p-2 text-left rounded border transition ${
                     inv.id === currentInvoiceId
-                      ? 'border-red-500 bg-red-50'
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)]'
                       : 'border-gray-300 hover:border-gray-500'
                   }`}
                 >
@@ -300,7 +300,7 @@ function InvoiceModal({ invoiceId, onClose }) {
           </button>
           <button
             onClick={handlePrint}
-            className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold flex items-center justify-center gap-2"
+            className="flex-1 py-2 bg-[var(--color-accent)] text-white rounded-lg hover:bg-[var(--color-accent-hover)] transition font-semibold flex items-center justify-center gap-2"
           >
             <Printer className="w-4 h-4" />
             Print

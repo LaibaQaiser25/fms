@@ -180,15 +180,15 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
 
   const statCards = (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
-      <StatCard label="Sales" value={formatCurrency(salesTotal)} tone="text-red-600" />
-      <StatCard label="Purchases" value={formatCurrency(purchasesTotal)} tone="text-amber-600" />
-      <StatCard label="Expenses" value={formatCurrency(expensesTotal)} tone="text-red-600" />
+      <StatCard label="Sales" value={formatCurrency(salesTotal)} tone="text-[var(--color-sale)]" />
+      <StatCard label="Purchases" value={formatCurrency(purchasesTotal)} tone="text-[var(--color-purchase)]" />
+      <StatCard label="Expenses" value={formatCurrency(expensesTotal)} tone="text-[var(--color-payment)]" />
       <StatCard label="Today's Cash In Hand" value={formatCurrency(d.todayCashInHand)} />
       <StatCard label="Complete Cash In Hand" value={formatCurrency(d.netCashInHand)} />
-      <StatCard label="Today's Customer Debt" value={formatCurrency(d.todayCustomerDebt)} tone="text-red-600" />
-      <StatCard label="Complete Customer Debt" value={formatCurrency(d.customerDebt)} tone="text-red-600" />
-      <StatCard label="Today's Payable" value={formatCurrency(d.todayPayable)} tone="text-red-600" />
-      <StatCard label="Complete Payable" value={formatCurrency(d.payable)} tone="text-red-600" />
+      <StatCard label="Today's Customer Debt" value={formatCurrency(d.todayCustomerDebt)} tone="text-[var(--color-sale)]" />
+      <StatCard label="Complete Customer Debt" value={formatCurrency(d.customerDebt)} tone="text-[var(--color-sale)]" />
+      <StatCard label="Today's Payable" value={formatCurrency(d.todayPayable)} tone="text-[var(--color-purchase)]" />
+      <StatCard label="Complete Payable" value={formatCurrency(d.payable)} tone="text-[var(--color-purchase)]" />
     </div>
   );
 
@@ -240,7 +240,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
                 type="text"
                 value={form.label}
                 onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
-                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
               />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -251,7 +251,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
                     type="number"
                     value={(group ? form.data[group]?.[key] : form.data[key]) ?? 0}
                     onChange={(e) => setFieldValue(group, key, e.target.value)}
-                    className="border border-gray-300 rounded px-3 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="border border-gray-300 rounded px-3 py-1.5 w-full focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                   />
                 </div>
               ))}

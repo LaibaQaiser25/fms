@@ -4,7 +4,7 @@ export const Button = ({ type = 'button', variant = 'primary', size = 'md', clas
   const baseStyles = 'font-semibold rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
-    primary: 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white',
+    primary: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white',
     secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
     danger: 'bg-red-600 hover:bg-red-700 text-white',
     success: 'bg-gray-700 hover:bg-gray-800 text-white',

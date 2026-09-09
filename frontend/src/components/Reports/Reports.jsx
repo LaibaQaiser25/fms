@@ -122,7 +122,7 @@ export default function Reports() {
       <div className="px-8 py-6 flex-1">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <FileBarChart2 className="w-6 h-6 text-red-600" />
+            <FileBarChart2 className="w-6 h-6 text-[var(--color-accent)]" />
             <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           </div>
           <div className="flex gap-3">
@@ -171,7 +171,7 @@ export default function Reports() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-brand)]" />
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]" />
             <p className="mt-2 text-gray-600">Loading reports...</p>
           </div>
         ) : reports.length === 0 ? (
@@ -219,20 +219,20 @@ export default function Reports() {
                         : `${formatDate(r.period_start)} – ${formatDate(r.period_end)}`}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mr-1.5 ${r.generated_by === 'auto' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mr-1.5 ${r.generated_by === 'auto' ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]' : 'bg-gray-100 text-gray-600'}`}>
                         {r.generated_by === 'auto' ? 'Auto' : 'Manual'}
                       </span>
                       {formatDateTime(r.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.sales?.total)}</td>
-                    <td className="px-4 py-3 text-right text-amber-600 font-medium">{formatCurrency(r.data?.purchases?.total)}</td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.expenses?.total)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-sale)] font-medium">{formatCurrency(r.data?.sales?.total)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-purchase)] font-medium">{formatCurrency(r.data?.purchases?.total)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-payment)] font-medium">{formatCurrency(r.data?.expenses?.total)}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatCurrency(r.data?.todayCashInHand)}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatCurrency(r.data?.netCashInHand)}</td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.todayCustomerDebt)}</td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.customerDebt)}</td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.todayPayable)}</td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{formatCurrency(r.data?.payable)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-sale)] font-medium">{formatCurrency(r.data?.todayCustomerDebt)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-sale)] font-medium">{formatCurrency(r.data?.customerDebt)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-purchase)] font-medium">{formatCurrency(r.data?.todayPayable)}</td>
+                    <td className="px-4 py-3 text-right text-[var(--color-purchase)] font-medium">{formatCurrency(r.data?.payable)}</td>
                   </tr>
                 ))}
               </tbody>

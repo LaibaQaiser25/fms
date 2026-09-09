@@ -389,7 +389,7 @@ function Cashbook() {
                 <table className="w-full">
                   <thead className="bg-gray-100 border-b border-gray-200">
                     <tr>
-                      <SortHeader column="date" label="Date" />
+                      <SortHeader className="py-3 px-6 text-left font-semibold text-gray-700" column="date" label="Date" />
                       <SortHeader column="type" label="Type" />
                       <SortHeader column="party" label="Party" />
                       <th className="py-3 px-6 text-left font-semibold text-gray-700">Reference</th>

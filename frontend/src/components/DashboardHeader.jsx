@@ -136,8 +136,9 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
           </button>
         </div>
 
-        {/* Theme toggle */}
+        {/* Theme toggle — hidden from dashboard, code kept intact */}
         <button
+          hidden
           onClick={toggleTheme}
           title={theme === 'construction' ? 'Switch to Classic theme' : 'Switch to Construction theme'}
           className="flex items-center gap-2 h-11 px-3.5 mr-3 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-white/[0.05]"

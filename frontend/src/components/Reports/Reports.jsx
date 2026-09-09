@@ -11,10 +11,6 @@ const LIMIT = 20;
 const PERIOD_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly', custom: 'Custom' };
 const LEVEL_LABELS = { summary: 'Summary', medium: 'Medium', full: 'Full Detail' };
 
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 })
-    .format(Number(amount) || 0);
-
 // period_start/period_end arrive as plain 'YYYY-MM-DD' strings — parse the
 // parts rather than new Date(str), which treats it as UTC and can shift the day
 const formatDate = (value) => {
@@ -188,15 +184,6 @@ export default function Reports() {
                   <th className="px-4 py-3 text-left font-semibold">Period</th>
                   <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('period_start')}>Date{sortIndicator('period_start')}</th>
                   <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none" onClick={() => toggleSort('created_at')}>Generated{sortIndicator('created_at')}</th>
-                  <th className="px-4 py-3 text-right font-semibold">Sales</th>
-                  <th className="px-4 py-3 text-right font-semibold">Purchases</th>
-                  <th className="px-4 py-3 text-right font-semibold">Expenses</th>
-                  <th className="px-4 py-3 text-right font-semibold">Today's Cash</th>
-                  <th className="px-4 py-3 text-right font-semibold">Complete Cash</th>
-                  <th className="px-4 py-3 text-right font-semibold">Today's Debt</th>
-                  <th className="px-4 py-3 text-right font-semibold">Complete Debt</th>
-                  <th className="px-4 py-3 text-right font-semibold">Today's Payable</th>
-                  <th className="px-4 py-3 text-right font-semibold">Complete Payable</th>
                 </tr>
               </thead>
               <tbody>
@@ -224,15 +211,6 @@ export default function Reports() {
                       </span>
                       {formatDateTime(r.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-right text-[var(--color-sale)] font-medium">{formatCurrency(r.data?.sales?.total)}</td>
-                    <td className="px-4 py-3 text-right text-[var(--color-purchase)] font-medium">{formatCurrency(r.data?.purchases?.total)}</td>
-                    <td className="px-4 py-3 text-right text-[var(--color-payment)] font-medium">{formatCurrency(r.data?.expenses?.total)}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(r.data?.todayCashInHand)}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(r.data?.netCashInHand)}</td>
-                    <td className="px-4 py-3 text-right text-[var(--color-sale)] font-medium">{formatCurrency(r.data?.todayCustomerDebt)}</td>
-                    <td className="px-4 py-3 text-right text-[var(--color-sale)] font-medium">{formatCurrency(r.data?.customerDebt)}</td>
-                    <td className="px-4 py-3 text-right text-[var(--color-purchase)] font-medium">{formatCurrency(r.data?.todayPayable)}</td>
-                    <td className="px-4 py-3 text-right text-[var(--color-purchase)] font-medium">{formatCurrency(r.data?.payable)}</td>
                   </tr>
                 ))}
               </tbody>

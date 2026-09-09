@@ -8,7 +8,7 @@ const THEMES = ['construction', 'generic'];
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return THEMES.includes(stored) ? stored : 'construction';
+    return THEMES.includes(stored) ? stored : 'generic';
   });
 
   useEffect(() => {

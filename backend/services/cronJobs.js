@@ -3,13 +3,6 @@ const pool = require('../db/pool');
 const { sendWhatsApp } = require('./whatsappService');
 const ReportsController = require('../controllers/ReportsController');
 
-const toDateStr = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
-
 const startCronJobs = () => {
   // Every minute: fire any enabled report_schedules row whose run_time (and,
   // for weekly/monthly, run_day_of_week/run_day_of_month) matches right now,
@@ -30,26 +23,35 @@ const startCronJobs = () => {
         // gets missed that exact tick (a slow query, a brief DB hiccup, a
         // restart landing a few seconds late) would otherwise silently wait
         // a full day/week/month for the next exact match. The last_run_at
-        // check below still guarantees at most one fire per day.
+        // check below still guarantees at most one fire per configured
+        // run_time.
         const runHHMM = schedule.run_time.slice(0, 5);
         if (nowHHMM < runHHMM) continue;
 
         if (schedule.frequency === 'weekly' && schedule.run_day_of_week !== now.getDay()) continue;
         if (schedule.frequency === 'monthly' && schedule.run_day_of_month !== now.getDate()) continue;
 
-        if (schedule.last_run_at && toDateStr(new Date(schedule.last_run_at)) === toDateStr(now)) continue;
+        // Compared against the moment run_time resolves to today, not just
+        // the calendar date — so pushing run_time later after it has already
+        // fired today lets it fire again at the new time (useful for
+        // re-testing automation without waiting for the next day), while
+        // leaving run_time unchanged (or moving it earlier) still fires at
+        // most once per day.
+        const [runHour, runMinute] = runHHMM.split(':').map(Number);
+        const scheduledAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), runHour, runMinute);
+        if (schedule.last_run_at && new Date(schedule.last_run_at) >= scheduledAt) continue;
 
-        const period = ReportsController.resolvePeriod(schedule.frequency);
+        const period = ReportsController.resolvePeriod(schedule.frequency, now.getMonth() + 1, now.getFullYear());
         if (!period) continue;
 
         const data = await ReportsController.generateSnapshot(period.periodStart, period.periodEnd);
 
         try {
-          // reports_auto_period_uniq (migration 006) rejects a second auto
-          // report for the same exact period — the last line of defence if
-          // more than one backend process ends up alive at once (e.g. an
-          // orphaned node process from a restart) and both race this same
-          // schedule at the same minute.
+          // A 23505 here now only means two backend processes raced this
+          // same schedule inside the same minute (e.g. an orphaned node
+          // process left running after a restart) — legitimate same-day
+          // re-fires (run_time pushed later) are allowed since migration 015
+          // dropped the old one-per-period unique index.
           await pool.query(
             `INSERT INTO reports (period_type, period_start, period_end, label, generated_by, data)
              VALUES ($1, $2, $3, $4, 'auto', $5)`,

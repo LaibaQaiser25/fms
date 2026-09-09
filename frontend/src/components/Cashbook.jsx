@@ -387,9 +387,9 @@ function Cashbook() {
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-100 border-b border-gray-200">
+                  <thead className="py-3 px-6 text-left font-semibold text-gray-700" >
                     <tr>
-                      <SortHeader className="py-3 px-6 text-left font-semibold text-gray-700" column="date" label="Date" />
+                      <SortHeader column="date" label="Date" />
                       <SortHeader column="type" label="Type" />
                       <SortHeader column="party" label="Party" />
                       <th className="py-3 px-6 text-left font-semibold text-gray-700">Reference</th>

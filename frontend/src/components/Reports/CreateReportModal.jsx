@@ -93,11 +93,11 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
                 onClick={() => setReportLevel(opt.value)}
                 className={`text-left px-4 py-2.5 rounded-lg border transition ${
                   reportLevel === opt.value
-                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] ring-1 ring-[var(--color-accent)]'
+                    ? 'border-[var(--color-selected)] bg-[var(--color-selected-soft)] ring-1 ring-[var(--color-selected)]'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                <p className={`text-sm font-semibold ${reportLevel === opt.value ? 'text-[var(--color-accent-hover)]' : 'text-gray-800'}`}>{opt.label}</p>
+                <p className={`text-sm font-semibold ${reportLevel === opt.value ? 'text-[var(--color-selected-hover)]' : 'text-gray-800'}`}>{opt.label}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
               </button>
             ))}
@@ -113,7 +113,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
                 type="button"
                 onClick={() => setPeriodType(opt.value)}
                 className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
-                  periodType === opt.value ? 'bg-[var(--color-accent)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  periodType === opt.value ? 'bg-[var(--color-selected)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 {opt.label}

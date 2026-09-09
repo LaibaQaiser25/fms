@@ -312,8 +312,8 @@ function NewSaleModal({ onClose }) {
 
                 {/* Customer Details */}
                 {selectedCustomer && (
-                  <div className="mb-4 p-3 bg-[var(--color-accent-soft)] rounded border border-[var(--color-accent-soft-hover)]">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Selected: <span className="text-[var(--color-accent)]">{selectedCustomer.name}</span></p>
+                  <div className="mb-4 p-3 bg-[var(--color-selected-soft)] rounded border border-[var(--color-selected-soft-hover)]">
+                    <p className="text-sm font-semibold text-gray-700 mb-1">Selected: <span className="text-[var(--color-selected-hover)]">{selectedCustomer.name}</span></p>
                     <p className="text-xs text-gray-600">{selectedCustomer.phone || ''}</p>
                   </div>
                 )}

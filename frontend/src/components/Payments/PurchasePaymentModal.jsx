@@ -173,9 +173,9 @@ function PurchasePaymentModal({ onClose }) {
 
           {/* Selected Seller Info */}
           {selectedSeller && (
-            <div className="bg-[var(--color-accent-soft)] rounded-lg p-4 border border-[var(--color-accent-soft-hover)]">
+            <div className="bg-[var(--color-selected-soft)] rounded-lg p-4 border border-[var(--color-selected-soft-hover)]">
               <h3 className="font-bold mb-2 text-sm text-gray-600 uppercase tracking-wider">Selected Seller</h3>
-              <p className="text-lg font-bold text-[var(--color-accent-hover)]">{selectedSeller.name}</p>
+              <p className="text-lg font-bold text-[var(--color-selected-hover)]">{selectedSeller.name}</p>
               {selectedSeller.phone && <p className="text-sm text-gray-600">Phone: {selectedSeller.phone}</p>}
             </div>
           )}
@@ -253,9 +253,9 @@ function PurchasePaymentModal({ onClose }) {
                 </div>
               </div>
             ) : selectedSeller && outstandingDebt === 0 ? (
-              <div className="flex items-center gap-3 p-3 bg-white rounded border border-red-200">
-                <CheckCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                <p className="text-sm font-semibold text-red-700">Account is fully cleared!</p>
+              <div className="flex items-center gap-3 p-3 bg-white rounded border border-[var(--color-success-soft-hover)]">
+                <CheckCircle className="w-5 h-5 text-[var(--color-success)] flex-shrink-0" />
+                <p className="text-sm font-semibold text-[var(--color-success-hover)]">Account is fully cleared!</p>
               </div>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-white rounded border border-gray-200">

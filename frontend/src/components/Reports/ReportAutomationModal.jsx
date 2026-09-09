@@ -83,7 +83,7 @@ export default function ReportAutomationModal({ isOpen, onClose }) {
                       onChange={(e) => patch(frequency, { enabled: e.target.checked })}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-[var(--color-accent)] relative transition-colors">
+                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-[var(--color-success)] relative transition-colors">
                       <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${s.enabled ? 'translate-x-5' : ''}`} />
                     </div>
                   </label>

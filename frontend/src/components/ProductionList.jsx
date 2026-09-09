@@ -89,7 +89,7 @@ function ProductionList() {
             <p className="text-gray-600 text-sm font-semibold">In Progress</p>
             <p className="text-3xl font-bold text-gray-800">{stats.in_progress_count}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-sale)]">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-success)]">
             <p className="text-gray-600 text-sm font-semibold">Completed</p>
             <p className="text-3xl font-bold text-gray-800">{stats.completed_count}</p>
           </div>
@@ -112,7 +112,7 @@ function ProductionList() {
               }}
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 filter === status
-                  ? 'bg-[var(--color-accent)] text-white'
+                  ? 'bg-[var(--color-selected)] text-white'
                   : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
             >
@@ -126,7 +126,7 @@ function ProductionList() {
             }}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               filter === ''
-                ? 'bg-[var(--color-accent)] text-white'
+                ? 'bg-[var(--color-selected)] text-white'
                 : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
             }`}
           >
@@ -183,9 +183,9 @@ function ProductionList() {
                             item.status === 'pending'
                               ? 'bg-yellow-100 text-yellow-800'
                               : item.status === 'in_progress'
-                              ? 'bg-red-100 text-red-800'
+                              ? 'bg-[var(--color-selected-soft)] text-[var(--color-selected-hover)]'
                               : item.status === 'completed'
-                              ? 'bg-red-100 text-red-800'
+                              ? 'bg-[var(--color-success-soft)] text-[var(--color-success-hover)]'
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
@@ -200,7 +200,7 @@ function ProductionList() {
                       </td>
                       <td className="py-4 px-6 text-center">
                         {item.completed_at && (
-                          <p className="text-xs text-red-600 font-semibold">
+                          <p className="text-xs text-[var(--color-success-hover)] font-semibold">
                             ✓ {new Date(item.completed_at).toLocaleDateString()}
                           </p>
                         )}

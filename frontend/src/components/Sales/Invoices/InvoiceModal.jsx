@@ -173,7 +173,7 @@ function InvoiceModal({ invoiceId, onClose }) {
                   }}
                   className={`p-2 text-left rounded border transition ${
                     inv.id === currentInvoiceId
-                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)]'
+                      ? 'border-[var(--color-selected)] bg-[var(--color-selected-soft)]'
                       : 'border-gray-300 hover:border-gray-500'
                   }`}
                 >

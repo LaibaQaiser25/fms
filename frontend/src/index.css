@@ -89,3 +89,17 @@
   --logo-glow: 0 0 20px rgba(88, 28, 212, 0.5), 0 0 40px rgba(5, 150, 105, 0.3);
   --title-glow: 0 0 20px rgba(139, 92, 246, 0.4);
 }
+
+/* Selection & success are UI-state colors, not brand colors — they stay the
+   same green/grey in both themes instead of swapping with --color-accent. */
+:root {
+  --color-selected: #4b5563;
+  --color-selected-hover: #374151;
+  --color-selected-soft: #f3f4f6;
+  --color-selected-soft-hover: #e5e7eb;
+
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
+  --color-success-soft: #dcfce7;
+  --color-success-soft-hover: #bbf7d0;
+}

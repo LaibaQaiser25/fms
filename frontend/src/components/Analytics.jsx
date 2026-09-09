@@ -196,19 +196,19 @@ function Analytics() {
       <div className="px-8 py-4 bg-white border-b border-gray-200 flex gap-4">
         <button
           onClick={() => setPeriod('today')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-[var(--color-accent)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-[var(--color-selected)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           Today
         </button>
         <button
           onClick={() => setPeriod('week')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-[var(--color-accent)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'week' ? 'bg-[var(--color-selected)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Week
         </button>
         <button
           onClick={() => setPeriod('month')}
-          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-[var(--color-accent)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'month' ? 'bg-[var(--color-selected)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           This Month
         </button>

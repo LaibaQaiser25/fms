@@ -339,7 +339,7 @@ function Cashbook() {
                   onClick={() => toggleType(opt.value)}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${
                     active
-                      ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+                      ? 'bg-[var(--color-selected)] text-white border-[var(--color-selected)]'
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                   }`}
                 >

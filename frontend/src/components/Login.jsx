@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, AlertCircle, ShieldCheck, UserCog, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AUTH_BASE_URL } from '../config';
-import { ACCENT_GRADIENT_STYLE } from '../theme';
 
 const ROLES = [
   { value: 'owner', label: 'Owner', Icon: ShieldCheck },
@@ -92,7 +91,7 @@ export default function Login({ isOpen, onClose }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="text-white px-8 py-6 flex justify-between items-center" style={{ background: 'var(--nav-bg)', borderBottom: 'var(--nav-border-width) solid var(--nav-border-color)' }}>
+        <div className="text-white px-8 py-6 flex justify-between items-center" style={{ background: '#1a1a1a', borderBottom: '3px solid #b91c1c' }}>
           <div>
             <h2 className="text-2xl font-bold">Welcome Back</h2>
             <p className="text-gray-300 text-sm">Bin-Zahid & Partners</p>
@@ -121,7 +120,7 @@ export default function Login({ isOpen, onClose }) {
                   onClick={() => { setSelectedRole(value); setError(''); }}
                   className={`flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 transition font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                     selectedRole === value
-                      ? 'border-[var(--color-accent-hover)] bg-[var(--color-accent-soft)] text-[var(--color-accent-hover)]'
+                      ? 'border-red-700 bg-red-50 text-red-800'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
                 >
@@ -154,7 +153,7 @@ export default function Login({ isOpen, onClose }) {
                 placeholder="Enter your username"
                 required
                 disabled={isLoading}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:bg-gray-100"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
           </div>
@@ -173,7 +172,7 @@ export default function Login({ isOpen, onClose }) {
                 placeholder="Enter your password"
                 required
                 disabled={isLoading}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent disabled:bg-gray-100"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
           </div>
@@ -182,8 +181,7 @@ export default function Login({ isOpen, onClose }) {
           <button
             type="submit"
             disabled={isLoading}
-            style={ACCENT_GRADIENT_STYLE}
-            className="w-full text-white py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-red-700 to-red-900 text-white py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>

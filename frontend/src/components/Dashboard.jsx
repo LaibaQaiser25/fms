@@ -113,7 +113,7 @@ function Dashboard() {
         <div className="grid grid-cols-4 gap-4">
           <button
             onClick={() => setShowNewSaleModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-[var(--color-sale)] hover:bg-[var(--color-sale-hover)] text-white rounded-lg transition font-semibold"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-green hover:bg-[var(--color-sale-hover)] text-white rounded-lg transition font-semibold"
           >
             <ShoppingCart className="w-5 h-5" />
             New Sale

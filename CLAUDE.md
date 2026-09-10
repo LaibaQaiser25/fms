@@ -27,7 +27,7 @@ npm run lint     # eslint .
 npm run preview  # preview production build
 ```
 
-**Env files**: `backend/.env`, root `.env`, and `deploy/.env.n8n` are gitignored, each with a checked-in `.env.example` (`backend/.env.example`, `deploy/.env.n8n.example`) to copy from — `frontend/.env` (`VITE_API_URL`) has no example file, so ask the user for that one. WhatsApp alerts go through n8n (Meta WhatsApp Cloud API), not called directly from the backend — see `backend/services/whatsappService.js` (posts to `N8N_WEBHOOK_URL`) and `n8n/fms-whatsapp-alerts.json`. `deploy/n8n-backup/` holds an older Twilio-based inbound workflow that is not currently deployed; its `BACKEND_WEBHOOK_SECRET`/`N8N_INBOUND_SECRET`/`BACKEND_URL` env vars exist only for that dead workflow and aren't read by any live code.
+**Env files**: `backend/.env`, root `.env`, and `deploy/.env.n8n` are gitignored, each with a checked-in `.env.example` (`backend/.env.example`, `deploy/.env.n8n.example`) to copy from — `frontend/.env` (`VITE_API_URL`) has no example file, so ask the user for that one. WhatsApp alerts go through n8n (Meta WhatsApp Cloud API), not called directly from the backend — see `backend/services/whatsappService.js` (posts to `N8N_WEBHOOK_URL`) and `n8n/fms-whatsapp-alerts.json`.
 
 ## Architecture
 

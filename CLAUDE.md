@@ -27,7 +27,7 @@ npm run lint     # eslint .
 npm run preview  # preview production build
 ```
 
-**Env files**: `backend/.env` (`DATABASE_URL`, `PORT`, `FRONTEND_URL`, `JWT_SECRET`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `META_WHATSAPP_TOKEN`, `META_PHONE_NUMBER_ID`, `OWNER_WHATSAPP`) and `frontend/.env` (`VITE_API_URL`) are gitignored — no `.env.example` currently checked in, so ask the user for values rather than guessing.
+**Env files**: `backend/.env`, root `.env`, and `deploy/.env.n8n` are gitignored, each with a checked-in `.env.example` (`backend/.env.example`, `deploy/.env.n8n.example`) to copy from — `frontend/.env` (`VITE_API_URL`) has no example file, so ask the user for that one. WhatsApp alerts go through n8n (Meta WhatsApp Cloud API), not called directly from the backend — see `backend/services/whatsappService.js` (posts to `N8N_WEBHOOK_URL`) and `n8n/fms-whatsapp-alerts.json`.
 
 ## Architecture
 

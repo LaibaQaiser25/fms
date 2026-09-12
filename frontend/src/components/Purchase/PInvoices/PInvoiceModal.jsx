@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, Download, List } from 'lucide-react';
-import html2canvas from 'html2canvas-pro';
-import jsPDF from 'jspdf';
 import * as purchaseInvoiceApi from '../../../api/purchaseInvoiceApi';
 
 function PurchaseInvoiceModal({ invoiceId, onClose }) {
@@ -52,6 +50,10 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
 
   const handleDownloadPDF = async () => {
     if (!invoiceContentRef.current) return;
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import('html2canvas-pro'),
+      import('jspdf'),
+    ]);
     const canvas = await html2canvas(invoiceContentRef.current, { scale: 2 });
     const imgData = canvas.toDataURL('image/jpeg', 0.98);
 

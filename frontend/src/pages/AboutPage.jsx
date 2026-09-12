@@ -40,6 +40,7 @@ export default function AboutPage() {
                 src="/gallery/workers-laying-diamond-pavers-house.jpeg"
                 alt="Our team laying precast pavers on-site"
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
             </div>
           </div>
@@ -76,7 +77,7 @@ export default function AboutPage() {
               { src: '/gallery/concrete-drain-pipes-stacked-pyramid.jpeg', label: 'Drainage Pipe Manufacturing' },
             ].map((item) => (
               <div key={item.src} className="rounded-lg overflow-hidden h-56 shadow group relative">
-                <img src={item.src} alt={item.label} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" />
+                <img src={item.src} alt={item.label} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
                 <div className="absolute inset-0 flex items-end p-4" style={{ background: 'linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.65) 100%)' }}>
                   <p className="text-white text-sm font-semibold">{item.label}</p>
                 </div>

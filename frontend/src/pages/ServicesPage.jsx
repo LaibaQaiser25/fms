@@ -60,7 +60,7 @@ export default function ServicesPage() {
               return (
                 <div key={i} className="bg-white rounded-lg shadow hover:shadow-lg hover:-translate-y-1 transition overflow-hidden">
                   <div className="relative h-44">
-                    <img src={service.image} alt={service.title} className="w-full h-full object-cover" />
+                    <img src={service.image} alt={service.title} className="w-full h-full object-cover" loading="lazy" />
                     <div className="absolute -bottom-5 left-6 w-12 h-12 rounded-xl bg-white shadow flex items-center justify-center">
                       <Icon className="text-red-700" size={22} />
                     </div>

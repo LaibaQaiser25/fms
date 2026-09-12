@@ -54,6 +54,7 @@ export default function SpecialitiesPage() {
                         src={spec.image}
                         alt={spec.title}
                         className="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
                       />
                     </div>
 

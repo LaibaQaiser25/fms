@@ -19,6 +19,12 @@ export default function HeroSlideshow({ images, interval = 6000, showDots = fals
           alt=""
           className="absolute inset-0 w-full h-full object-cover transition-opacity ease-in-out"
           style={{ opacity: i === index ? 1 : 0, transitionDuration: '1500ms' }}
+          // Slide 0 paints immediately (it's the page's LCP image); the rest
+          // are only visible after a delayed CSS fade, so deprioritize their
+          // fetch — loading="lazy" won't help since they're already in the
+          // viewport, but fetchPriority does.
+          fetchPriority={i === 0 ? 'high' : 'low'}
+          loading={i === 0 ? 'eager' : 'lazy'}
         />
       ))}
 

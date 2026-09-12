@@ -72,7 +72,7 @@ function MosaicPhoto({ image, title, className }) {
   return (
     <div className={`group relative rounded-lg overflow-hidden ${className}`}
       style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-      <img src={image} alt={title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
+      <img src={image} alt={title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" loading="lazy" />
       <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.88) 100%)' }} />
       <p className="absolute bottom-4 left-4 right-4 text-white text-sm font-bold leading-snug">{title}</p>
     </div>
@@ -271,7 +271,7 @@ export default function HomePage() {
           {/* Closing wide banner */}
           <div className="relative rounded-lg overflow-hidden h-56 md:h-64 mt-16">
             <img src="/gallery/precast-beams-stacked-1.jpeg" alt="Bin-Zahid & Partners manufacturing yard"
-              className="absolute inset-0 w-full h-full object-cover" />
+              className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
             <div className="absolute inset-0 flex items-center" style={{
               background: 'linear-gradient(90deg, rgba(15,12,12,0.94) 0%, rgba(15,12,12,0.6) 55%, transparent 100%)',
             }}>

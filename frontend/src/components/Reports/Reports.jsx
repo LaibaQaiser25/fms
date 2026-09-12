@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { FileBarChart2, Zap, MessageCircle } from 'lucide-react';
 import * as reportsApi from '../../api/reportsApi';
 import { Button, Pagination } from '../shared/UIComponents';
 import CreateReportModal from './CreateReportModal';
 import ReportAutomationModal from './ReportAutomationModal';
-import ReportDetailModal from './ReportDetailModal';
+
+const ReportDetailModal = lazy(() => import('./ReportDetailModal'));
 
 const LIMIT = 20;
 
@@ -225,13 +226,17 @@ export default function Reports() {
 
       <CreateReportModal isOpen={createOpen} onClose={() => setCreateOpen(false)} onCreated={handleCreated} />
       <ReportAutomationModal isOpen={automationOpen} onClose={() => setAutomationOpen(false)} />
-      <ReportDetailModal
-        isOpen={!!selectedReport}
-        report={selectedReport}
-        onClose={() => setSelectedReport(null)}
-        onUpdated={handleUpdated}
-        onDeleted={handleDeleted}
-      />
+      {selectedReport && (
+        <Suspense fallback={null}>
+          <ReportDetailModal
+            isOpen
+            report={selectedReport}
+            onClose={() => setSelectedReport(null)}
+            onUpdated={handleUpdated}
+            onDeleted={handleDeleted}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

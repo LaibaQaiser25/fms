@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -20,12 +21,18 @@ import Reports from './components/Reports/Reports.jsx';
 import Privacy from './components/Privacy/Privacy.jsx';
 
 // Public Pages
-import HomePage from './pages/HomePage';
-import AboutPage from './pages/AboutPage';
-import ServicesPage from './pages/ServicesPage';
-import SpecialitiesPage from './pages/SpecialitiesPage';
-import FeedbackPage from './pages/FeedbackPage';
-import ContactPage from './pages/ContactPage';
+const HomePage = lazy(() => import('./pages/HomePage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const SpecialitiesPage = lazy(() => import('./pages/SpecialitiesPage'));
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+
+const lazyRoute = (Component) => (
+  <Suspense fallback={null}>
+    <Component />
+  </Suspense>
+);
 
 function App() {
   return (
@@ -34,12 +41,12 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Public Routes - Accessible to everyone */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/services" element={<ServicesPage />} />
-        <Route path="/specialities" element={<SpecialitiesPage />} />
-        <Route path="/feedback" element={<FeedbackPage />} />
-        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/" element={lazyRoute(HomePage)} />
+        <Route path="/about" element={lazyRoute(AboutPage)} />
+        <Route path="/services" element={lazyRoute(ServicesPage)} />
+        <Route path="/specialities" element={lazyRoute(SpecialitiesPage)} />
+        <Route path="/feedback" element={lazyRoute(FeedbackPage)} />
+        <Route path="/contact" element={lazyRoute(ContactPage)} />
 
         {/* Protected Routes - Require authentication. Guest now has the same
             page access as Manager (Layout's click-blocker makes every action

@@ -5,20 +5,20 @@ import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import Layout from './components/Layout';
-import RoleDashboard from './components/RoleDashboard';
-import Analytics from './components/Analytics';
-import StockManager from './components/StockManager';
-import ProductsManager from './components/ProductsManager';
-import CustomerLedger from './components/Sales/Ledger/CustomerLedger';
-import PurchaseLedger from './components/Purchase/PLedger/PurchaseLedger';
-import RawMaterialsList from './components/RawMaterials/RawMaterialsList';
-import ProductionList from './components/ProductionList';
-import ExpenseList from './components/Expenses/ExpenseList';
-import AssetList from './components/Assets/AssetList';
-import EmployeeList from './components/Employees/EmployeeList';
-import Cashbook from './components/Cashbook';
-import Reports from './components/Reports/Reports.jsx';
-import Privacy from './components/Privacy/Privacy.jsx';
+const RoleDashboard = lazy(() => import('./components/RoleDashboard'));
+const Analytics = lazy(() => import('./components/Analytics'));
+const StockManager = lazy(() => import('./components/StockManager'));
+const ProductsManager = lazy(() => import('./components/ProductsManager'));
+const CustomerLedger = lazy(() => import('./components/Sales/Ledger/CustomerLedger'));
+const PurchaseLedger = lazy(() => import('./components/Purchase/PLedger/PurchaseLedger'));
+const RawMaterialsList = lazy(() => import('./components/RawMaterials/RawMaterialsList'));
+const ProductionList = lazy(() => import('./components/ProductionList'));
+const ExpenseList = lazy(() => import('./components/Expenses/ExpenseList'));
+const AssetList = lazy(() => import('./components/Assets/AssetList'));
+const EmployeeList = lazy(() => import('./components/Employees/EmployeeList'));
+const Cashbook = lazy(() => import('./components/Cashbook'));
+const Reports = lazy(() => import('./components/Reports/Reports.jsx'));
+const Privacy = lazy(() => import('./components/Privacy/Privacy.jsx'));
 
 // Public Pages
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -28,8 +28,15 @@ const SpecialitiesPage = lazy(() => import('./pages/SpecialitiesPage'));
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 
-const lazyRoute = (Component) => (
-  <Suspense fallback={null}>
+const PageLoadingFallback = () => (
+  <div className="text-center py-8">
+    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
+    <p className="mt-2 text-gray-600">Loading...</p>
+  </div>
+);
+
+const lazyRoute = (Component, fallback = null) => (
+  <Suspense fallback={fallback}>
     <Component />
   </Suspense>
 );
@@ -54,22 +61,22 @@ function App() {
             only the innermost Owner-only group stays off-limits to both. */}
         <Route element={<ProtectedRoute allowedRoles={['owner', 'manager', 'guest']} />}>
           <Route element={<Layout />}>
-            <Route path="/dashboard" element={<RoleDashboard />} />
-            <Route path="/stock" element={<StockManager />} />
-            <Route path="/products" element={<ProductsManager />} />
-            <Route path="/ledger" element={<CustomerLedger />} />
-            <Route path="/purchase-ledger" element={<PurchaseLedger />} />
-            <Route path="/raw-materials" element={<RawMaterialsList />} />
-            <Route path="/production" element={<ProductionList />} />
-            <Route path="/expenses" element={<ExpenseList />} />
-            <Route path="/assets" element={<AssetList />} />
-            <Route path="/employees" element={<EmployeeList />} />
+            <Route path="/dashboard" element={lazyRoute(RoleDashboard, <PageLoadingFallback />)} />
+            <Route path="/stock" element={lazyRoute(StockManager, <PageLoadingFallback />)} />
+            <Route path="/products" element={lazyRoute(ProductsManager, <PageLoadingFallback />)} />
+            <Route path="/ledger" element={lazyRoute(CustomerLedger, <PageLoadingFallback />)} />
+            <Route path="/purchase-ledger" element={lazyRoute(PurchaseLedger, <PageLoadingFallback />)} />
+            <Route path="/raw-materials" element={lazyRoute(RawMaterialsList, <PageLoadingFallback />)} />
+            <Route path="/production" element={lazyRoute(ProductionList, <PageLoadingFallback />)} />
+            <Route path="/expenses" element={lazyRoute(ExpenseList, <PageLoadingFallback />)} />
+            <Route path="/assets" element={lazyRoute(AssetList, <PageLoadingFallback />)} />
+            <Route path="/employees" element={lazyRoute(EmployeeList, <PageLoadingFallback />)} />
             {/* Owner-only — Analytics, Cashbook, Reports, and Privacy (user management) are off-limits to Manager and Guest */}
             <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/cashbook" element={<Cashbook />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/analytics" element={lazyRoute(Analytics, <PageLoadingFallback />)} />
+              <Route path="/cashbook" element={lazyRoute(Cashbook, <PageLoadingFallback />)} />
+              <Route path="/reports" element={lazyRoute(Reports, <PageLoadingFallback />)} />
+              <Route path="/privacy" element={lazyRoute(Privacy, <PageLoadingFallback />)} />
             </Route>
           </Route>
         </Route>

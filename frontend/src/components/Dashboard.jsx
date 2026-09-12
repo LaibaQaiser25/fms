@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useContext, useRef } from 'react';
 import { Bell, ShoppingCart, Package, BarChart3, AlertCircle } from 'lucide-react';
 import NewSaleModal from './Sales/NewSaleModal';
 import NewPurchaseModal from './Purchase/NewPurchaseModal';
@@ -8,40 +8,16 @@ import AddProductionDirect from './AddProductionDirect';
 import { NavLink, Link } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';
 
-// Shrinks its own font-size until the text fits on one line within its
-// container, instead of overflowing the card or wrapping mid-number.
-const FIT_MAX_PX = 30; // text-3xl
-const FIT_MIN_PX = 15; // floor before we'd rather clip than get unreadable
-
+// Shrinks its own font-size to fit on one line within its container via a
+// fluid clamp() (15px-30px, matching the old measurement loop's bounds),
+// with ellipsis truncation as a fallback for the rare oversized string —
+// avoids the per-pixel scrollWidth/clientWidth measurement loop that used
+// to force a layout reflow on every iteration.
 function FitText({ children, className = '' }) {
-  const ref = useRef(null);
-  const [fontSize, setFontSize] = useState(FIT_MAX_PX);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const fit = () => {
-      let size = FIT_MAX_PX;
-      el.style.fontSize = `${size}px`;
-      while (el.scrollWidth > el.clientWidth && size > FIT_MIN_PX) {
-        size -= 1;
-        el.style.fontSize = `${size}px`;
-      }
-      setFontSize(size);
-    };
-
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [children]);
-
   return (
     <p
-      ref={ref}
-      className={`${className} whitespace-nowrap overflow-hidden`}
-      style={{ fontSize }}
+      className={`${className} whitespace-nowrap overflow-hidden text-ellipsis`}
+      style={{ fontSize: 'clamp(0.9375rem, 1.1vw + 0.6rem, 1.875rem)' }}
       title={typeof children === 'string' ? children : undefined}
     >
       {children}

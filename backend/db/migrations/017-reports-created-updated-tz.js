@@ -8,7 +8,7 @@ exports.up = (pgm) => {
     -- silently shifting every displayed timestamp back by 5 hours (and the
     -- calendar day, near midnight) — e.g. the Reports page's "Generated"
     -- column. Since the db session has been UTC consistently the whole time,
-    -- `AT TIME ZONE 'UTC'` on the existing values recovers the true absolute
+    -- AT TIME ZONE 'UTC' on the existing values recovers the true absolute
     -- instant for every row, not just recent ones. TIMESTAMPTZ round-trips
     -- correctly from here on regardless of session timezone (same fix as
     -- migration 016 for report_schedules.last_run_at) — no server-wide TZ

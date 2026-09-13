@@ -248,6 +248,7 @@ function CustomerLedger() {
       {showInvoiceModal && selectedInvoiceId && (
         <InvoiceModal
           invoiceId={selectedInvoiceId}
+          customerId={selectedCustomerId}
           onClose={() => setShowInvoiceModal(false)}
         />
       )}

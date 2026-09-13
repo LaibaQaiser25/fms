@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import * as purchaseInvoiceApi from '../../../api/purchaseInvoiceApi';
 
-function PurchaseInvoiceModal({ invoiceId, onClose }) {
+function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
   const [currentInvoiceId, setCurrentInvoiceId] = useState(invoiceId);
   const [invoice, setInvoice] = useState(null);
   const [items, setItems] = useState([]);
@@ -22,13 +22,29 @@ function PurchaseInvoiceModal({ invoiceId, onClose }) {
   const fetchInvoice = async () => {
     try {
       setLoading(true);
-      const response = await purchaseInvoiceApi.getPurchaseInvoice(currentInvoiceId);
+
+      // The caller (PurchaseLedger) already knows the seller before this
+      // modal ever opens, so the invoice-list fetch no longer waits on the
+      // invoice response to learn seller_id — the two requests fire
+      // together instead of one after the other.
+      const [invoiceResult, invoicesResult] = await Promise.allSettled([
+        purchaseInvoiceApi.getPurchaseInvoice(currentInvoiceId),
+        sellerId ? purchaseInvoiceApi.getSellerInvoices(sellerId) : Promise.resolve(null)
+      ]);
+
+      if (invoiceResult.status !== 'fulfilled') {
+        throw invoiceResult.reason;
+      }
+      const response = invoiceResult.value;
       setInvoice(response.data.data.invoice);
       setItems(response.data.data.items || []);
 
-      // Fetch all invoices for this seller for the list
-      if (response.data.data.invoice.seller_id) {
-        const invoicesResponse = await purchaseInvoiceApi.getSellerInvoices(response.data.data.invoice.seller_id);
+      const resolvedSellerId = sellerId || response.data.data.invoice.seller_id;
+      if (invoicesResult.status === 'fulfilled' && invoicesResult.value) {
+        setSellerInvoices(invoicesResult.value.data.data || []);
+      } else if (resolvedSellerId && !sellerId) {
+        // Fallback for any caller that doesn't pass sellerId yet
+        const invoicesResponse = await purchaseInvoiceApi.getSellerInvoices(resolvedSellerId);
         setSellerInvoices(invoicesResponse.data.data || []);
       }
     } catch (err) {

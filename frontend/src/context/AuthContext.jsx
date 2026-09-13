@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
 const AuthContext = createContext(null);
@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = (newToken) => {
+  const login = useCallback((newToken) => {
     try {
       const decoded = jwtDecode(newToken);
       setToken(newToken);
@@ -45,17 +45,26 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Invalid token during login:', error);
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-  };
+  }, []);
+
+  // login/logout are stable (useCallback, no deps) so this only changes when
+  // user/loading/token actually change — without it, every AuthProvider
+  // render (including ones triggered by unrelated state elsewhere) handed
+  // all 8 useAuth() consumers a brand-new object and re-rendered them all.
+  const value = useMemo(
+    () => ({ user, login, logout, loading, token }),
+    [user, login, logout, loading, token]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, token }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

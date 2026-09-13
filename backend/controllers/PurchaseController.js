@@ -711,18 +711,6 @@ class PurchaseController {
 
       await client.query('COMMIT');
 
-      // Check outstanding balance owed to seller
-      if (balance > 0) {
-        await sendWhatsApp(
-          `💰 *New Payable Balance*\n\n• Seller: ${seller_name}\n• Amount: Rs.${balance}\n• Invoice: ${invoiceNo}`
-        );
-      }
-
-      // Immediate summary of the purchase itself
-      await sendWhatsApp(
-        `📦 *New Purchase*\n\n• Seller: ${seller_name}\n• Category: ${category}\n• Items: ${items.length}\n• Total: Rs.${total_amount}\n• Advance: Rs.${advance}\n• Invoice: ${invoiceNo}`
-      );
-
       res.status(201).json({
         success: true,
         message: 'Purchase created successfully',
@@ -732,6 +720,27 @@ class PurchaseController {
           invoiceNo: invoiceNo
         }
       });
+
+      // WhatsApp alerts happen after the response is sent — see the mirrored
+      // comment in SalesController.createSale for why (~500ms+ per external
+      // webhook call, previously blocking the client's response).
+      (async () => {
+        try {
+          // Check outstanding balance owed to seller
+          if (balance > 0) {
+            await sendWhatsApp(
+              `💰 *New Payable Balance*\n\n• Seller: ${seller_name}\n• Amount: Rs.${balance}\n• Invoice: ${invoiceNo}`
+            );
+          }
+
+          // Immediate summary of the purchase itself
+          await sendWhatsApp(
+            `📦 *New Purchase*\n\n• Seller: ${seller_name}\n• Category: ${category}\n• Items: ${items.length}\n• Total: Rs.${total_amount}\n• Advance: Rs.${advance}\n• Invoice: ${invoiceNo}`
+          );
+        } catch (alertError) {
+          console.error('❌ Post-purchase WhatsApp alert error:', alertError.message);
+        }
+      })();
 
     } catch (error) {
       await client.query('ROLLBACK');

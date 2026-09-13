@@ -136,36 +136,6 @@ class SalesController {
 
       await client.query('COMMIT');
 
-      // Check low stock after sale, scoped to items actually sold in this sale
-      const stockIds = items.filter(item => item.stock_id).map(item => item.stock_id);
-      if (stockIds.length > 0) {
-        const lowStock = await pool.query(
-          `SELECT name, quantity, minimum_stock
-     FROM stock
-     WHERE id = ANY($1::int[]) AND quantity <= COALESCE(minimum_stock, 10)`,
-          [stockIds]
-        );
-        if (lowStock.rows.length > 0) {
-          let msg = '⚠️ *Low Stock After Sale*\n\n';
-          lowStock.rows.forEach(item => {
-            msg += `• ${item.name}: ${item.quantity} units left\n`;
-          });
-          await sendWhatsApp(msg);
-        }
-      }
-
-      // Check outstanding balance
-      if (balance > 0) {
-        await sendWhatsApp(
-          `💰 *New Outstanding Debt*\n\n• Customer: ${customer_name}\n• Amount: Rs.${balance}\n• Invoice: ${invoiceNo}`
-        );
-      }
-
-      // Immediate summary of the sale itself
-      await sendWhatsApp(
-        `🧾 *New Sale*\n\n• Customer: ${customer_name}\n• Items: ${items.length}\n• Total: Rs.${total_amount}\n• Advance: Rs.${advance}\n• Invoice: ${invoiceNo}`
-      );
-
       res.status(201).json({
         success: true,
         message: 'Sale created successfully',
@@ -175,6 +145,49 @@ class SalesController {
           invoiceNo: invoiceNo
         }
       });
+
+      // WhatsApp alerts happen after the response is sent — these are
+      // best-effort notifications, not part of what the client is waiting
+      // on, and each one is a real network call to an external webhook
+      // (measured ~500ms+, and currently failing outright when the WhatsApp
+      // Business number isn't registered with Meta). Awaiting them here used
+      // to make every sale creation wait on 1-3 sequential external calls
+      // before the "Sale Created" response ever reached the browser.
+      (async () => {
+        try {
+          // Check low stock after sale, scoped to items actually sold in this sale
+          const stockIds = items.filter(item => item.stock_id).map(item => item.stock_id);
+          if (stockIds.length > 0) {
+            const lowStock = await pool.query(
+              `SELECT name, quantity, minimum_stock
+         FROM stock
+         WHERE id = ANY($1::int[]) AND quantity <= COALESCE(minimum_stock, 10)`,
+              [stockIds]
+            );
+            if (lowStock.rows.length > 0) {
+              let msg = '⚠️ *Low Stock After Sale*\n\n';
+              lowStock.rows.forEach(item => {
+                msg += `• ${item.name}: ${item.quantity} units left\n`;
+              });
+              await sendWhatsApp(msg);
+            }
+          }
+
+          // Check outstanding balance
+          if (balance > 0) {
+            await sendWhatsApp(
+              `💰 *New Outstanding Debt*\n\n• Customer: ${customer_name}\n• Amount: Rs.${balance}\n• Invoice: ${invoiceNo}`
+            );
+          }
+
+          // Immediate summary of the sale itself
+          await sendWhatsApp(
+            `🧾 *New Sale*\n\n• Customer: ${customer_name}\n• Items: ${items.length}\n• Total: Rs.${total_amount}\n• Advance: Rs.${advance}\n• Invoice: ${invoiceNo}`
+          );
+        } catch (alertError) {
+          console.error('❌ Post-sale WhatsApp alert error:', alertError.message);
+        }
+      })();
 
     } catch (error) {
       await client.query('ROLLBACK');

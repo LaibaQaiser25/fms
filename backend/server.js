@@ -1,5 +1,6 @@
-const express = require('express'); 
-const cors = require('cors'); 
+const express = require('express');
+const cors = require('cors');
+const compression = require('compression');
 require('dotenv').config();
 
 const invoiceRoutes = require('./routes/invoices');
@@ -40,10 +41,21 @@ try {
 
 const app = express();
 
+// We're always behind the Cloudflare Tunnel (cloudflared on the VPS host) —
+// trust its X-Forwarded-For so express-rate-limit keys on the real client IP
+// instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request.
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
-  credentials: true
+  credentials: true,
+  // Without this, browsers cache the OPTIONS preflight for only ~5s (Chromium
+  // default when the header is absent), so almost every authenticated
+  // request pays a second full round trip through the tunnel just for the
+  // preflight. 24h is Chromium's own cap on Access-Control-Max-Age.
+  maxAge: 86400
 }));
+app.use(compression());
 // Allow React to talk to Express
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

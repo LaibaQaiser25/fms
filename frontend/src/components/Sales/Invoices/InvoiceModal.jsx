@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import * as invoiceApi from '../../../api/invoiceApi';
 
-function InvoiceModal({ invoiceId, onClose }) {
+function InvoiceModal({ invoiceId, customerId, onClose }) {
   const [currentInvoiceId, setCurrentInvoiceId] = useState(invoiceId);
   const [invoice, setInvoice] = useState(null);
   const [items, setItems] = useState([]);
@@ -22,13 +22,29 @@ function InvoiceModal({ invoiceId, onClose }) {
   const fetchInvoice = async () => {
     try {
       setLoading(true);
-      const response = await invoiceApi.getInvoice(currentInvoiceId);
+
+      // The caller (CustomerLedger) already knows the customer before this
+      // modal ever opens, so the invoice-list fetch no longer waits on the
+      // invoice response to learn customer_id — the two requests fire
+      // together instead of one after the other.
+      const [invoiceResult, invoicesResult] = await Promise.allSettled([
+        invoiceApi.getInvoice(currentInvoiceId),
+        customerId ? invoiceApi.getCustomerInvoices(customerId) : Promise.resolve(null)
+      ]);
+
+      if (invoiceResult.status !== 'fulfilled') {
+        throw invoiceResult.reason;
+      }
+      const response = invoiceResult.value;
       setInvoice(response.data.data.invoice);
       setItems(response.data.data.items || []);
 
-      // Fetch all invoices for this customer for the list
-      if (response.data.data.invoice.customer_id) {
-        const invoicesResponse = await invoiceApi.getCustomerInvoices(response.data.data.invoice.customer_id);
+      const resolvedCustomerId = customerId || response.data.data.invoice.customer_id;
+      if (invoicesResult.status === 'fulfilled' && invoicesResult.value) {
+        setCustomerInvoices(invoicesResult.value.data.data || []);
+      } else if (resolvedCustomerId && !customerId) {
+        // Fallback for any caller that doesn't pass customerId yet
+        const invoicesResponse = await invoiceApi.getCustomerInvoices(resolvedCustomerId);
         setCustomerInvoices(invoicesResponse.data.data || []);
       }
     } catch (err) {

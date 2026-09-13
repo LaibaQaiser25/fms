@@ -246,6 +246,7 @@ function PurchaseLedger() {
       {showInvoiceModal && selectedInvoiceId && (
         <PurchaseInvoiceModal
           invoiceId={selectedInvoiceId}
+          sellerId={selectedSellerId}
           onClose={() => setShowInvoiceModal(false)}
         />
       )}

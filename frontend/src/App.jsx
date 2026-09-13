@@ -1,37 +1,46 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import Layout from './components/Layout';
-import RoleDashboard from './components/RoleDashboard';
-import Analytics from './components/Analytics';
-import StockManager from './components/StockManager';
-import ProductsManager from './components/ProductsManager';
-import CustomerLedger from './components/Sales/Ledger/CustomerLedger';
-import PurchaseLedger from './components/Purchase/PLedger/PurchaseLedger';
-import RawMaterialsList from './components/RawMaterials/RawMaterialsList';
-import ProductionList from './components/ProductionList';
-import ExpenseList from './components/Expenses/ExpenseList';
-import AssetList from './components/Assets/AssetList';
-import EmployeeList from './components/Employees/EmployeeList';
-import Cashbook from './components/Cashbook';
-import Reports from './components/Reports/Reports.jsx';
-import Privacy from './components/Privacy/Privacy.jsx';
+// HomePage stays a static import — it's the landing page nearly every first
+// visit hits, so eagerly bundling it avoids paying a chunk round-trip on the
+// most common entry point. Everything else below is route-level code
+// splitting: business modules pull in heavy, page-specific libraries
+// (xlsx, jspdf, html2canvas-pro, react-to-print) that previously shipped to
+// every visitor regardless of which page they used.
+import HomePage from './pages/HomePage';
+
+const RoleDashboard = lazy(() => import('./components/RoleDashboard'));
+const Analytics = lazy(() => import('./components/Analytics'));
+const StockManager = lazy(() => import('./components/StockManager'));
+const ProductsManager = lazy(() => import('./components/ProductsManager'));
+const CustomerLedger = lazy(() => import('./components/Sales/Ledger/CustomerLedger'));
+const PurchaseLedger = lazy(() => import('./components/Purchase/PLedger/PurchaseLedger'));
+const RawMaterialsList = lazy(() => import('./components/RawMaterials/RawMaterialsList'));
+const ProductionList = lazy(() => import('./components/ProductionList'));
+const ExpenseList = lazy(() => import('./components/Expenses/ExpenseList'));
+const AssetList = lazy(() => import('./components/Assets/AssetList'));
+const EmployeeList = lazy(() => import('./components/Employees/EmployeeList'));
+const Cashbook = lazy(() => import('./components/Cashbook'));
+const Reports = lazy(() => import('./components/Reports/Reports.jsx'));
+const Privacy = lazy(() => import('./components/Privacy/Privacy.jsx'));
 
 // Public Pages
-import HomePage from './pages/HomePage';
-import AboutPage from './pages/AboutPage';
-import ServicesPage from './pages/ServicesPage';
-import SpecialitiesPage from './pages/SpecialitiesPage';
-import FeedbackPage from './pages/FeedbackPage';
-import ContactPage from './pages/ContactPage';
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const SpecialitiesPage = lazy(() => import('./pages/SpecialitiesPage'));
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
 
 function App() {
   return (
     <ThemeProvider>
     <AuthProvider>
     <BrowserRouter>
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-sm text-gray-500">Loading…</div>}>
       <Routes>
         {/* Public Routes - Accessible to everyone */}
         <Route path="/" element={<HomePage />} />
@@ -67,6 +76,7 @@ function App() {
           </Route>
         </Route>
       </Routes>
+      </Suspense>
     </BrowserRouter>
     </AuthProvider>
     </ThemeProvider>

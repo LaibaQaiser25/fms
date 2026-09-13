@@ -215,7 +215,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
         </div>
 
       <nav
-        className={`flex-1 px-3 py-4 flex flex-col gap-1.5 ${effectiveCollapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden'
+        className={`flex-1 px-3 py-4 flex flex-col gap-1.5 ${effectiveCollapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden scrollbar-hide'
           }`}
       >
 

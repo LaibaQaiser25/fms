@@ -37,6 +37,14 @@
   --color-accent-soft: #fee2e2;
   --color-accent-soft-hover: #fecaca;
 
+  /* Muted, full-bleed card fills for the Cashbook's Receivable/Payable
+     "position" cards — kept separate from --color-sale/--color-purchase
+     (used at full brightness elsewhere for buttons/badges) since a whole
+     card painted in the brand's saturated accent reads as loud rather than
+     as a financial summary. Already muted under this theme, so just reuse. */
+  --color-receivable-bg: var(--color-sale);
+  --color-payable-bg: var(--color-purchase);
+
   --nav-bg: #1a1a1a;
   --nav-border-width: 3px;
   --nav-border-color: #b91c1c;
@@ -74,6 +82,13 @@
   --color-accent-soft: #ede9fe;
   --color-accent-soft-hover: #ddd6fe;
 
+  /* Muted, full-bleed card fills for the Cashbook's Receivable/Payable
+     "position" cards — --color-sale/--color-purchase are tuned to pop as
+     small buttons/badges, which reads as neon once used to fill an entire
+     card; these are deliberately deeper/less saturated for that use. */
+  --color-receivable-bg: #15803d;
+  --color-payable-bg: #5b21b6;
+
   --nav-bg: linear-gradient(135deg, #000000 0%, #05001a 40%, #000d08 100%);
   --nav-border-width: 1px;
   --nav-border-color: rgba(255, 255, 255, 0.07);
@@ -102,4 +117,15 @@
   --color-success-hover: #15803d;
   --color-success-soft: #dcfce7;
   --color-success-soft-hover: #bbf7d0;
+}
+
+/* Hides the scrollbar on elements that need to scroll but shouldn't show one —
+   e.g. the sidebar's nav list, where the browser's default light scrollbar
+   looks out of place against the dark rail. Scrolling itself still works. */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }

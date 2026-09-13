@@ -255,7 +255,7 @@ function Cashbook() {
             value={balances?.receivable}
             parties={balances?.customersOwing}
             partyNoun="customer"
-            background="bg-[var(--color-sale)]"
+            background="bg-[var(--color-receivable-bg)]"
           />
           <BalanceCard
             icon={<Landmark size={24} className="text-white/90" />}
@@ -264,7 +264,7 @@ function Cashbook() {
             value={balances?.payable}
             parties={balances?.sellersOwed}
             partyNoun="seller"
-            background="bg-[var(--color-purchase)]"
+            background="bg-[var(--color-payable-bg)]"
           />
         </div>
 

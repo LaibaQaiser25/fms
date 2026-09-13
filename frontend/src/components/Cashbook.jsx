@@ -207,7 +207,7 @@ function Cashbook() {
         <h1 className="text-3xl font-bold text-gray-800">Cashbook</h1>
       </div> */}
 
-      <div className="px-8 py-6">
+      <div className="px-4 sm:px-8 py-6">
         {/* Summary cards — these always reflect the active filters across the
             whole result set, never just the page on screen */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

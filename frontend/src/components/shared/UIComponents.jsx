@@ -165,22 +165,22 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   // Layout-level guest click-blocker (see components/Layout.jsx) exempts
   // anything carrying this attribute.
   return (
-    <div className="flex items-center justify-center gap-2 mt-6">
+    <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
       <button
         data-guest-allow="true"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+        className="px-2.5 sm:px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
       >
         Previous
       </button>
 
       {startPage > 1 && (
         <>
-          <button data-guest-allow="true" onClick={() => onPageChange(1)} className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100">
+          <button data-guest-allow="true" onClick={() => onPageChange(1)} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
             1
           </button>
-          {startPage > 2 && <span className="px-2">...</span>}
+          {startPage > 2 && <span className="px-1 sm:px-2">...</span>}
         </>
       )}
 
@@ -189,7 +189,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
           key={page}
           data-guest-allow="true"
           onClick={() => onPageChange(page)}
-          className={`px-3 py-1 border rounded ${currentPage === page ? 'bg-[var(--color-text-accent)] text-white border-[var(--color-text-accent)]' : 'border-gray-300 hover:bg-gray-100'}`}
+          className={`px-3 py-1 text-sm border rounded ${currentPage === page ? 'bg-[var(--color-text-accent)] text-white border-[var(--color-text-accent)]' : 'border-gray-300 hover:bg-gray-100'}`}
         >
           {page}
         </button>
@@ -197,8 +197,8 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 
       {endPage < totalPages && (
         <>
-          {endPage < totalPages - 1 && <span className="px-2">...</span>}
-          <button data-guest-allow="true" onClick={() => onPageChange(totalPages)} className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100">
+          {endPage < totalPages - 1 && <span className="px-1 sm:px-2">...</span>}
+          <button data-guest-allow="true" onClick={() => onPageChange(totalPages)} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
             {totalPages}
           </button>
         </>
@@ -208,7 +208,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
         data-guest-allow="true"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+        className="px-2.5 sm:px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
       >
         Next
       </button>

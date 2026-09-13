@@ -1,4 +1,4 @@
-import { Bell, AlertCircle, Search, LogOut, User, Palette } from 'lucide-react';
+import { Bell, AlertCircle, Search, LogOut, User, Palette, Menu, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -6,10 +6,11 @@ import { useTheme } from '../context/ThemeContext';
 import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
 import { API_BASE_URL } from '../config';
 
-export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, setSearchResults, setSearchSQL }) {
+export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, setSearchResults, setSearchSQL, onOpenMobileMenu }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -70,24 +71,33 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
         zIndex: 40,
       }}
     >
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto h-[76px] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
+
+        {/* Mobile menu button — opens the off-canvas sidebar drawer */}
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          aria-label="Open menu"
+          className="md:hidden shrink-0 p-2 -ml-1 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-3 group">
+        <Link to="/" className="flex items-center gap-2 sm:gap-3 group min-w-0">
           <div
-            className="relative w-10 h-10 rounded-xl overflow-hidden"
+            className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden shrink-0"
             style={{ border: 'var(--logo-border)', boxShadow: 'var(--logo-glow)' }}
           >
             <img src="../logo.jpeg" alt="Bin-Zahid Logo" className="w-full h-full object-cover" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div
-              className="font-bold text-white text-lg leading-tight"
+              className="font-bold text-white leading-tight truncate text-base sm:text-lg"
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '1.4rem',
                 fontWeight: '700',
-                letterSpacing: '0.12em',
+                letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 textShadow: 'var(--title-glow)',
               }}
@@ -95,7 +105,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
               Bin-Zahid & Partners'
             </div>
             <div
-              className="text-xs"
+              className="text-xs hidden sm:block"
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 letterSpacing: '0.2em',
@@ -108,8 +118,10 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
           </div>
         </Link>
 
-        {/* Search */}
-        <div className="flex-1 mx-10 max-w-[560px] relative">
+        {/* Search — full inline bar from md up; collapses to an icon that
+            opens a dropdown search field on smaller screens so the header
+            row never wraps or overflows horizontally. */}
+        <div className="hidden md:block flex-1 mx-6 lg:mx-10 max-w-[560px] relative">
           <input
             type="text"
             value={query}
@@ -135,6 +147,16 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
             <Search className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Search toggle — mobile/tablet only */}
+        <button
+          type="button"
+          onClick={() => setShowMobileSearch(prev => !prev)}
+          aria-label={showMobileSearch ? 'Close search' : 'Open search'}
+          className="md:hidden ml-auto shrink-0 p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors"
+        >
+          {showMobileSearch ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+        </button>
 
         {/* Theme toggle — hidden from dashboard, code kept intact */}
         <button
@@ -168,7 +190,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
               >
                 <User className="w-5 h-5 text-white" />
               </div>
-              <span className="text-sm font-medium max-w-[150px] truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              <span className="hidden sm:inline text-sm font-medium max-w-[150px] truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 {user?.username || user?.email || 'User'}
               </span>
             </button>
@@ -177,7 +199,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
                 <div
-                  className="absolute right-0 mt-3 w-56 rounded-xl overflow-hidden z-50"
+                  className="absolute right-0 mt-3 w-56 max-w-[90vw] rounded-xl overflow-hidden z-50"
                   style={PANEL_STYLE}
                 >
                   <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
@@ -217,7 +239,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
 
             {showAlertsDropdown && (
                 <div
-                  className="absolute right-0 top-full mt-3 w-80 rounded-xl overflow-hidden z-50 max-h-96 overflow-y-auto"
+                  className="absolute right-0 top-full mt-3 w-80 max-w-[90vw] rounded-xl overflow-hidden z-50 max-h-96 overflow-y-auto"
                   style={PANEL_STYLE}
                 >
                   <div className="p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
@@ -248,6 +270,39 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
           </div>
         </div>
       </div>
+
+      {/* Mobile search dropdown — the inline bar above is hidden below md.
+          Absolutely positioned so it overlays below the header instead of
+          growing the fixed nav's own height (which sidebar/main assume is
+          a constant 76px). */}
+      {showMobileSearch && (
+        <div
+          className="md:hidden absolute left-0 right-0 top-full px-3 py-3"
+          style={{ background: 'var(--nav-bg)', borderBottom: 'var(--nav-border-width) solid var(--nav-border-color)' }}
+        >
+          <input
+            type="text"
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            placeholder='Try: "gross profit for cement"'
+            className="w-full px-4 py-2.5 pr-10 rounded-lg focus:outline-none text-sm font-medium text-white placeholder-white/30"
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.07)',
+            }}
+          />
+          <button
+            onClick={handleSearch}
+            disabled={loading}
+            className="absolute right-5 top-1/2 -translate-y-1/2"
+            style={{ color: 'rgba(255,255,255,0.6)' }}
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

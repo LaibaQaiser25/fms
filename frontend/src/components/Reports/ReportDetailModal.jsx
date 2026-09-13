@@ -112,7 +112,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
 
   const letterhead = (
     <div className="border-b-2 border-gray-800 pb-4 mb-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <img src="/logo3.png" alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
           <div>
@@ -120,7 +120,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
             <p className="text-xs text-gray-500 leading-tight tracking-wide">PRECAST SOLUTIONS</p>
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <p className="text-[10px] font-semibold text-gray-400 tracking-widest uppercase">{LEVEL_LABELS[report.report_level] || 'Report'}</p>
           <p className="text-sm font-semibold text-gray-800">{report.label}</p>
           <p className="text-xs text-gray-500">{formatRange(report.period_start, report.period_end)}</p>
@@ -293,7 +293,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <div className="flex justify-between items-center pt-2 border-t">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-2 border-t">
           <div>
             {!editing && (
               <button onClick={handleDelete} className="text-red-600 hover:text-red-800 font-medium text-sm">
@@ -301,7 +301,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
               </button>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             {editing ? (
               <>
                 <Button variant="secondary" onClick={cancelEdit} disabled={saving}>Cancel</Button>

@@ -1,6 +1,6 @@
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect, createContext } from 'react';
 import * as salesApi from '../api/salesApi';
 import * as purchaseApi from '../api/purchaseApi';
@@ -41,6 +41,15 @@ export default function Layout() {
       return next;
     });
   };
+
+  // Mobile sidebar is an off-canvas overlay, separate from the desktop
+  // collapsed/expanded rail state above — it never persists and always
+  // starts closed, including on route changes (closed below).
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const location = useLocation();
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
   const [salesSummary, setSalesSummary] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
@@ -133,10 +142,12 @@ export default function Layout() {
 
   return (
     <AlertRefreshContext.Provider value={{ fetchAlerts, salesSummary, recentOrders, pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials }}>
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapsed}
+          mobileOpen={mobileSidebarOpen}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
         />
         <DashboardHeader
           allAlerts={allAlerts}
@@ -145,9 +156,10 @@ export default function Layout() {
           setSearchResults={setSearchResults}
           setSearchSQL={setSearchSQL}
           refreshTrigger={{ pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials }}
+          onOpenMobileMenu={() => setMobileSidebarOpen(true)}
         />
         <main
-          className={`flex-1 p-6 min-h-screen transition-[margin] duration-300 ease-in-out ${sidebarCollapsed ? 'ml-20' : 'ml-56'}`}
+          className={`flex-1 min-w-0 p-3 sm:p-4 md:p-6 min-h-screen transition-[margin] duration-300 ease-in-out ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-56'}`}
           style={{ paddingTop: '101px' }}
           onClickCapture={blockGuestActions}
           onSubmitCapture={blockGuestFormSubmit}

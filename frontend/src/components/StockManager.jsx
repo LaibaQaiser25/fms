@@ -200,7 +200,7 @@ export default function StockManager() {
     <div className="min-h-screen bg-gray-50">
 
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-8 py-6 flex justify-between items-center">
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-8 py-4 sm:py-6 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
         <div>
           {selectedCategory ? (
             <>
@@ -211,12 +211,12 @@ export default function StockManager() {
                 <ArrowLeft className="w-3.5 h-3.5 transition-transform duration-150 group-hover:-translate-x-0.5" />
                 All Categories
               </button>
-              <h1 className="text-3xl font-bold text-gray-800">{selectedCategory}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">{selectedCategory}</h1>
               <p className="text-gray-600 mt-2">{categoryItems.length} items in stock</p>
             </>
           ) : (
             <>
-              <h1 className="text-3xl font-bold text-gray-800">Stock Manager</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Stock Manager</h1>
               <p className="text-gray-600 mt-2">{stocks.length} items across {categoryCards.length} categories</p>
             </>
           )}
@@ -237,7 +237,7 @@ export default function StockManager() {
       </div>
 
       {/* Content */}
-      <div className="px-8 py-6">
+      <div className="px-4 sm:px-8 py-6">
 
       {/* Price Calculator Card */}
       {/* This says: IF showCalculator is true, THEN show the div below */}
@@ -245,8 +245,9 @@ export default function StockManager() {
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6 shadow-sm">
         <h3 className="font-bold">Quick Price Calculator</h3>
         <div className="space-y-3">
-          {/* Header Row */}
-          <div className="grid grid-cols-5 gap-4 pb-3 border-b border-gray-200">
+          {/* Header Row — hidden on mobile, where each row's fields stack
+              full-width and are self-explanatory via placeholder/label instead. */}
+          <div className="hidden sm:grid grid-cols-5 gap-4 pb-3 border-b border-gray-200">
             <div className="text-sm font-semibold text-gray-700">Item Name</div>
             <div className="text-sm font-semibold text-gray-700">Price (PKR)</div>
             <div className="text-sm font-semibold text-gray-700">Quantity</div>
@@ -260,7 +261,7 @@ export default function StockManager() {
             const rowTotal = calculateRowTotal(row);
 
             return (
-              <div key={row.id} className="grid grid-cols-5 gap-4 items-end">
+              <div key={row.id} className="grid grid-cols-1 sm:grid-cols-5 gap-3 sm:gap-4 sm:items-end pb-3 sm:pb-0 border-b sm:border-0 border-gray-100">
                 {/* Column 1: Item Name with Auto-suggest */}
                 <div className="relative">
                   <input
@@ -308,6 +309,7 @@ export default function StockManager() {
 
                 {/* Column 4: Gross Total */}
                 <div className="bg-gray-50 rounded px-3 py-2 border border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 sm:hidden">Gross Total</p>
                   <p className="text-sm font-bold text-gray-900">
                     PKR {rowTotal.toLocaleString('en-PK', { maximumFractionDigits: 0 })}
                   </p>
@@ -329,16 +331,16 @@ export default function StockManager() {
           })}
 
           {/* Grand Total Row */}
-          <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-200 mt-2">
-            <div></div>
-            <div></div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 pt-3 border-t border-gray-200 mt-2">
+            <div className="hidden sm:block"></div>
+            <div className="hidden sm:block"></div>
             <div className="text-right font-bold text-gray-800">Grand Total:</div>
             <div className="bg-red-50 rounded px-3 py-2 border border-red-200">
               <p className="text-sm font-bold text-red-900">
                 PKR {calculateGrandTotal().toLocaleString('en-PK', { maximumFractionDigits: 0 })}
               </p>
             </div>
-            <div></div>
+            <div className="hidden sm:block"></div>
           </div>
         </div>
       </div>)}

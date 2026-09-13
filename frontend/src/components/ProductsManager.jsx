@@ -421,7 +421,7 @@ export default function ProductsManager() {
     <div className="min-h-screen bg-gray-50">
 
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-8 py-6 flex justify-between items-center">
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-8 py-4 sm:py-6 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
         <div>
           {typeFilter ? (
             <>
@@ -432,12 +432,12 @@ export default function ProductsManager() {
                 <ArrowLeft className="w-3.5 h-3.5 transition-transform duration-150 group-hover:-translate-x-0.5" />
                 All Products
               </button>
-              <h1 className="text-3xl font-bold text-gray-800">{typeFilter === 'stock' ? 'Stock' : 'Raw Material'}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">{typeFilter === 'stock' ? 'Stock' : 'Raw Material'}</h1>
               <p className="text-gray-600 mt-2">{products.length} products</p>
             </>
           ) : (
             <>
-              <h1 className="text-3xl font-bold text-gray-800">Products</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Products</h1>
               <p className="text-gray-600 mt-2">{products.length} products in catalog</p>
             </>
           )}
@@ -459,7 +459,7 @@ export default function ProductsManager() {
       </div>
 
       {/* Content */}
-      <div className="px-8 py-6">
+      <div className="px-4 sm:px-8 py-6">
 
       {/* Category / Unit Manager Modal */}
       {showCatManager && (

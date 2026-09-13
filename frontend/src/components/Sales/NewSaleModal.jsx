@@ -296,18 +296,18 @@ function NewSaleModal({ onClose }) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex z-50 overflow-y-auto">
       <div className="bg-white w-full h-screen flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-2xl font-extrabold text-gray-800">New Sale</h2>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-gray-800">New Sale</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
             <X className="w-6 h-6 text-gray-600" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-6 overflow-hidden flex flex-col">
-          <div className="grid grid-cols-3 gap-6 flex-1 overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 overflow-hidden flex flex-col">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 flex-1 overflow-y-auto">
             {/* Left Column - Customer Info & Items */}
-            <div className="col-span-2 pr-4">
+            <div className="lg:col-span-2 lg:pr-4">
               {/* Customer Info Section */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
                 <h3 className="font-bold mb-3 text-sm text-gray-600 uppercase tracking-wider">Customer Info</h3>
@@ -385,9 +385,11 @@ function NewSaleModal({ onClose }) {
                 <h3 className="font-bold mb-3 text-sm text-gray-600 uppercase tracking-wider">Items</h3>
                 {items.map((item, i) => (
                   <div key={i} className="mb-4">
-                    <div className="flex gap-2 mb-1">
-                      {/* Description with autocomplete */}
-                      <div className="flex-2 relative">
+                    <div className="flex flex-col sm:flex-row gap-2 mb-1">
+                      {/* Description with autocomplete — its own full-width row on
+                          mobile so it never has to share space with price/qty/remove;
+                          sits beside them from sm up. */}
+                      <div className="relative sm:flex-[2]">
                         <input
                           className={inp}
                           placeholder="Item description..."
@@ -419,38 +421,42 @@ function NewSaleModal({ onClose }) {
                         )}
                       </div>
 
-                      {/* Price */}
-                      <input
-                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]"
-                        placeholder="Price"
-                        type="number"
-                        value={item.price}
-                        onChange={e => updateItem(i, 'price', e.target.value)}
-                        onWheel={e => e.target.blur()}
-                      />
+                      {/* Price + Qty + Remove — a fixed-composition row of its own,
+                          so it never wraps mid-group regardless of screen width. */}
+                      <div className="flex gap-2 sm:flex-1">
+                        {/* Price */}
+                        <input
+                          className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]"
+                          placeholder="Price"
+                          type="number"
+                          value={item.price}
+                          onChange={e => updateItem(i, 'price', e.target.value)}
+                          onWheel={e => e.target.blur()}
+                        />
 
-                      {/* Quantity */}
-                      <input
-                        className={`w-20 border rounded px-3 py-2 text-sm focus:outline-none ${isItemOverStock(item)
-                          ? 'border-red-500 bg-red-50 focus:border-red-600'
-                          : 'border-gray-300 focus:border-[var(--color-accent)]'
-                          }`}
-                        placeholder="Qty"
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={e => updateItem(i, 'quantity', e.target.value)}
-                        onWheel={e => e.target.blur()}
-                      />
+                        {/* Quantity */}
+                        <input
+                          className={`w-20 shrink-0 border rounded px-3 py-2 text-sm focus:outline-none ${isItemOverStock(item)
+                            ? 'border-red-500 bg-red-50 focus:border-red-600'
+                            : 'border-gray-300 focus:border-[var(--color-accent)]'
+                            }`}
+                          placeholder="Qty"
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={e => updateItem(i, 'quantity', e.target.value)}
+                          onWheel={e => e.target.blur()}
+                        />
 
-                      {items.length > 1 &&
-                        <button
-                          onClick={() => removeItem(i)}
-                          className="bg-red-100 text-red-600 px-3 rounded text-sm hover:bg-red-200 transition"
-                        >
-                          ✕
-                        </button>
-                      }
+                        {items.length > 1 &&
+                          <button
+                            onClick={() => removeItem(i)}
+                            className="shrink-0 bg-red-100 text-red-600 px-3 rounded text-sm hover:bg-red-200 transition"
+                          >
+                            ✕
+                          </button>
+                        }
+                      </div>
                     </div>
 
                     {/* Amount preview + stock warning */}
@@ -501,9 +507,9 @@ function NewSaleModal({ onClose }) {
             </div>
 
             {/* Right Column - Payment */}
-            <div className="col-span-1">
+            <div className="lg:col-span-1">
               {/* Payment Section */}
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 sticky top-0">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 lg:sticky lg:top-0">
                 <h3 className="font-bold mb-3 text-sm text-gray-600 uppercase tracking-wider">Payment</h3>
 
                 {/* Total Summary */}

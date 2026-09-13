@@ -85,27 +85,27 @@ function Dashboard() {
 
 
       {/* Action Buttons */}
-      <div className="px-8 py-4 bg-white border-b border-gray-200">
-        <div className="grid grid-cols-4 gap-4">
+      <div className="px-3 sm:px-6 md:px-8 py-4 bg-white border-b border-gray-200">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <button
             onClick={() => setShowNewSaleModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-[var(--color-sale)] hover:bg-[var(--color-sale-hover)] text-white rounded-lg transition font-semibold"
+            className="flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-sale)] hover:bg-[var(--color-sale-hover)] text-white rounded-lg transition font-semibold"
           >
-            <ShoppingCart className="w-5 h-5" />
+            <ShoppingCart className="w-5 h-5 shrink-0" />
             New Sale
           </button>
          <button
   onClick={() => setShowNewPurchaseModal(true)}
-  className="flex items-center justify-center gap-2 px-6 py-3 bg-[var(--color-purchase)] hover:bg-[var(--color-purchase-hover)] text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
+  className="flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-purchase)] hover:bg-[var(--color-purchase-hover)] text-white rounded-lg font-semibold transition-colors duration-150 shadow-sm cursor-pointer"
 >
-  <Package className="w-5 h-5" />
+  <Package className="w-5 h-5 shrink-0" />
   New Purchase
 </button>
           <button
             onClick={() => setShowAddProductionModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-[var(--color-production)] hover:bg-[var(--color-production-hover)] text-white rounded-lg transition font-semibold"
+            className="flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-production)] hover:bg-[var(--color-production-hover)] text-white rounded-lg transition font-semibold"
           >
-            <Package className="w-5 h-5" />
+            <Package className="w-5 h-5 shrink-0" />
             New Production
           </button>
           <div
@@ -115,7 +115,7 @@ function Dashboard() {
           >
             <button
               onClick={() => setShowPaymentPopover(prev => !prev)}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--color-payment)] hover:bg-[var(--color-payment-hover)] text-white rounded-lg transition font-semibold"
+              className="w-full flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-payment)] hover:bg-[var(--color-payment-hover)] text-white rounded-lg transition font-semibold"
             >
               <BarChart3 className="w-5 h-5" />
               Add Payment
@@ -159,14 +159,14 @@ function Dashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="px-8 py-6">
+      <div className="px-3 sm:px-6 md:px-8 py-6">
         {loading ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
             <p className="mt-2 text-gray-600">Loading dashboard...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-6 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
             {/* Card 1: Today's Sales Summary */}
             <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-accent)]">
               <h3 className="text-gray-600 text-sm font-semibold mb-2">Today's Sales</h3>

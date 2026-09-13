@@ -116,13 +116,13 @@ export default function Reports() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <div className="px-8 py-6 flex-1">
-        <div className="flex items-center justify-between mb-6">
+      <div className="px-4 sm:px-8 py-6 flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
             <FileBarChart2 className="w-6 h-6 text-[var(--color-accent)]" />
             <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button variant="secondary" onClick={handleSendWhatsApp} disabled={sendingWhatsApp}>
               <span className="inline-flex items-center gap-1.5">
                 <MessageCircle className="w-4 h-4" /> {sendingWhatsApp ? 'Sending...' : "Send Today's Report"}

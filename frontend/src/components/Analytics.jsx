@@ -193,7 +193,7 @@ function Analytics() {
       </div> */}
 
       {/* Period Selector */}
-      <div className="px-8 py-4 bg-white border-b border-gray-200 flex gap-4">
+      <div className="px-4 sm:px-8 py-4 bg-white border-b border-gray-200 flex flex-wrap gap-3 sm:gap-4">
         <button
           onClick={() => setPeriod('today')}
           className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${period === 'today' ? 'bg-[var(--color-selected)] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
@@ -215,7 +215,7 @@ function Analytics() {
       </div>
 
       {/* Main Content */}
-      <div className="px-8 py-6 flex-1">
+      <div className="px-4 sm:px-8 py-6 flex-1">
         {loading ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>

@@ -144,17 +144,17 @@ function AddPaymentModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex z-50 overflow-y-auto p-4">
-      <div className="bg-white w-full h-fit max-h-screen flex flex-col mx-auto my-auto rounded-lg shadow-xl overflow-hidden">
+      <div className="bg-white w-full max-w-2xl h-fit max-h-[90vh] flex flex-col mx-auto my-auto rounded-lg shadow-xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white z-10">
-          <h2 className="text-2xl font-extrabold text-gray-800">Add Payment</h2>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 bg-white z-10">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-gray-800">Add Payment</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
             <X className="w-6 h-6 text-gray-600" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-6 flex-1 overflow-y-auto">
           {/* Customer Search Section */}
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h3 className="font-bold mb-3 text-sm text-gray-600 uppercase tracking-wider">Select Customer</h3>
@@ -281,8 +281,8 @@ function AddPaymentModal({ onClose }) {
           {selectedCustomer && ledgerHistory.length > 0 && (
             <div>
               <h3 className="font-bold mb-2 text-xs text-gray-500 uppercase">Recent History</h3>
-              <div className="border border-gray-200 rounded overflow-hidden">
-                <table className="w-full text-xs text-left">
+              <div className="border border-gray-200 rounded overflow-x-auto">
+                <table className="w-full text-xs text-left min-w-[380px]">
                   <thead className="bg-gray-100 border-b border-gray-200 text-gray-600">
                     <tr>
                       <th className="p-2">Date</th>
@@ -309,7 +309,7 @@ function AddPaymentModal({ onClose }) {
 
         {/* Action Footer */}
         {selectedCustomer && outstandingDebt > 0 && (
-          <div className="p-6 border-t border-gray-200 bg-gray-50">
+          <div className="p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
             <button
               onClick={handleSubmit}
               disabled={loading || !paymentAmount}

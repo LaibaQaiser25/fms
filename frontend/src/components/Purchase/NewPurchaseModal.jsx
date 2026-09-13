@@ -40,6 +40,12 @@ function NewPurchaseModal({ onClose }) {
   // keystroke, and a slow/stale response can't overwrite a newer one.
   const searchTimers = useRef({});
   const latestQuery = useRef({});
+  // Same debounce/stale-guard treatment for the seller name/phone search —
+  // these previously fired one network round trip per keystroke.
+  const sellerSearchTimer = useRef(null);
+  const latestSellerQuery = useRef('');
+  const sellerPhoneSearchTimer = useRef(null);
+  const latestSellerPhoneQuery = useRef('');
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
@@ -103,41 +109,57 @@ function NewPurchaseModal({ onClose }) {
   };
 
   // Seller search and selection
-  const handleSellerSearch = async (value) => {
+  const handleSellerSearch = (value) => {
     const capitalizedValue = capitalizeWords(value);
     setSellerSearch(capitalizedValue);
     setSellerName(capitalizedValue);
     setSelectedSeller(null); // reset selected when typing again
-    if (value.length > 0) {
+
+    latestSellerQuery.current = value;
+    clearTimeout(sellerSearchTimer.current);
+
+    if (value.length === 0) {
+      setShowSellerDropdown(false);
+      return;
+    }
+
+    sellerSearchTimer.current = setTimeout(async () => {
       try {
         const response = await sellersApi.searchSellers(value, 10);
+        if (latestSellerQuery.current !== value) return; // a newer keystroke superseded this request
         setSellers(response.data.data || []);
         setShowSellerDropdown(true);
       } catch (error) {
         console.error('Error searching sellers:', error);
       }
-    } else {
-      setShowSellerDropdown(false);
-    }
+    }, 250);
   };
 
   // Phone doubles as a search field — but only while no name has been typed yet, so
   // typing a phone number first surfaces matching sellers the same way typing a name
   // does (the backend's /sellers/search already matches on name OR phone).
-  const handleSellerPhoneSearch = async (value) => {
+  const handleSellerPhoneSearch = (value) => {
     setSellerPhone(value);
     setSelectedSeller(null);
-    if (!sellerSearch && value.length > 0) {
+
+    latestSellerPhoneQuery.current = value;
+    clearTimeout(sellerPhoneSearchTimer.current);
+
+    if (sellerSearch || value.length === 0) {
+      setShowSellerPhoneDropdown(false);
+      return;
+    }
+
+    sellerPhoneSearchTimer.current = setTimeout(async () => {
       try {
         const response = await sellersApi.searchSellers(value, 10);
+        if (latestSellerPhoneQuery.current !== value) return; // a newer keystroke superseded this request
         setSellers(response.data.data || []);
         setShowSellerPhoneDropdown(true);
       } catch (error) {
         console.error('Error searching sellers by phone:', error);
       }
-    } else {
-      setShowSellerPhoneDropdown(false);
-    }
+    }, 250);
   };
 
   const selectSeller = async (seller) => {

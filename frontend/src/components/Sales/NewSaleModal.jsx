@@ -30,6 +30,12 @@ function NewSaleModal({ onClose }) {
   // keystroke, and a slow/stale response can't overwrite a newer one.
   const searchTimers = useRef({});
   const latestQuery = useRef({});
+  // Same debounce/stale-guard treatment for the customer name/phone search —
+  // these previously fired one network round trip per keystroke.
+  const customerSearchTimer = useRef(null);
+  const latestCustomerQuery = useRef('');
+  const phoneSearchTimer = useRef(null);
+  const latestPhoneQuery = useRef('');
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
@@ -55,41 +61,57 @@ function NewSaleModal({ onClose }) {
   };
 
   // Customer search and selection
-  const handleCustomerSearch = async (value) => {
+  const handleCustomerSearch = (value) => {
     const capitalizedValue = capitalizeWords(value);
     setCustomerSearch(capitalizedValue);
     setCustomerName(capitalizedValue);
     setSelectedCustomer(null); // reset selected when typing again
-    if (value.length > 0) {
+
+    latestCustomerQuery.current = value;
+    clearTimeout(customerSearchTimer.current);
+
+    if (value.length === 0) {
+      setShowCustomerDropdown(false);
+      return;
+    }
+
+    customerSearchTimer.current = setTimeout(async () => {
       try {
         const response = await customersApi.searchCustomers(value, 10);
+        if (latestCustomerQuery.current !== value) return; // a newer keystroke superseded this request
         setCustomers(response.data.data || []);
         setShowCustomerDropdown(true);
       } catch (error) {
         console.error('Error searching customers:', error);
       }
-    } else {
-      setShowCustomerDropdown(false);
-    }
+    }, 250);
   };
 
   // Phone doubles as a search field — but only while no name has been typed yet, so
   // typing a phone number first surfaces matching customers the same way typing a name
   // does (the backend's /customers/search already matches on name OR phone).
-  const handlePhoneSearch = async (value) => {
+  const handlePhoneSearch = (value) => {
     setCustomerPhone(value);
     setSelectedCustomer(null);
-    if (!customerSearch && value.length > 0) {
+
+    latestPhoneQuery.current = value;
+    clearTimeout(phoneSearchTimer.current);
+
+    if (customerSearch || value.length === 0) {
+      setShowPhoneDropdown(false);
+      return;
+    }
+
+    phoneSearchTimer.current = setTimeout(async () => {
       try {
         const response = await customersApi.searchCustomers(value, 10);
+        if (latestPhoneQuery.current !== value) return; // a newer keystroke superseded this request
         setCustomers(response.data.data || []);
         setShowPhoneDropdown(true);
       } catch (error) {
         console.error('Error searching customers by phone:', error);
       }
-    } else {
-      setShowPhoneDropdown(false);
-    }
+    }, 250);
   };
 
   const selectCustomer = async (customer) => {

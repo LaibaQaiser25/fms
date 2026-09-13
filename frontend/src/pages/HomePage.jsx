@@ -9,9 +9,9 @@ import HeroSlideshow from '../components/HeroSlideshow';
 import ImageCarousel from '../components/ImageCarousel';
 
 const HERO_SLIDES = [
-  '/gallery/slate-look-pavers-driveway-grey.jpeg',
-  '/gallery/concrete-slabs-large-stack-yard-1.jpeg',
-  '/gallery/concrete-slabs-large-stack-yard-2.jpeg',
+  '/gallery/slate-look-pavers-driveway-grey.webp',
+  '/gallery/concrete-slabs-large-stack-yard-1.webp',
+  '/gallery/concrete-slabs-large-stack-yard-2.webp',
 ];
 
 const HERO_STATS = [
@@ -42,23 +42,23 @@ const STRENGTHS = [
 ];
 
 const CATEGORIES = [
-  { icon: LayoutGrid, title: 'Interlocking Pavers', desc: 'Driveways, walkways & courtyards in dozens of patterns.', image: '/gallery/clover-pavers-driveway-house.jpeg' },
-  { icon: Columns, title: 'Precast Beams & Structural', desc: 'Engineered beams and columns for heavy-duty builds.', image: '/gallery/precast-beam-ceiling-brick-columns.jpeg' },
-  { icon: Fence, title: 'Boundary Walls & Fencing', desc: 'Durable precast panels for secure, low-maintenance perimeters.', image: '/gallery/precast-boundary-wall-panels-2.jpeg' },
-  { icon: Droplets, title: 'Drainage & Infrastructure', desc: 'Precast pipes and culverts built for long service life.', image: '/gallery/concrete-drain-pipes-stacked-pyramid.jpeg' },
-  { icon: Layers, title: 'Balustrades & Railings', desc: 'Ornamental precast railings for verandas and boundaries.', image: '/gallery/white-balustrade-railing-with-post-cap.jpeg' },
-  { icon: ShieldCheck, title: 'Quality-Controlled Curing', desc: 'Every batch cured and inspected before it leaves our yard.', image: '/gallery/concrete-slab-molds-curing-yard-1.jpeg' },
+  { icon: LayoutGrid, title: 'Interlocking Pavers', desc: 'Driveways, walkways & courtyards in dozens of patterns.', image: '/gallery/clover-pavers-driveway-house.webp' },
+  { icon: Columns, title: 'Precast Beams & Structural', desc: 'Engineered beams and columns for heavy-duty builds.', image: '/gallery/precast-beam-ceiling-brick-columns.webp' },
+  { icon: Fence, title: 'Boundary Walls & Fencing', desc: 'Durable precast panels for secure, low-maintenance perimeters.', image: '/gallery/precast-boundary-wall-panels-2.webp' },
+  { icon: Droplets, title: 'Drainage & Infrastructure', desc: 'Precast pipes and culverts built for long service life.', image: '/gallery/concrete-drain-pipes-stacked-pyramid.webp' },
+  { icon: Layers, title: 'Balustrades & Railings', desc: 'Ornamental precast railings for verandas and boundaries.', image: '/gallery/white-balustrade-railing-with-post-cap.webp' },
+  { icon: ShieldCheck, title: 'Quality-Controlled Curing', desc: 'Every batch cured and inspected before it leaves our yard.', image: '/gallery/concrete-slab-molds-curing-yard-1.webp' },
 ];
 
 const FEATURED_PROJECTS = [
-  { src: '/gallery/hexagon-textured-pavers-closeup.jpeg', title: 'Hexagon Textured Pavers' },
-  { src: '/gallery/star-pattern-pavers.jpeg', title: 'Star Pattern Custom Design' },
-  { src: '/gallery/chevron-pavers-red-black-grey-closeup.jpeg', title: 'Chevron Pattern Pavers' },
-  { src: '/gallery/zigzag-pavers-courtyard-garden.jpeg', title: 'Courtyard Landscaping' },
-  { src: '/gallery/worker-laying-zigzag-pavers.jpeg', title: 'Precision On-Site Installation' },
-  { src: '/gallery/workers-laying-diamond-pavers-house.jpeg', title: 'Residential Diamond Pavers' },
-  { src: '/gallery/herringbone-pavers-with-bushes.jpeg', title: 'Herringbone Garden Walkways' },
-  { src: '/gallery/hexagon-wave-pavers-white-red-pathway.jpeg', title: 'Wave Pattern Pathways' },
+  { src: '/gallery/hexagon-textured-pavers-closeup.webp', title: 'Hexagon Textured Pavers' },
+  { src: '/gallery/star-pattern-pavers.webp', title: 'Star Pattern Custom Design' },
+  { src: '/gallery/chevron-pavers-red-black-grey-closeup.webp', title: 'Chevron Pattern Pavers' },
+  { src: '/gallery/zigzag-pavers-courtyard-garden.webp', title: 'Courtyard Landscaping' },
+  { src: '/gallery/worker-laying-zigzag-pavers.webp', title: 'Precision On-Site Installation' },
+  { src: '/gallery/workers-laying-diamond-pavers-house.webp', title: 'Residential Diamond Pavers' },
+  { src: '/gallery/herringbone-pavers-with-bushes.webp', title: 'Herringbone Garden Walkways' },
+  { src: '/gallery/hexagon-wave-pavers-white-red-pathway.webp', title: 'Wave Pattern Pathways' },
 ];
 
 const BANNER_STATS = [
@@ -270,7 +270,7 @@ export default function HomePage() {
 
           {/* Closing wide banner */}
           <div className="relative rounded-lg overflow-hidden h-56 md:h-64 mt-16">
-            <img src="/gallery/precast-beams-stacked-1.jpeg" alt="Bin-Zahid & Partners manufacturing yard"
+            <img src="/gallery/precast-beams-stacked-1.webp" alt="Bin-Zahid & Partners manufacturing yard"
               className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
             <div className="absolute inset-0 flex items-center" style={{
               background: 'linear-gradient(90deg, rgba(15,12,12,0.94) 0%, rgba(15,12,12,0.6) 55%, transparent 100%)',

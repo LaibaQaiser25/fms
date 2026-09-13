@@ -8,37 +8,37 @@ export default function ServicesPage() {
       icon: Home,
       title: 'Residential Precast',
       description: 'High-quality precast elements for residential buildings including stairs, columns, and beams.',
-      image: '/gallery/white-balustrade-railing-with-post-cap.jpeg',
+      image: '/gallery/white-balustrade-railing-with-post-cap.webp',
     },
     {
       icon: Building2,
       title: 'Commercial Solutions',
       description: 'Customized precast products designed for commercial and retail construction projects.',
-      image: '/gallery/slate-look-pavers-driveway-grey.jpeg',
+      image: '/gallery/slate-look-pavers-driveway-grey.webp',
     },
     {
       icon: Factory,
       title: 'Industrial Components',
       description: 'Heavy-duty precast units engineered for industrial applications and warehouses.',
-      image: '/gallery/precast-beam-ceiling-brick-columns.jpeg',
+      image: '/gallery/precast-beam-ceiling-brick-columns.webp',
     },
     {
       icon: Zap,
       title: 'Custom Design',
       description: 'Bespoke precast solutions tailored to your specific project requirements.',
-      image: '/gallery/star-pattern-pavers.jpeg',
+      image: '/gallery/star-pattern-pavers.webp',
     },
     {
       icon: Building2,
       title: 'Bridge Components',
       description: 'Specialized precast units for infrastructure and bridge construction projects.',
-      image: '/gallery/concrete-drain-pipes-stacked-pyramid.jpeg',
+      image: '/gallery/concrete-drain-pipes-stacked-pyramid.webp',
     },
     {
       icon: Home,
       title: 'Finishing Solutions',
       description: 'Aesthetic precast panels and finishes for modern architectural designs.',
-      image: '/gallery/hexagon-textured-pavers-closeup.jpeg',
+      image: '/gallery/hexagon-textured-pavers-closeup.webp',
     },
   ];
 
@@ -48,7 +48,7 @@ export default function ServicesPage() {
         eyebrow="What We Do"
         title="Our Services"
         subtitle="Comprehensive precast solutions for every project"
-        image="/gallery/precast-beam-ceiling-brick-columns.jpeg"
+        image="/gallery/precast-beam-ceiling-brick-columns.webp"
       />
 
       {/* Services Grid */}

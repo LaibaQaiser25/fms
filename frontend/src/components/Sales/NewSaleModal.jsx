@@ -441,7 +441,7 @@ function NewSaleModal({ onClose }) {
                                 </span>
                               </div>
                             ) : (
-                              <div className="text-xs text-red-600 mt-1">
+                              <div className="text-xs text-green-600 mt-1">
                                 ✓ Available Stock: <span className="font-bold">{item.availableQty} units</span>
                               </div>
                             )}

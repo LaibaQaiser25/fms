@@ -565,7 +565,7 @@ function NewPurchaseModal({ onClose }) {
                                 Not currently in inventory — this purchase will create it.
                               </div>
                             ) : (
-                              <div className="text-xs text-red-600 mt-1">
+                              <div className="text-xs text-green-600 mt-1">
                                 ✓ Currently Available: <span className="font-bold">{item.availableQty} units</span>
                               </div>
                             )}

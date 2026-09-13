@@ -5,14 +5,6 @@ import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import Layout from './components/Layout';
-// HomePage stays a static import — it's the landing page nearly every first
-// visit hits, so eagerly bundling it avoids paying a chunk round-trip on the
-// most common entry point. Everything else below is route-level code
-// splitting: business modules pull in heavy, page-specific libraries
-// (xlsx, jspdf, html2canvas-pro, react-to-print) that previously shipped to
-// every visitor regardless of which page they used.
-import HomePage from './pages/HomePage';
-
 const RoleDashboard = lazy(() => import('./components/RoleDashboard'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const StockManager = lazy(() => import('./components/StockManager'));
@@ -29,26 +21,39 @@ const Reports = lazy(() => import('./components/Reports/Reports.jsx'));
 const Privacy = lazy(() => import('./components/Privacy/Privacy.jsx'));
 
 // Public Pages
+const HomePage = lazy(() => import('./pages/HomePage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const SpecialitiesPage = lazy(() => import('./pages/SpecialitiesPage'));
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 
+const PageLoadingFallback = () => (
+  <div className="text-center py-8">
+    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
+    <p className="mt-2 text-gray-600">Loading...</p>
+  </div>
+);
+
+const lazyRoute = (Component, fallback = null) => (
+  <Suspense fallback={fallback}>
+    <Component />
+  </Suspense>
+);
+
 function App() {
   return (
     <ThemeProvider>
     <AuthProvider>
     <BrowserRouter>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-sm text-gray-500">Loading…</div>}>
       <Routes>
         {/* Public Routes - Accessible to everyone */}
-        <Route path="/" element={<HomePage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/services" element={<ServicesPage />} />
-        <Route path="/specialities" element={<SpecialitiesPage />} />
-        <Route path="/feedback" element={<FeedbackPage />} />
-        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/" element={lazyRoute(HomePage)} />
+        <Route path="/about" element={lazyRoute(AboutPage)} />
+        <Route path="/services" element={lazyRoute(ServicesPage)} />
+        <Route path="/specialities" element={lazyRoute(SpecialitiesPage)} />
+        <Route path="/feedback" element={lazyRoute(FeedbackPage)} />
+        <Route path="/contact" element={lazyRoute(ContactPage)} />
 
         {/* Protected Routes - Require authentication. Guest now has the same
             page access as Manager (Layout's click-blocker makes every action
@@ -56,27 +61,26 @@ function App() {
             only the innermost Owner-only group stays off-limits to both. */}
         <Route element={<ProtectedRoute allowedRoles={['owner', 'manager', 'guest']} />}>
           <Route element={<Layout />}>
-            <Route path="/dashboard" element={<RoleDashboard />} />
-            <Route path="/stock" element={<StockManager />} />
-            <Route path="/products" element={<ProductsManager />} />
-            <Route path="/ledger" element={<CustomerLedger />} />
-            <Route path="/purchase-ledger" element={<PurchaseLedger />} />
-            <Route path="/raw-materials" element={<RawMaterialsList />} />
-            <Route path="/production" element={<ProductionList />} />
-            <Route path="/expenses" element={<ExpenseList />} />
-            <Route path="/assets" element={<AssetList />} />
-            <Route path="/employees" element={<EmployeeList />} />
+            <Route path="/dashboard" element={lazyRoute(RoleDashboard, <PageLoadingFallback />)} />
+            <Route path="/stock" element={lazyRoute(StockManager, <PageLoadingFallback />)} />
+            <Route path="/products" element={lazyRoute(ProductsManager, <PageLoadingFallback />)} />
+            <Route path="/ledger" element={lazyRoute(CustomerLedger, <PageLoadingFallback />)} />
+            <Route path="/purchase-ledger" element={lazyRoute(PurchaseLedger, <PageLoadingFallback />)} />
+            <Route path="/raw-materials" element={lazyRoute(RawMaterialsList, <PageLoadingFallback />)} />
+            <Route path="/production" element={lazyRoute(ProductionList, <PageLoadingFallback />)} />
+            <Route path="/expenses" element={lazyRoute(ExpenseList, <PageLoadingFallback />)} />
+            <Route path="/assets" element={lazyRoute(AssetList, <PageLoadingFallback />)} />
+            <Route path="/employees" element={lazyRoute(EmployeeList, <PageLoadingFallback />)} />
             {/* Owner-only — Analytics, Cashbook, Reports, and Privacy (user management) are off-limits to Manager and Guest */}
             <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/cashbook" element={<Cashbook />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/analytics" element={lazyRoute(Analytics, <PageLoadingFallback />)} />
+              <Route path="/cashbook" element={lazyRoute(Cashbook, <PageLoadingFallback />)} />
+              <Route path="/reports" element={lazyRoute(Reports, <PageLoadingFallback />)} />
+              <Route path="/privacy" element={lazyRoute(Privacy, <PageLoadingFallback />)} />
             </Route>
           </Route>
         </Route>
       </Routes>
-      </Suspense>
     </BrowserRouter>
     </AuthProvider>
     </ThemeProvider>

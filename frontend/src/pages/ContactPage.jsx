@@ -30,7 +30,7 @@ export default function ContactPage() {
         eyebrow="Let's Talk"
         title="Contact Us"
         subtitle="Get in touch with our team"
-        image="/gallery/precast-boundary-wall-panels-2.jpeg"
+        image="/gallery/precast-boundary-wall-panels-2.webp"
       />
 
       {/* Contact Section */}

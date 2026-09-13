@@ -5,25 +5,25 @@ import { Lightbulb, Shield, Leaf, Sliders } from 'lucide-react';
 export default function SpecialitiesPage() {
   const specialities = [
     {
-      image: '/gallery/star-pattern-pavers.jpeg',
+      image: '/gallery/star-pattern-pavers.webp',
       title: 'Innovation',
       description: 'We invest heavily in research and development to create innovative precast solutions that meet evolving market demands.',
       items: ['3D CAD Design', 'Advanced Manufacturing', 'Material Innovation'],
     },
     {
-      image: '/gallery/concrete-slab-molds-curing-yard-1.jpeg',
+      image: '/gallery/concrete-slab-molds-curing-yard-1.webp',
       title: 'Quality Assurance',
       description: 'Rigorous testing and inspection at every stage ensures products meet or exceed international standards.',
       items: ['ISO 9001 Certified', 'Regular Audits', 'Lab Testing'],
     },
     {
-      image: '/gallery/herringbone-pavers-with-bushes.jpeg',
+      image: '/gallery/herringbone-pavers-with-bushes.webp',
       title: 'Sustainability',
       description: 'Eco-friendly manufacturing practices and sustainable material sourcing are core to our operations.',
       items: ['Green Manufacturing', 'Waste Reduction', 'Recycled Materials'],
     },
     {
-      image: '/gallery/hexagon-wave-pavers-white-red-pathway.jpeg',
+      image: '/gallery/hexagon-wave-pavers-white-red-pathway.webp',
       title: 'Customization',
       description: 'Flexible manufacturing capabilities allow us to create custom precast solutions for unique project needs.',
       items: ['Custom Designs', 'Variable Dimensions', 'Special Finishes'],
@@ -36,7 +36,7 @@ export default function SpecialitiesPage() {
         eyebrow="What Sets Us Apart"
         title="Our Specialities"
         subtitle="The craft and standards behind every precast product we ship"
-        image="/gallery/pavers-pattern-samples-yard-overview.jpeg"
+        image="/gallery/pavers-pattern-samples-yard-overview.webp"
       />
 
       {/* Specialities Cards */}
@@ -54,6 +54,7 @@ export default function SpecialitiesPage() {
                         src={spec.image}
                         alt={spec.title}
                         className="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
                       />
                     </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import * as customersApi from '../../api/customersApi';
 import * as stockApi from '../../api/stockApi';
@@ -26,6 +26,10 @@ function NewSaleModal({ onClose }) {
   const [suggestions, setSuggestions] = useState({});
   const [stockList, setStockList] = useState([]);
   const [itemsError, setItemsError] = useState('');
+  // Debounce per row so a search fires 250ms after typing stops, not on every
+  // keystroke, and a slow/stale response can't overwrite a newer one.
+  const searchTimers = useRef({});
+  const latestQuery = useRef({});
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
@@ -116,24 +120,32 @@ function NewSaleModal({ onClose }) {
 
   // Item handling — suggestions come from the products catalog (Stock-type only) so
   // any defined product is selectable, whether or not it has stock on hand yet.
-  const handleDescriptionChange = async (index, value) => {
+  const handleDescriptionChange = (index, value) => {
     const newItems = [...items];
     newItems[index].description = capitalizeFirstLetter(value);
     setItems(newItems);
 
-    if (value.length > 0) {
+    latestQuery.current[index] = value;
+    clearTimeout(searchTimers.current[index]);
+
+    if (value.length === 0) {
+      setSuggestions({ ...suggestions, [index]: [] });
+      return;
+    }
+
+    searchTimers.current[index] = setTimeout(async () => {
       try {
         const response = await productsApi.searchProducts(value, 'stock');
-        setSuggestions({
-          ...suggestions,
+        if (latestQuery.current[index] !== value) return; // a newer keystroke superseded this request
+
+        setSuggestions((prev) => ({
+          ...prev,
           [index]: response.data || []
-        });
+        }));
       } catch (error) {
         console.error('Error searching products:', error);
       }
-    } else {
-      setSuggestions({ ...suggestions, [index]: [] });
-    }
+    }, 250);
   };
 
   const selectSuggestion = (index, product) => {
@@ -441,7 +453,7 @@ function NewSaleModal({ onClose }) {
                                 </span>
                               </div>
                             ) : (
-                              <div className="text-xs text-red-600 mt-1">
+                              <div className="text-xs text-green-600 mt-1">
                                 ✓ Available Stock: <span className="font-bold">{item.availableQty} units</span>
                               </div>
                             )}

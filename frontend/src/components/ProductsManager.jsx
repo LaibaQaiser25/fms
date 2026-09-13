@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, ArrowLeft, Package, Layers } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import * as productsApi from '../api/productsApi';
 import { capitalizeFirstLetter } from '../utils/text';
 import { ACCENT_GRADIENT_STYLE } from '../theme';
@@ -316,7 +315,8 @@ export default function ProductsManager() {
     setExcelRows([{ ...emptyExcelRow }]);
   };
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const XLSX = await import('xlsx');
     const sheet = XLSX.utils.aoa_to_sheet([
       TEMPLATE_HEADERS,
       ['stock', 'Cement Block', 'Blocks', '4x8', '100', 'High quality block'],
@@ -341,6 +341,7 @@ export default function ProductsManager() {
     if (!file) return;
 
     try {
+      const XLSX = await import('xlsx');
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: 'array' });
       const sheet = wb.Sheets['Products'] || wb.Sheets[wb.SheetNames[0]];

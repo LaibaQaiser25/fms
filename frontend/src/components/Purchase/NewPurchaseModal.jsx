@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { X } from 'lucide-react';
 import * as sellersApi from '../../api/sellersApi';
 import * as stockApi from '../../api/stockApi';
@@ -36,6 +36,10 @@ function NewPurchaseModal({ onClose }) {
   const [suggestions, setSuggestions] = useState({});
   const [stockList, setStockList] = useState([]);
   const [rawMaterialsList, setRawMaterialsList] = useState([]);
+  // Debounce per row so a search fires 250ms after typing stops, not on every
+  // keystroke, and a slow/stale response can't overwrite a newer one.
+  const searchTimers = useRef({});
+  const latestQuery = useRef({});
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
@@ -165,7 +169,7 @@ function NewPurchaseModal({ onClose }) {
   // Item handling — suggestions come from the products catalog, filtered by the
   // chosen Type (and further by Category/Unit if one is picked), so any defined
   // product is selectable whether or not it has inventory on hand yet.
-  const handleDescriptionChange = async (index, value) => {
+  const handleDescriptionChange = (index, value) => {
     const newItems = [...items];
     newItems[index].description = capitalizeFirstLetter(value);
     newItems[index].product_id = null;
@@ -173,10 +177,20 @@ function NewPurchaseModal({ onClose }) {
     newItems[index].raw_material_id = null;
     setItems(newItems);
 
-    if (value.length > 0) {
+    latestQuery.current[index] = value;
+    clearTimeout(searchTimers.current[index]);
+
+    if (value.length === 0) {
+      setSuggestions({ ...suggestions, [index]: [] });
+      return;
+    }
+
+    searchTimers.current[index] = setTimeout(async () => {
       try {
         const productType = category === 'raw-material' ? 'raw_material' : 'stock';
         const response = await productsApi.searchProducts(value, productType);
+        if (latestQuery.current[index] !== value) return; // a newer keystroke superseded this request
+
         let results = response.data || [];
 
         if (category === 'stock-ready' && selectedCategoryId) {
@@ -185,13 +199,11 @@ function NewPurchaseModal({ onClose }) {
           results = results.filter((p) => p.unit === selectedUnitName);
         }
 
-        setSuggestions({ ...suggestions, [index]: results });
+        setSuggestions((prev) => ({ ...prev, [index]: results }));
       } catch (error) {
         console.error('Error searching products:', error);
       }
-    } else {
-      setSuggestions({ ...suggestions, [index]: [] });
-    }
+    }, 250);
   };
 
   const selectSuggestion = (index, product) => {
@@ -565,7 +577,7 @@ function NewPurchaseModal({ onClose }) {
                                 Not currently in inventory — this purchase will create it.
                               </div>
                             ) : (
-                              <div className="text-xs text-red-600 mt-1">
+                              <div className="text-xs text-green-600 mt-1">
                                 ✓ Currently Available: <span className="font-bold">{item.availableQty} units</span>
                               </div>
                             )}

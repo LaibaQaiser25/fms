@@ -10,6 +10,7 @@ export default function PageHero({ eyebrow, title, subtitle, image }) {
             src={image}
             alt=""
             className="absolute inset-0 w-full h-full object-cover opacity-30"
+            fetchPriority="high"
           />
           <div
             className="absolute inset-0"

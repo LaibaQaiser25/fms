@@ -28,6 +28,7 @@ export default function ImageCarousel({ slides, interval = 5000 }) {
             alt={s.title}
             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
             style={{ opacity: i === index ? 1 : 0 }}
+            loading="lazy"
           />
         ))}
 
@@ -89,7 +90,7 @@ export default function ImageCarousel({ slides, interval = 5000 }) {
               opacity: i === index ? 1 : 0.55,
             }}
           >
-            <img src={s.src} alt={s.title} className="w-full h-full object-cover" />
+            <img src={s.src} alt={s.title} className="w-full h-full object-cover" loading="lazy" />
           </button>
         ))}
       </div>

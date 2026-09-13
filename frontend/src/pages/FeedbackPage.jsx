@@ -26,7 +26,7 @@ export default function FeedbackPage() {
         eyebrow="Tell Us What You Think"
         title="Customer Feedback"
         subtitle="We value your experience and suggestions"
-        image="/gallery/clover-pavers-driveway-house.jpeg"
+        image="/gallery/clover-pavers-driveway-house.webp"
       />
 
       {/* Feedback Form */}

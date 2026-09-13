@@ -16,7 +16,7 @@ export default function AboutPage() {
         eyebrow="Since 2005"
         title="About Bin-Zahid & Partners"
         subtitle="Building Dreams with Precision"
-        image="/gallery/concrete-slab-molds-curing-yard-1.jpeg"
+        image="/gallery/concrete-slab-molds-curing-yard-1.webp"
       />
 
       {/* Company Description */}
@@ -37,9 +37,10 @@ export default function AboutPage() {
             </div>
             <div className="rounded-lg h-80 overflow-hidden shadow-lg">
               <img
-                src="/gallery/workers-laying-diamond-pavers-house.jpeg"
+                src="/gallery/workers-laying-diamond-pavers-house.webp"
                 alt="Our team laying precast pavers on-site"
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
             </div>
           </div>
@@ -71,12 +72,12 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-center mb-12">Inside Our Facility</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { src: '/gallery/pavers-pattern-samples-yard-overview.jpeg', label: 'Curing Yard' },
-              { src: '/gallery/precast-beam-ceiling-brick-columns.jpeg', label: 'Precast Beam Production' },
-              { src: '/gallery/concrete-drain-pipes-stacked-pyramid.jpeg', label: 'Drainage Pipe Manufacturing' },
+              { src: '/gallery/pavers-pattern-samples-yard-overview.webp', label: 'Curing Yard' },
+              { src: '/gallery/precast-beam-ceiling-brick-columns.webp', label: 'Precast Beam Production' },
+              { src: '/gallery/concrete-drain-pipes-stacked-pyramid.webp', label: 'Drainage Pipe Manufacturing' },
             ].map((item) => (
               <div key={item.src} className="rounded-lg overflow-hidden h-56 shadow group relative">
-                <img src={item.src} alt={item.label} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" />
+                <img src={item.src} alt={item.label} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
                 <div className="absolute inset-0 flex items-end p-4" style={{ background: 'linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.65) 100%)' }}>
                   <p className="text-white text-sm font-semibold">{item.label}</p>
                 </div>

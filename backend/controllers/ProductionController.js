@@ -28,6 +28,8 @@ class ProductionController {
         data: result.rows[0]
       });
 
+      broadcast('production:updated', { id: result.rows[0].id, status: 'pending' });
+
     } catch (error) {
       console.error('❌ Error adding to production queue:', error);
       res.status(500).json({ error: error.message });
@@ -250,6 +252,12 @@ class ProductionController {
         message: 'Production status updated',
         data: result.rows[0]
       });
+
+      // This is the one push that's actually about coordinating two
+      // different people/locations (office creates the sale, the floor
+      // fulfills it) rather than just refreshing a screen — unconditional,
+      // independent of whether this status change also touched stock.
+      broadcast('production:updated', { id: Number(id), status });
 
       if (stockUpdate) {
         broadcast('stock:updated', stockUpdate);

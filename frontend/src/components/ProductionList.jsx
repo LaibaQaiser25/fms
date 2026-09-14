@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import * as productionApi from '../api/productionApi';
+import { useSocket } from '../context/SocketContext';
 
 function ProductionList() {
   const [queue, setQueue] = useState([]);
@@ -12,6 +13,18 @@ function ProductionList() {
   const [limit] = useState(10);
   useEffect(() => {
     fetchData();
+  }, [filter, page]);
+
+  // This is the one page in the app that's genuinely about coordinating two
+  // different people in two different places — the office queues work here,
+  // the factory floor (on its own device) moves it through pending ->
+  // in_progress -> completed. Without this, either side only sees the
+  // other's change on their next manual refresh.
+  const { subscribe } = useSocket();
+  useEffect(() => {
+    const unsubscribe = subscribe('production:updated', fetchData);
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, page]);
 
   const fetchData = async () => {

@@ -14,6 +14,14 @@ const { URL } = require('url');
 const clients = new Set();
 let wss = null;
 
+// Observed live: Cloudflare (or something in the tunnel path) closes an idle
+// WebSocket after ~2.1 minutes with no traffic. Sending a ping well under
+// that window keeps the connection counted as active — the ping/pong frames
+// themselves are what reset whatever idle timer is closing it, regardless of
+// whether any application event has actually fired. Browsers answer WS ping
+// frames automatically at the protocol level, so no frontend change is needed.
+const HEARTBEAT_INTERVAL_MS = 30000;
+
 function initWebSocketServer(httpServer) {
   wss = new WebSocketServer({ noServer: true });
 
@@ -44,14 +52,31 @@ function initWebSocketServer(httpServer) {
 
   wss.on('connection', (ws) => {
     clients.add(ws);
+    ws.isAlive = true;
     console.log(`🔌 WS client connected (${clients.size} total)`);
 
+    ws.on('pong', () => { ws.isAlive = true; });
     ws.on('close', () => {
       clients.delete(ws);
       console.log(`🔌 WS client disconnected (${clients.size} total)`);
     });
     ws.on('error', () => clients.delete(ws));
   });
+
+  // A client that doesn't answer one ping cycle is presumed dead (e.g. a
+  // laptop lid closed without a clean close frame) and gets dropped instead
+  // of lingering in `clients` forever.
+  setInterval(() => {
+    for (const ws of clients) {
+      if (ws.isAlive === false) {
+        ws.terminate();
+        clients.delete(ws);
+        continue;
+      }
+      ws.isAlive = false;
+      ws.ping();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
 
   console.log('✅ WebSocket server attached at /ws');
 }

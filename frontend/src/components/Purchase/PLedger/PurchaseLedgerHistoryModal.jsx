@@ -141,7 +141,7 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-3 gap-4 p-6 bg-gray-50 border-b border-gray-200">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 sm:p-6 bg-gray-50 border-b border-gray-200">
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <p className="text-xs text-gray-600 font-semibold">Total Debit</p>
             <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary?.total_debit)}</p>

@@ -162,7 +162,7 @@ export default function CreateReportModal({ isOpen, onClose, onCreated }) {
 
         {periodType === 'custom' && (
           <div className="flex flex-col gap-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => { setStartDate(daysAgo(1)); setEndDate(daysAgo(1)); }}

@@ -112,13 +112,13 @@ function PurchaseLedger() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-8 py-6">
-        <h1 className="text-3xl font-bold text-gray-800">Purchase Ledger</h1>
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-8 py-4 sm:py-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Purchase Ledger</h1>
         <p className="text-gray-600 mt-2">Track all seller transactions, payments, and outstanding payables</p>
       </div>
 
       {/* Content */}
-      <div className="px-8 py-6">
+      <div className="px-4 sm:px-8 py-6">
         <div className="mb-4 flex flex-col sm:flex-row gap-3">
           <div className="relative max-w-sm w-full">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -211,7 +211,7 @@ function PurchaseLedger() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="px-4 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <p className="text-sm text-gray-600">
                   Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} sellers
                 </p>

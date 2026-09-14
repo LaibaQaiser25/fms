@@ -207,7 +207,7 @@ function Cashbook() {
         <h1 className="text-3xl font-bold text-gray-800">Cashbook</h1>
       </div> */}
 
-      <div className="px-8 py-6">
+      <div className="px-4 sm:px-8 py-6">
         {/* Summary cards — these always reflect the active filters across the
             whole result set, never just the page on screen */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -255,7 +255,7 @@ function Cashbook() {
             value={balances?.receivable}
             parties={balances?.customersOwing}
             partyNoun="customer"
-            background="bg-[var(--color-sale)]"
+            background="bg-[var(--color-receivable-bg)]"
           />
           <BalanceCard
             icon={<Landmark size={24} className="text-white/90" />}
@@ -264,7 +264,7 @@ function Cashbook() {
             value={balances?.payable}
             parties={balances?.sellersOwed}
             partyNoun="seller"
-            background="bg-[var(--color-purchase)]"
+            background="bg-[var(--color-payable-bg)]"
           />
         </div>
 

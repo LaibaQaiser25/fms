@@ -206,13 +206,13 @@ function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
 
         {/* Invoice Content — hidden while the invoice list is open, so the list is all that shows */}
         {!showInvoiceList && (
-        <div ref={invoiceContentRef} className="p-8 print:p-0">
+        <div ref={invoiceContentRef} className="p-4 sm:p-8 print:p-0">
           {/* Company Header */}
-          <div className="flex items-start justify-between mb-8 pb-8 border-b-2 border-gray-900">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8 pb-8 border-b-2 border-gray-900">
             <div>
               <h1 className="text-4xl font-bold text-gray-900">PURCHASE INVOICE</h1>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="font-bold text-gray-900">Bin-Zahid & Partners</p>
               <p className="text-sm text-gray-700">Sugar Mill Road, Near Kuthiala Sayedan, Mandi Bahauddin</p>
               <p className="text-sm text-gray-700">Tel: +92 345 7579505</p>
@@ -220,21 +220,21 @@ function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
           </div>
 
           {/* Invoice Details */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-8">
             <div>
               <p className="text-sm font-semibold text-gray-700">Invoice No: <span className="font-bold text-gray-900">{invoice.invoice_no}</span></p>
               <p className="text-sm font-semibold text-gray-700">Seller: <span className="font-bold text-gray-900">{invoice.seller_name}</span></p>
               <p className="text-sm font-semibold text-gray-700">Address: <span className="font-bold text-gray-900">{invoice.address || 'N/A'}</span></p>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-sm font-semibold text-gray-700">Date: <span className="font-bold text-gray-900">{new Date(invoice.created_at).toLocaleDateString()}</span></p>
               <p className="text-sm font-semibold text-gray-700">Phone no. <span className="font-bold text-gray-900">{invoice.phone || 'N/A'}</span></p>
             </div>
           </div>
 
           {/* Items Table */}
-          <div className="mb-8">
-            <table className="w-full border-collapse">
+          <div className="mb-8 overflow-x-auto">
+            <table className="w-full border-collapse min-w-[500px]">
               <thead>
                 <tr className="border-b-2 border-t-2 border-gray-900">
                   <th className="text-left py-3 px-4 font-semibold text-gray-900">Item</th>
@@ -259,8 +259,8 @@ function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
           </div>
 
           {/* Totals */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div></div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+            <div className="hidden sm:block"></div>
             <div className="text-right">
               <p className="py-1 font-semibold text-gray-900">Total</p>
               <div className="border-t-2 border-gray-900 pt-1 mt-1">
@@ -286,7 +286,7 @@ function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
           {/* Account Balance */}
           <div className="bg-gray-50 p-4 rounded border border-gray-300 mb-8">
             <h3 className="font-semibold text-gray-900 mb-3">Account Balance</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-gray-700">Total Invoiced</p>
                 <p className="text-xl font-bold text-gray-900">{formatCurrency(invoice.total_amount)}</p>

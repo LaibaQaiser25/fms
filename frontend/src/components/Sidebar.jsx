@@ -14,6 +14,7 @@ import {
   Lock,
   ChevronDown,
   ChevronLeft,
+  X,
 } from 'lucide-react';
 
 const LEDGER_PATHS = ['/ledger', '/purchase-ledger'];
@@ -23,11 +24,16 @@ const INVENTORY_PATHS = ['/products', '/stock', '/raw-materials', '/production',
 // is still recognized as "inside" the group without needing this list updated.
 const pathIsInGroup = (pathname, groupPaths) => groupPaths.some((p) => pathname.startsWith(p));
 
-export default function Sidebar({ collapsed = false, onToggleCollapse }) {
+export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpen = false, onCloseMobile }) {
   const location = useLocation();
   const { user } = useAuth();
   const role = user?.role?.toLowerCase();
   const isOwner = role === 'owner';
+
+  // On the mobile off-canvas drawer, always show full labels regardless of
+  // the persisted desktop collapsed/expanded rail preference — an icon-only
+  // rail makes no sense once the sidebar is a full-width overlay.
+  const effectiveCollapsed = collapsed && !mobileOpen;
 
   const ledgerActive = pathIsInGroup(location.pathname, LEDGER_PATHS);
   const inventoryActive = pathIsInGroup(location.pathname, INVENTORY_PATHS);
@@ -123,7 +129,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
   const navStyle = ({ isActive }) => (isActive ? ACTIVE_STYLE : undefined);
 
   const link = ({ isActive }) =>
-    `flex items-center rounded-2xl text-[14.5px] font-medium transition-all duration-200 ease-out ${collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
+    `flex items-center rounded-2xl text-[14.5px] font-medium transition-all duration-200 ease-out ${effectiveCollapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
     } ${isActive
       ? 'font-bold'
       : 'text-white/60 hover:text-[var(--color-text-accent)] hover:bg-white/[0.05]'
@@ -136,21 +142,28 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
     }`;
 
   const groupToggle = (isActiveGroup) =>
-    `w-full flex items-center rounded-2xl text-[14.5px] font-medium transition-all duration-200 ease-out ${collapsed ? 'justify-center p-3' : 'justify-between gap-3 px-4 py-3'
+    `w-full flex items-center rounded-2xl text-[14.5px] font-medium transition-all duration-200 ease-out ${effectiveCollapsed ? 'justify-center p-3' : 'justify-between gap-3 px-4 py-3'
     } ${isActiveGroup
       ? 'text-[var(--color-text-accent)] bg-white/[0.06]'
       : 'text-white/60 hover:text-[var(--color-text-accent)] hover:bg-white/[0.05]'
     }`;
 
-  // Expanded: drops below the button at full width. Collapsed: flies out beside the rail.
-  const popoverPosition = collapsed
+  // Collapsed: flies out beside the rail as an absolutely-positioned overlay
+  // (there's no room to push content down in the narrow icon-only rail).
+  // Expanded (desktop rail or mobile drawer): stays in normal document flow
+  // instead of overlaying — an absolute overlay here would render on top of
+  // the next nav item (e.g. "Inventory" sitting right below "Ledger") and
+  // make it unclickable for as long as the submenu stayed open. Being part
+  // of the flow instead means opening a group pushes the items below it
+  // down, which the nav's own overflow-y-auto already scrolls to reach.
+  const popoverPosition = effectiveCollapsed
     ? 'absolute left-full top-0 pl-2 w-max min-w-[240px] z-50'
-    : 'absolute left-0 top-full w-full pt-2 z-50';
+    : 'w-full pt-2';
 
   // Custom tooltip — only shown in collapsed mode (labels are already visible when
   // expanded) and only via CSS (`group`/`group-hover`), no extra hover state needed.
   const Tooltip = ({ label }) =>
-    collapsed ? (
+    effectiveCollapsed ? (
       <span
         className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 rounded-lg text-xs font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-40"
         style={PANEL_STYLE}
@@ -160,32 +173,56 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
     ) : null;
 
   const sectionLabel = (text) =>
-    !collapsed && (
+    !effectiveCollapsed && (
       <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-white/30">
         {text}
       </p>
     );
 
   return (
-    <aside
-      className={`fixed top-[76px] left-0 h-[calc(100vh-76px)] flex flex-col z-30 transition-[width] duration-300 ease-in-out ${collapsed ? 'w-20' : 'w-56'}`}
-      style={{
-        background: 'var(--nav-bg)',
-        borderRight: 'var(--nav-border-width) solid var(--nav-border-color)',
-        boxShadow: 'var(--nav-shadow)',
-        backdropFilter: 'var(--nav-blur)',
-      }}
-    >
+    <>
+      {/* Backdrop — mobile only, dims the page below the header while the
+          off-canvas drawer is open; tapping it closes the drawer. */}
+      {mobileOpen && (
+        <div
+          className="fixed top-[76px] left-0 right-0 bottom-0 z-30 bg-black/50 md:hidden"
+          onClick={onCloseMobile}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`fixed top-[76px] left-0 h-[calc(100vh-76px)] flex flex-col z-40 w-64 transition-transform duration-300 ease-in-out md:transition-[width] md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          } ${collapsed ? 'md:w-20' : 'md:w-56'}`}
+        style={{
+          background: 'var(--nav-bg)',
+          borderRight: 'var(--nav-border-width) solid var(--nav-border-color)',
+          boxShadow: 'var(--nav-shadow)',
+          backdropFilter: 'var(--nav-blur)',
+        }}
+      >
+        {/* Mobile-only close button — the desktop collapse toggle at the
+            bottom of the rail is hidden on mobile since the drawer has no
+            "collapsed" state of its own. */}
+        <div className="flex justify-end px-3 pt-3 md:hidden">
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label="Close menu"
+            className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/[0.08] transition-colors"
+          >
+            <X size={20} strokeWidth={2} />
+          </button>
+        </div>
 
       <nav
-        className={`flex-1 px-3 py-4 flex flex-col gap-1.5 ${collapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden'
+        className={`flex-1 px-3 py-4 flex flex-col gap-1.5 ${effectiveCollapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden scrollbar-hide'
           }`}
       >
 
         <div className="relative group">
           <NavLink to="/dashboard" end className={link} style={navStyle}>
             <LayoutDashboard size={19} strokeWidth={2} className="shrink-0" />
-            {!collapsed && 'Dashboard'}
+            {!effectiveCollapsed && 'Dashboard'}
           </NavLink>
           <Tooltip label="Dashboard" />
         </div>
@@ -203,9 +240,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           >
             <span className="flex items-center gap-3">
               <BookText size={19} strokeWidth={2} className="shrink-0" />
-              {!collapsed && 'Ledger'}
+              {!effectiveCollapsed && 'Ledger'}
             </span>
-            {!collapsed && (
+            {!effectiveCollapsed && (
               <ChevronDown
                 size={15}
                 strokeWidth={2.3}
@@ -249,9 +286,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           >
             <span className="flex items-center gap-3">
               <Boxes size={19} strokeWidth={2} className="shrink-0" />
-              {!collapsed && 'Inventory'}
+              {!effectiveCollapsed && 'Inventory'}
             </span>
-            {!collapsed && (
+            {!effectiveCollapsed && (
               <ChevronDown
                 size={15}
                 strokeWidth={2.3}
@@ -299,7 +336,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           <div className="relative group">
             <NavLink to="/cashbook" className={link} style={navStyle}>
               <Wallet size={19} strokeWidth={2} className="shrink-0" />
-              {!collapsed && 'Cashbook'}
+              {!effectiveCollapsed && 'Cashbook'}
             </NavLink>
             <Tooltip label="Cashbook" />
           </div>
@@ -308,7 +345,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           <div className="relative group">
             <NavLink to="/reports" className={link} style={navStyle}>
               <FileBarChart2 size={19} strokeWidth={2} className="shrink-0" />
-              {!collapsed && 'Reports'}
+              {!effectiveCollapsed && 'Reports'}
             </NavLink>
             <Tooltip label="Reports" />
           </div>
@@ -317,7 +354,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           <div className="relative group">
             <NavLink to="/analytics" className={link} style={navStyle}>
               <LineChart size={19} strokeWidth={2} className="shrink-0" />
-              {!collapsed && 'Analytics'}
+              {!effectiveCollapsed && 'Analytics'}
             </NavLink>
             <Tooltip label="Analytics" />
           </div>
@@ -325,7 +362,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
         <div className="relative group">
           <NavLink to="/expenses" className={link} style={navStyle}>
             <Receipt size={19} strokeWidth={2} className="shrink-0" />
-            {!collapsed && 'Expenses'}
+            {!effectiveCollapsed && 'Expenses'}
           </NavLink>
           <Tooltip label="Expenses" />
         </div>
@@ -335,7 +372,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
         <div className="relative group">
           <NavLink to="/employees" className={link} style={navStyle}>
             <Users size={19} strokeWidth={2} className="shrink-0" />
-            {!collapsed && 'Employees'}
+            {!effectiveCollapsed && 'Employees'}
           </NavLink>
           <Tooltip label="Employees" />
         </div>
@@ -343,15 +380,17 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           <div className="relative group">
             <NavLink to="/privacy" className={link} style={navStyle}>
               <Lock size={19} strokeWidth={2} className="shrink-0" />
-              {!collapsed && 'Privacy'}
+              {!effectiveCollapsed && 'Privacy'}
             </NavLink>
             <Tooltip label="Privacy" />
           </div>
         )}
       </nav>
 
-      {/* Collapse toggle */}
-      <div className="px-3 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+      {/* Collapse toggle — desktop rail only; the mobile drawer has no
+          separate collapsed state (see effectiveCollapsed above) and closes
+          via the X button or backdrop instead. */}
+      <div className="hidden md:block px-3 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
         <button
           type="button"
           onClick={onToggleCollapse}
@@ -368,6 +407,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }) {
           {!collapsed && 'Collapse'}
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

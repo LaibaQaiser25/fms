@@ -5,6 +5,7 @@ import * as stockApi from '../api/stockApi';
 import * as expenseApi from '../api/expenseApi';
 import * as ledgerApi from '../api/ledgerApi';
 import * as customersApi from '../api/customersApi';
+import { useSocket } from '../context/SocketContext';
 
 function Analytics() {
   const [analytics, setAnalytics] = useState({
@@ -19,9 +20,24 @@ function Analytics() {
 
   useEffect(() => {
     fetchAnalyticsData();
-    const interval = setInterval(fetchAnalyticsData, 60000); // Refresh every minute
+    // A 5-minute fallback, not the primary refresh mechanism — a dropped
+    // socket (or an update type not yet wired to broadcast, e.g. expenses/
+    // payments) just means this dashboard is stale for up to 5 minutes
+    // instead of up to 60 seconds, which is an acceptable trade for
+    // eliminating the round trip on every single minute the tab is open.
+    const interval = setInterval(fetchAnalyticsData, 300000);
     return () => clearInterval(interval);
   }, [period]);
+
+  // Instant refresh on the mutations that actually move these numbers,
+  // instead of waiting on the fallback interval above.
+  const { subscribe } = useSocket();
+  useEffect(() => {
+    const unsubscribers = ['stock:updated', 'stock:created', 'stock:deleted', 'sale:created', 'purchase:created']
+      .map((event) => subscribe(event, fetchAnalyticsData));
+    return () => unsubscribers.forEach((unsub) => unsub());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ensureArray = (data) => {
     if (Array.isArray(data)) return data;

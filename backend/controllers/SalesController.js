@@ -1,6 +1,7 @@
 const pool = require('../db/pool');
 const crypto = require('crypto');
 const { sendWhatsApp } = require('../services/whatsappService');
+const { broadcast } = require('../services/wsServer');
 
 class SalesController {
   /**
@@ -76,6 +77,10 @@ class SalesController {
       );
 
       const saleId = saleResult.rows[0].id;
+      // Collected here, broadcast only after COMMIT succeeds below — a
+      // rolled-back transaction must never push a stock change that didn't
+      // actually happen.
+      const stockUpdates = [];
 
       // 3. Create sale items
       for (const item of items) {
@@ -88,10 +93,13 @@ class SalesController {
 
         // Reduce stock only for this specific item if it's actually fulfilled from stock
         if (item.stock_id && !item._needsProduction) {
-          await client.query(
-            'UPDATE stock SET quantity = quantity - $1 WHERE id = $2',
+          const stockUpdateResult = await client.query(
+            'UPDATE stock SET quantity = quantity - $1 WHERE id = $2 RETURNING *',
             [item.quantity, item.stock_id]
           );
+          if (stockUpdateResult.rows.length > 0) {
+            stockUpdates.push(stockUpdateResult.rows[0]);
+          }
         }
 
         // Link the production queue entry (created client-side before the sale
@@ -145,6 +153,17 @@ class SalesController {
           invoiceNo: invoiceNo
         }
       });
+
+      // Push each stock change to any connected client (e.g. another
+      // session's sale form open at the same time) — cheap in-process sends,
+      // no reason to defer these to the post-response block below.
+      for (const update of stockUpdates) {
+        broadcast('stock:updated', update);
+      }
+      // Lightweight signal (no payload worth shipping) for anything showing
+      // aggregate sales figures — e.g. Analytics — to refetch instead of
+      // waiting on its own poll interval.
+      broadcast('sale:created', { saleId });
 
       // WhatsApp alerts happen after the response is sent — these are
       // best-effort notifications, not part of what the client is waiting

@@ -3,6 +3,7 @@ import { ArrowLeft, Package, Pencil, Trash2 } from 'lucide-react';
 import { getAllStock, createStock, updateStock, deleteStock } from '../api/stockApi';
 import * as productsApi from '../api/productsApi';
 import { ACCENT_GRADIENT_STYLE } from '../theme';
+import { useSocket } from '../context/SocketContext';
 
 // Cycled left-border accents for category cards — mirrors the stat-card language
 // used on the Dashboard (border-l-4 in rotating brand colors).
@@ -105,6 +106,29 @@ export default function StockManager() {
   };
 
   useEffect(() => { fetchStock(); }, []);
+
+  // Live-patch the in-memory list instead of a re-fetch — a sale, purchase,
+  // or production completion elsewhere (another tab, another staff member's
+  // session) shows up here immediately instead of only after this page's
+  // next manual refresh.
+  const { subscribe } = useSocket();
+  useEffect(() => {
+    const unsubUpdated = subscribe('stock:updated', (row) => {
+      setStocks((prev) => prev.map((s) => (s.id === row.id ? row : s)));
+    });
+    const unsubCreated = subscribe('stock:created', (row) => {
+      setStocks((prev) => (prev.some((s) => s.id === row.id) ? prev : [...prev, row]));
+    });
+    const unsubDeleted = subscribe('stock:deleted', ({ id }) => {
+      setStocks((prev) => prev.filter((s) => s.id !== id));
+    });
+    return () => {
+      unsubUpdated();
+      unsubCreated();
+      unsubDeleted();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchStock = async () => {
     try {

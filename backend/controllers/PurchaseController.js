@@ -545,6 +545,7 @@
 const pool = require('../db/pool');
 const crypto = require('crypto');
 const { sendWhatsApp } = require('../services/whatsappService');
+const { broadcast } = require('../services/wsServer');
 
 class PurchaseController {
   /**
@@ -618,6 +619,10 @@ class PurchaseController {
       );
 
       const purchaseId = purchaseResult.rows[0].id;
+      // Collected here, broadcast only after COMMIT succeeds below — a
+      // rolled-back transaction must never push a stock change that didn't
+      // actually happen.
+      const stockUpdates = [];
 
       // 3. Create purchase items
       for (const item of items) {
@@ -659,10 +664,13 @@ class PurchaseController {
           stockId = item.stock_id || null;
 
           if (stockId) {
-            await client.query(
-              'UPDATE stock SET quantity = quantity + $1 WHERE id = $2',
+            const stockUpdateResult = await client.query(
+              'UPDATE stock SET quantity = quantity + $1 WHERE id = $2 RETURNING *',
               [item.quantity, stockId]
             );
+            if (stockUpdateResult.rows.length > 0) {
+              stockUpdates.push(stockUpdateResult.rows[0]);
+            }
           } else {
             // No existing stock row for this catalog product yet — this is its
             // first-ever purchase, so create the stock row now instead of the
@@ -670,10 +678,11 @@ class PurchaseController {
             const created = await client.query(
               `INSERT INTO stock (name, unit_price, quantity, product_id, category)
                VALUES ($1, $2, $3, $4, $5)
-               RETURNING id`,
+               RETURNING *`,
               [item.product_name, item.price, item.quantity, item.product_id || null, item.category_name || null]
             );
             stockId = created.rows[0].id;
+            stockUpdates.push(created.rows[0]);
           }
         }
 
@@ -720,6 +729,13 @@ class PurchaseController {
           invoiceNo: invoiceNo
         }
       });
+
+      // Push each stock change to any connected client — mirrors
+      // SalesController.createSale.
+      for (const update of stockUpdates) {
+        broadcast('stock:updated', update);
+      }
+      broadcast('purchase:created', { purchaseId });
 
       // WhatsApp alerts happen after the response is sent — see the mirrored
       // comment in SalesController.createSale for why (~500ms+ per external

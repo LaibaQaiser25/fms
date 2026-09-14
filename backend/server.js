@@ -26,6 +26,8 @@ const authRoutes = require('./routes/auth');
 const authMiddleware = require('./middleware/authMiddleware');
 const requireOwner = require('./middleware/requireOwner');
 const { startCronJobs } = require('./services/cronJobs');
+const { initWebSocketServer } = require('./services/wsServer');
+const http = require('http');
 
 
 
@@ -113,5 +115,12 @@ if (typeof nlpSearch === 'function') {
   console.warn('⚠️  NLP route not available - module failed to load or is disabled');
 }
 
-app.listen(process.env.PORT || 5000, () =>
+// A plain http.Server wrapping the Express app, instead of app.listen()
+// directly, so the WebSocket server can attach to the same port via the
+// 'upgrade' event — no second port, no separate process, and it rides the
+// same Cloudflare Tunnel ingress rule as the rest of the API.
+const server = http.createServer(app);
+initWebSocketServer(server);
+
+server.listen(process.env.PORT || 5000, () =>
      { console.log('🚀 Server running on port ' + (process.env.PORT || 5000)); });

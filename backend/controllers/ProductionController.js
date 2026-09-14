@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { broadcast } = require('../services/wsServer');
 
 class ProductionController {
   /**
@@ -140,6 +141,8 @@ class ProductionController {
       }
 
       const productionItem = result.rows[0];
+      // Broadcast only after COMMIT succeeds below.
+      let stockUpdate = null;
 
       // If production is completed, update stock and sale status
       if (status === 'completed') {
@@ -198,10 +201,13 @@ class ProductionController {
         }
 
         // Add completed quantity to stock
-        await client.query(
-          'UPDATE stock SET quantity = quantity + $1 WHERE id = $2',
+        const stockUpdateResult = await client.query(
+          'UPDATE stock SET quantity = quantity + $1 WHERE id = $2 RETURNING *',
           [productionItem.required_quantity, stockId]
         );
+        if (stockUpdateResult.rows.length > 0) {
+          stockUpdate = stockUpdateResult.rows[0];
+        }
 
         // Update related sale status if completed
         if (productionItem.sale_id) {
@@ -244,6 +250,10 @@ class ProductionController {
         message: 'Production status updated',
         data: result.rows[0]
       });
+
+      if (stockUpdate) {
+        broadcast('stock:updated', stockUpdate);
+      }
 
     } catch (error) {
       await client.query('ROLLBACK');

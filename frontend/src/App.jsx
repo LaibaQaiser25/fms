@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SocketProvider } from './context/SocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import Layout from './components/Layout';
@@ -45,6 +46,7 @@ function App() {
   return (
     <ThemeProvider>
     <AuthProvider>
+    <SocketProvider>
     <BrowserRouter>
       <Routes>
         {/* Public Routes - Accessible to everyone */}
@@ -82,6 +84,7 @@ function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </SocketProvider>
     </AuthProvider>
     </ThemeProvider>
   );

@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { broadcast } = require('../services/wsServer');
 
 // GET all stock items
 exports.getAllStock = async (req, res) => {
@@ -65,6 +66,7 @@ exports.addStock = async (req, res) => {
       [product.name, unit_price, quantity || 0, product.category_name, product.size, extra, product.id]
     );
     res.status(201).json(result.rows[0]);
+    broadcast('stock:created', result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -80,6 +82,7 @@ exports.updateStock = async (req, res) => {
       [name, unit_price, quantity, category, size, extra, req.params.id]
     );
     res.json(result.rows[0]);
+    if (result.rows.length > 0) broadcast('stock:updated', result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -90,6 +93,7 @@ exports.deleteStock = async (req, res) => {
   try {
     await pool.query('DELETE FROM stock WHERE id = $1', [req.params.id]);
     res.json({ message: 'Stock item deleted' });
+    broadcast('stock:deleted', { id: Number(req.params.id) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

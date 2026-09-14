@@ -7,6 +7,7 @@ import * as salesApi from '../../api/salesApi';
 import { AlertRefreshContext } from '../Layout';
 import { capitalizeFirstLetter, capitalizeWords, capitalizeAddress } from '../../utils/text';
 import { PAYMENT_METHODS, PAKISTANI_BANKS } from '../../paymentOptions';
+import { useSocket } from '../../context/SocketContext';
 
 function NewSaleModal({ onClose }) {
   const alertRefresh = useContext(AlertRefreshContext);
@@ -49,6 +50,29 @@ function NewSaleModal({ onClose }) {
   // Initialize
   useEffect(() => {
     fetchStock();
+  }, []);
+
+  // If another session creates a sale/purchase/production run while this
+  // form is open, the quantities shown here (and the in-stock/needs-production
+  // decision at submit time) would otherwise be stale until the modal is
+  // reopened.
+  const { subscribe } = useSocket();
+  useEffect(() => {
+    const unsubUpdated = subscribe('stock:updated', (row) => {
+      setStockList((prev) => prev.map((s) => (s.id === row.id ? row : s)));
+    });
+    const unsubCreated = subscribe('stock:created', (row) => {
+      setStockList((prev) => (prev.some((s) => s.id === row.id) ? prev : [...prev, row]));
+    });
+    const unsubDeleted = subscribe('stock:deleted', ({ id }) => {
+      setStockList((prev) => prev.filter((s) => s.id !== id));
+    });
+    return () => {
+      unsubUpdated();
+      unsubCreated();
+      unsubDeleted();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchStock = async () => {

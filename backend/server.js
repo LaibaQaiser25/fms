@@ -21,6 +21,7 @@ const rawMaterialsRoutes = require('./routes/rawMaterials');
 const rawMaterialConsumptionRoutes = require('./routes/rawMaterialConsumption');
 const cashbookRoutes = require('./routes/cashbook');
 const reportsRoutes = require('./routes/reports');
+const analyticsRoutes = require('./routes/analytics');
 const usersRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const authMiddleware = require('./middleware/authMiddleware');
@@ -101,6 +102,9 @@ app.use('/api/cashbook', requireOwner, cashbookRoutes);
 
 // Owner-only — Manager/Guest are blocked from Reports per role policy (see middleware/requireOwner.js)
 app.use('/api/reports', requireOwner, reportsRoutes);
+
+// Owner-only — Analytics is gated the same way on the frontend (App.jsx); enforce it here too
+app.use('/api/analytics', requireOwner, analyticsRoutes);
 
 // Owner-only — user management (create users, edit others' username/email/password, change own password)
 app.use('/api/users', requireOwner, usersRoutes);

@@ -28,8 +28,12 @@ function initWebSocketServer(httpServer) {
       token = searchParams.get('token');
       jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
     } catch (err) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      // socket.end() (not write() + destroy()) so the response actually
+      // flushes before the connection closes — destroying right after write
+      // can drop the bytes before a proxy in front of this (Cloudflare
+      // Tunnel included) has read them, which surfaces as a 502 at the edge
+      // instead of the 401 this is actually sending.
+      socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n');
       return;
     }
 

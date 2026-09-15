@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  TrendingUp, TrendingDown, DollarSign, Truck, Receipt, BarChart3,
-  HandCoins, Wallet, Package, AlertTriangle, Search, X, Eye
+  TrendingUp, TrendingDown, DollarSign, Truck, Receipt,
+  HandCoins, Wallet, Landmark, Package, AlertTriangle, Search, X, Eye
 } from 'lucide-react';
 import * as analyticsApi from '../api/analyticsApi';
 import { useSocket } from '../context/SocketContext';
@@ -455,9 +455,12 @@ function Analytics() {
       subtext: `${summary.expenses.count} expense${summary.expenses.count === 1 ? '' : 's'}${compareLabel ? ` · ${compareLabel}` : ''}`,
     },
     {
-      label: 'Net Profit', value: formatCurrency(summary.profit), icon: BarChart3,
-      iconBg: summary.profit >= 0 ? 'bg-green-50' : 'bg-red-50', iconColor: summary.profit >= 0 ? 'text-green-600' : 'text-red-600',
-      trend: summary.trends?.profit, trendMode: 'positive', subtext: 'Revenue − Purchases − Expenses',
+      // Same cash-basis figure Cashbook labels "Net Cash In-hand" — actual
+      // cash from sales/payments in, minus cash paid out for purchases and
+      // expenses, cumulative to date (not scoped to the period tabs above).
+      label: 'Net Cash In-hand', value: formatCurrency(summary.netCashInHand), icon: Wallet,
+      iconBg: summary.netCashInHand >= 0 ? 'bg-green-50' : 'bg-red-50', iconColor: summary.netCashInHand >= 0 ? 'text-green-600' : 'text-red-600',
+      trend: summary.trends?.cashInHand, trendMode: 'positive', subtext: 'Cash-basis, all-time',
     },
   ] : [];
 
@@ -468,7 +471,7 @@ function Analytics() {
       subtext: `${summary.totalCustomers} customer${summary.totalCustomers === 1 ? '' : 's'}`,
     },
     {
-      label: 'Payable to Sellers', value: formatCurrency(summary.payable), icon: Wallet,
+      label: 'Payable to Sellers', value: formatCurrency(summary.payable), icon: Landmark,
       iconBg: 'bg-purple-50', iconColor: 'text-purple-600', trend: summary.trends?.payable, trendMode: 'negative',
       subtext: `${summary.totalSellers} seller${summary.totalSellers === 1 ? '' : 's'}`,
     },

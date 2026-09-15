@@ -173,7 +173,8 @@ class AnalyticsController {
           // now" to "debt as of the end of the previous period" — how much
           // the outstanding balance moved over the period, not period-scoped activity.
           debt: pctChange(currentSnap.customerDebt, prevSnap.customerDebt),
-          payable: pctChange(currentSnap.payable, prevSnap.payable)
+          payable: pctChange(currentSnap.payable, prevSnap.payable),
+          cashInHand: pctChange(currentSnap.netCashInHand, prevSnap.netCashInHand)
         };
       }
 

@@ -200,9 +200,28 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
           backdropFilter: 'var(--nav-blur)',
         }}
       >
-        {/* Mobile-only close button — the desktop collapse toggle at the
-            top of the rail is hidden on mobile since the drawer has no
-            "collapsed" state of its own. */}
+        {/* Collapse toggle — a small handle straddling the rail's edge
+            instead of a full nav-row, so it doesn't compete with Dashboard
+            for the top slot. Desktop only; the mobile drawer has no
+            "collapsed" state of its own (see effectiveCollapsed above) and
+            closes via the X button or backdrop instead. */}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="hidden md:flex absolute -right-3 top-6 z-50 w-6 h-6 items-center justify-center rounded-full border bg-[var(--nav-bg)] border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-all duration-200 ease-out"
+        >
+          <ChevronLeft
+            size={13}
+            strokeWidth={2.5}
+            className={`shrink-0 transition-transform duration-300 ease-out ${collapsed ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {/* Mobile-only close button — the desktop collapse toggle above is
+            hidden on mobile since the drawer has no "collapsed" state of its
+            own. */}
         <div className="flex justify-end px-3 pt-3 md:hidden">
           <button
             type="button"
@@ -211,25 +230,6 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
             className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/[0.08] transition-colors"
           >
             <X size={20} strokeWidth={2} />
-          </button>
-        </div>
-
-        {/* Collapse toggle — desktop rail only, sits at the top of the rail */}
-        <div className="hidden md:block px-3 pt-3 pb-1.5">
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand' : 'Collapse'}
-            className={`w-full flex items-center rounded-2xl text-[14.5px] font-medium text-white/60 hover:text-[var(--color-text-accent)] hover:bg-white/[0.05] transition-all duration-200 ease-out ${collapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
-              }`}
-          >
-            <ChevronLeft
-              size={19}
-              strokeWidth={2}
-              className={`shrink-0 transition-transform duration-300 ease-out ${collapsed ? 'rotate-180' : ''}`}
-            />
-            {!collapsed && 'Collapse'}
           </button>
         </div>
 

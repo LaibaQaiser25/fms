@@ -145,7 +145,6 @@ export default function Layout() {
       <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
         <Sidebar
           collapsed={sidebarCollapsed}
-          onToggleCollapse={toggleSidebarCollapsed}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
         />
@@ -157,6 +156,8 @@ export default function Layout() {
           setSearchSQL={setSearchSQL}
           refreshTrigger={{ pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials }}
           onOpenMobileMenu={() => setMobileSidebarOpen(true)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebarCollapsed}
         />
         <main
           className={`flex-1 min-w-0 p-3 sm:p-4 md:p-6 min-h-screen transition-[margin] duration-300 ease-in-out ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-56'}`}

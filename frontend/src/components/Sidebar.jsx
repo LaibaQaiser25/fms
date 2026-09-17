@@ -13,7 +13,6 @@ import {
   Users,
   Lock,
   ChevronDown,
-  Menu,
   X,
 } from 'lucide-react';
 
@@ -24,7 +23,7 @@ const INVENTORY_PATHS = ['/products', '/stock', '/raw-materials', '/production',
 // is still recognized as "inside" the group without needing this list updated.
 const pathIsInGroup = (pathname, groupPaths) => groupPaths.some((p) => pathname.startsWith(p));
 
-export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpen = false, onCloseMobile }) {
+export default function Sidebar({ collapsed = false, mobileOpen = false, onCloseMobile }) {
   const location = useLocation();
   const { user } = useAuth();
   const role = user?.role?.toLowerCase();
@@ -200,29 +199,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
           backdropFilter: 'var(--nav-blur)',
         }}
       >
-        {/* Collapse toggle — a small square hamburger button (GitHub
-            mobile-nav style) sitting in the rail's top-right corner instead
-            of a full nav-row, so it doesn't compete with Dashboard for the
-            top slot. Position math keeps it clear of Dashboard's icon in
-            both collapsed (md:w-20) and expanded (md:w-56) rail widths — see
-            the conversation notes it was checked against. Desktop only; the
-            mobile drawer has no "collapsed" state of its own (see
-            effectiveCollapsed above) and closes via the X button or
-            backdrop instead. */}
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="hidden md:flex absolute -right-3 top-4 z-50 w-9 h-9 items-center justify-center rounded-lg border border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-colors duration-200 ease-out"
-          style={{ background: 'var(--nav-bg)' }}
-        >
-          <Menu size={18} strokeWidth={2.25} className="shrink-0" />
-        </button>
-
-        {/* Mobile-only close button — the desktop collapse toggle above is
-            hidden on mobile since the drawer has no "collapsed" state of its
-            own. */}
+        {/* Mobile-only close button — the desktop collapse toggle now lives
+            in DashboardHeader (left of the logo); the drawer closes via
+            this X or the backdrop instead. */}
         <div className="flex justify-end px-3 pt-3 md:hidden">
           <button
             type="button"

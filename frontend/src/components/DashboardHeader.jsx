@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
 import { API_BASE_URL } from '../config';
 
-export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, setSearchResults, setSearchSQL, onOpenMobileMenu }) {
+export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, setSearchResults, setSearchSQL, onOpenMobileMenu, collapsed, onToggleCollapse }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -79,6 +79,19 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
           onClick={onOpenMobileMenu}
           aria-label="Open menu"
           className="md:hidden shrink-0 p-2 -ml-1 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+
+        {/* Desktop sidebar collapse/expand toggle — same static-hamburger
+            treatment as the mobile drawer button above, just wired to the
+            persistent rail's collapsed state instead of the off-canvas one. */}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="hidden md:block shrink-0 p-2 -ml-1 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors"
         >
           <Menu className="w-6 h-6" />
         </button>

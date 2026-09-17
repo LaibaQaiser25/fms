@@ -13,7 +13,7 @@ import {
   Users,
   Lock,
   ChevronDown,
-  ChevronLeft,
+  Menu,
   X,
 } from 'lucide-react';
 
@@ -200,28 +200,24 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
           backdropFilter: 'var(--nav-blur)',
         }}
       >
-        {/* Collapse toggle — a small handle straddling the rail's edge
-            instead of a full nav-row, so it doesn't compete with Dashboard
-            for the top slot. Flat/borderless on its left (sidebar-facing)
-            side and rounded/bordered only on the right so it reads as a tab
-            emerging from the rail rather than a separate floating shape —
-            the sidebar's own right border visibly interrupts right where
-            the handle sits. Desktop only; the mobile drawer has no
-            "collapsed" state of its own (see effectiveCollapsed above) and
-            closes via the X button or backdrop instead. */}
+        {/* Collapse toggle — a small square hamburger button (GitHub
+            mobile-nav style) sitting in the rail's top-right corner instead
+            of a full nav-row, so it doesn't compete with Dashboard for the
+            top slot. Position math keeps it clear of Dashboard's icon in
+            both collapsed (md:w-20) and expanded (md:w-56) rail widths — see
+            the conversation notes it was checked against. Desktop only; the
+            mobile drawer has no "collapsed" state of its own (see
+            effectiveCollapsed above) and closes via the X button or
+            backdrop instead. */}
         <button
           type="button"
           onClick={onToggleCollapse}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="hidden md:flex absolute -right-3 top-4 z-50 w-5 h-10 items-center justify-center rounded-r-md border-y border-r border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-all duration-200 ease-out"
+          className="hidden md:flex absolute -right-3 top-4 z-50 w-9 h-9 items-center justify-center rounded-lg border border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-colors duration-200 ease-out"
           style={{ background: 'var(--nav-bg)' }}
         >
-          <ChevronLeft
-            size={13}
-            strokeWidth={2.5}
-            className={`shrink-0 transition-transform duration-300 ease-out ${collapsed ? 'rotate-180' : ''}`}
-          />
+          <Menu size={18} strokeWidth={2.25} className="shrink-0" />
         </button>
 
         {/* Mobile-only close button — the desktop collapse toggle above is

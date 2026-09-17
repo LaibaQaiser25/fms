@@ -210,7 +210,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
           onClick={onToggleCollapse}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="hidden md:flex absolute -right-3 top-6 z-50 w-6 h-6 items-center justify-center rounded-full border bg-[var(--nav-bg)] border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-all duration-200 ease-out"
+          className="hidden md:flex absolute -right-3 top-6 z-50 w-5 h-10 items-center justify-center rounded-md border border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-all duration-200 ease-out"
+          style={{ background: 'var(--nav-bg)' }}
         >
           <ChevronLeft
             size={13}

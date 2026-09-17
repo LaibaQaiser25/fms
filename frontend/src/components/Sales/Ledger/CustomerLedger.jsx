@@ -5,6 +5,7 @@ import * as ledgerApi from '../../../api/ledgerApi';
 import * as invoiceApi from '../../../api/invoiceApi';
 import InvoiceModal from '../Invoices/InvoiceModal';
 import LedgerHistoryModal from './LedgerHistoryModal';
+import { SkeletonTable } from '../../shared/Skeleton';
 
 function CustomerLedger() {
   const [ledger, setLedger] = useState([]);
@@ -143,10 +144,7 @@ function CustomerLedger() {
           </select>
         </div>
         {loading ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
-            <p className="mt-2 text-gray-600">Loading ledger...</p>
-          </div>
+          <SkeletonTable rows={6} columns={7} />
         ) : ledger.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
             <p className="text-gray-600">

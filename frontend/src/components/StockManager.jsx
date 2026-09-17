@@ -4,6 +4,7 @@ import { getAllStock, createStock, updateStock, deleteStock } from '../api/stock
 import * as productsApi from '../api/productsApi';
 import { ACCENT_GRADIENT_STYLE } from '../theme';
 import { useSocket } from '../context/SocketContext';
+import { SkeletonCardGrid, SkeletonTable } from './shared/Skeleton';
 
 // Cycled left-border accents for category cards — mirrors the stat-card language
 // used on the Dashboard (border-l-4 in rotating brand colors).
@@ -426,7 +427,7 @@ export default function StockManager() {
 
       {/* Category cards (default view) or items table (drilled into a category) */}
       {loading ? (
-        <p className="text-gray-400">Loading...</p>
+        selectedCategory ? <SkeletonTable rows={6} columns={7} /> : <SkeletonCardGrid count={4} columns="sm:grid-cols-2" />
       ) : stocks.length === 0 ? (
         <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-lg">
           No stock items yet. Add your first item!

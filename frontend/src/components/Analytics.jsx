@@ -6,6 +6,7 @@ import {
 import * as analyticsApi from '../api/analyticsApi';
 import { useSocket } from '../context/SocketContext';
 import { Modal, Pagination } from './shared/UIComponents';
+import { Skeleton, SkeletonText, SkeletonCircle, SkeletonStatGrid, SkeletonTable } from './shared/Skeleton';
 
 // ---- Constants -------------------------------------------------------
 
@@ -506,9 +507,22 @@ function Analytics() {
       </div>
 
       {initialLoad ? (
-        <div className="text-center py-16">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
-          <p className="mt-2 text-gray-600">Loading analytics...</p>
+        <div className="flex flex-col gap-6">
+          <SkeletonStatGrid count={4} />
+          <SkeletonStatGrid count={4} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <SkeletonText width="w-36" height="h-5" className="mb-4" />
+              <Skeleton className="w-full h-56 rounded-xl" />
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <SkeletonText width="w-24" height="h-5" className="mb-4" />
+              <div className="flex justify-center py-2">
+                <SkeletonCircle size="w-40 h-40" />
+              </div>
+            </div>
+          </div>
+          <SkeletonTable rows={6} columns={7} />
         </div>
       ) : (
         <div className={`flex flex-col gap-6 transition-opacity ${loadingSummary ? 'opacity-60' : 'opacity-100'}`}>

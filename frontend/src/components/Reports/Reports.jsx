@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { FileBarChart2, Zap, MessageCircle } from 'lucide-react';
 import * as reportsApi from '../../api/reportsApi';
 import { Button, Pagination } from '../shared/UIComponents';
+import { SkeletonTable } from '../shared/Skeleton';
 import CreateReportModal from './CreateReportModal';
 import ReportAutomationModal from './ReportAutomationModal';
 
@@ -167,10 +168,7 @@ export default function Reports() {
         {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]" />
-            <p className="mt-2 text-gray-600">Loading reports...</p>
-          </div>
+          <SkeletonTable rows={6} columns={5} />
         ) : reports.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
             No reports yet. Click "Create Report" to generate your first one.

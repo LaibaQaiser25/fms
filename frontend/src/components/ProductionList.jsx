@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import * as productionApi from '../api/productionApi';
 import { useSocket } from '../context/SocketContext';
+import { SkeletonStatCard, SkeletonTable } from './shared/Skeleton';
 
 function ProductionList() {
   const [queue, setQueue] = useState([]);
@@ -92,7 +93,11 @@ function ProductionList() {
       </div>
 
       {/* Statistics */}
-      {stats && (
+      {!stats ? (
+        <div className="px-4 sm:px-8 py-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}
+        </div>
+      ) : (
         <div className="px-4 sm:px-8 py-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
             <p className="text-gray-600 text-sm font-semibold">Pending</p>
@@ -151,10 +156,7 @@ function ProductionList() {
       {/* Content */}
       <div className="px-4 sm:px-8 py-6">
         {loading ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
-            <p className="mt-2 text-gray-600">Loading production queue...</p>
-          </div>
+          <SkeletonTable rows={6} columns={7} />
         ) : queue.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
             <p className="text-gray-600">No production orders in this category</p>

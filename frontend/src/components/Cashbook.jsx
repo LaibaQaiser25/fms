@@ -3,6 +3,7 @@ import { ArrowDownCircle, ArrowUpCircle, Receipt, Wallet, ArrowUpDown, X, HandCo
 import * as cashbookApi from '../api/cashbookApi';
 import expenseAPI from '../api/expenseApi';
 import { Pagination } from './shared/UIComponents';
+import { Skeleton, SkeletonStatCard, SkeletonTable } from './shared/Skeleton';
 
 const LIMIT = 25;
 
@@ -210,6 +211,11 @@ function Cashbook() {
       <div className="px-4 sm:px-8 py-6">
         {/* Summary cards — these always reflect the active filters across the
             whole result set, never just the page on screen */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <SummaryCard
             icon={<ArrowDownCircle size={20} className="text-[var(--color-sale)]" />}
@@ -243,10 +249,17 @@ function Cashbook() {
             </p>
           </div>
         </div>
+        )}
 
         {/* Outstanding position. Unlike the cards above — which measure money
             that moved during the filtered period — these are balances that
             stand until someone pays, so they ignore every filter but the date. */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <Skeleton className="h-24 rounded-lg" />
+            <Skeleton className="h-24 rounded-lg" />
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <BalanceCard
             icon={<HandCoins size={24} className="text-white/90" />}
@@ -267,6 +280,7 @@ function Cashbook() {
             background="bg-[var(--color-payable-bg)]"
           />
         </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow-md p-5 mb-6">
@@ -368,10 +382,7 @@ function Cashbook() {
 
         {/* Entries */}
         {loading ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
-            <p className="mt-2 text-gray-600">Loading cashbook...</p>
-          </div>
+          <SkeletonTable rows={7} columns={7} />
         ) : entries.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
             <p className="text-gray-600">

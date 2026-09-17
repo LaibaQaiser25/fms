@@ -7,6 +7,7 @@ import PurchasePaymentModal from './Payments/PurchasePaymentModal';
 import AddProductionDirect from './AddProductionDirect';
 import { NavLink, Link } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';
+import { SkeletonStatGrid } from './shared/Skeleton';
 
 // Shrinks its own font-size to fit on one line within its container via a
 // fluid clamp() (15px-30px, matching the old measurement loop's bounds),
@@ -161,10 +162,7 @@ function Dashboard() {
       {/* Main Content */}
       <div className="px-3 sm:px-6 md:px-8 py-6">
         {loading ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
-            <p className="mt-2 text-gray-600">Loading dashboard...</p>
-          </div>
+          <SkeletonStatGrid count={4} className="mb-6" />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
             {/* Card 1: Today's Sales Summary */}

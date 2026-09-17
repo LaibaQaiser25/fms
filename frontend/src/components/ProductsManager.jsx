@@ -3,6 +3,7 @@ import { X, ArrowLeft, Package, Layers } from 'lucide-react';
 import * as productsApi from '../api/productsApi';
 import { capitalizeFirstLetter } from '../utils/text';
 import { ACCENT_GRADIENT_STYLE } from '../theme';
+import { SkeletonCardGrid, SkeletonTable } from './shared/Skeleton';
 
 const emptyForm = { type: '', name: '', category_id: '', size: '', unit: '', description: '', quantity: '' };
 
@@ -921,7 +922,7 @@ export default function ProductsManager() {
 
       {/* Type cards (default view) or search/filters + table (drilled into a type) */}
       {loading ? (
-        <p className="text-gray-400">Loading...</p>
+        typeFilter ? <SkeletonTable rows={6} columns={6} /> : <SkeletonCardGrid count={2} columns="sm:grid-cols-2" />
       ) : !typeFilter ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <button

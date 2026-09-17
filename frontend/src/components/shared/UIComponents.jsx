@@ -1,4 +1,5 @@
 import React from 'react';
+import { SkeletonTable } from './Skeleton';
 
 export const Button = ({ type = 'button', variant = 'primary', size = 'md', className = '', children, ...props }) => {
   const baseStyles = 'font-semibold rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -97,7 +98,7 @@ export const Modal = ({ isOpen, title, onClose, children, size = 'md' }) => {
 
 export const Table = ({ columns, data, loading, onEdit, onDelete }) => {
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return <SkeletonTable rows={6} columns={columns.length + 1} bordered />;
   }
 
   if (data.length === 0) {

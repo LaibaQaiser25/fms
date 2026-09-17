@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Select, Alert, Modal } from '../shared/UIComponents';
+import { SkeletonTable } from '../shared/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import * as usersApi from '../../api/usersApi';
 
@@ -216,7 +217,7 @@ export default function Privacy() {
 
       <Card title="Manage Users">
         {loading ? (
-          <div className="text-center py-8">Loading...</div>
+          <SkeletonTable rows={4} columns={4} />
         ) : otherUsers.length === 0 ? (
           <div className="text-center py-8 text-gray-500">No other users yet</div>
         ) : (

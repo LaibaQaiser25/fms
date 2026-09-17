@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ClipboardList } from 'lucide-react';
 import * as rawMaterialsApi from '../../api/rawMaterialsApi';
 import ConsumptionLogModal from './ConsumptionLogModal';
+import { SkeletonTable } from '../shared/Skeleton';
 
 function RawMaterialsList() {
   const [materials, setMaterials] = useState([]);
@@ -47,10 +48,7 @@ function RawMaterialsList() {
       {/* Content */}
       <div className="px-4 sm:px-8 py-6">
         {loading ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
-            <p className="mt-2 text-gray-600">Loading raw materials...</p>
-          </div>
+          <SkeletonTable rows={6} columns={5} />
         ) : materials.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
             <p className="text-gray-600">No raw materials yet — they're created automatically from raw-material purchases</p>

@@ -202,7 +202,11 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
       >
         {/* Collapse toggle — a small handle straddling the rail's edge
             instead of a full nav-row, so it doesn't compete with Dashboard
-            for the top slot. Desktop only; the mobile drawer has no
+            for the top slot. Flat/borderless on its left (sidebar-facing)
+            side and rounded/bordered only on the right so it reads as a tab
+            emerging from the rail rather than a separate floating shape —
+            the sidebar's own right border visibly interrupts right where
+            the handle sits. Desktop only; the mobile drawer has no
             "collapsed" state of its own (see effectiveCollapsed above) and
             closes via the X button or backdrop instead. */}
         <button
@@ -210,7 +214,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, mobileOpe
           onClick={onToggleCollapse}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="hidden md:flex absolute -right-3 top-6 z-50 w-5 h-10 items-center justify-center rounded-md border border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-all duration-200 ease-out"
+          className="hidden md:flex absolute -right-3 top-4 z-50 w-5 h-10 items-center justify-center rounded-r-md border-y border-r border-[var(--nav-border-color)] text-white/70 hover:text-[var(--color-text-accent)] shadow-md transition-all duration-200 ease-out"
           style={{ background: 'var(--nav-bg)' }}
         >
           <ChevronLeft

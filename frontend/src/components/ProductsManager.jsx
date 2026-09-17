@@ -153,22 +153,19 @@ export default function ProductsManager() {
     setShowCategorySuggestions(false);
   };
 
-  const handleAddCategory = async () => {
+  // Takes the user to the Manage Categories & Units modal instead of
+  // silently creating the category inline — pre-filled with what they'd
+  // already typed here so "+Add" is the very next click, but creation goes
+  // through the same deliberate, reviewable flow as managing any other
+  // category (rename/delete included) rather than a one-click side effect
+  // of an autocomplete suggestion.
+  const handleAddCategory = () => {
     const name = categorySearch.trim();
     if (!name) return;
-    try {
-      const res = await productsApi.createCategory(name);
-      const created = res.data;
-      setCategories((prev) => {
-        const exists = prev.some((c) => c.id === created.id);
-        return exists ? prev : [...prev, created].sort((a, b) => a.name.localeCompare(b.name));
-      });
-      setForm((f) => ({ ...f, category_id: created.id, name: created.name }));
-      setCategorySearch(created.name);
-      setShowCategorySuggestions(false);
-    } catch (err) {
-      alert('Error adding category: ' + err.message);
-    }
+    setShowCategorySuggestions(false);
+    setCatManagerType('stock');
+    setCatManagerSearch(name);
+    setShowCatManager(true);
   };
 
   const openCatManager = () => {
@@ -462,9 +459,12 @@ export default function ProductsManager() {
       {/* Content */}
       <div className="px-4 sm:px-8 py-6">
 
-      {/* Category / Unit Manager Modal */}
+      {/* Category / Unit Manager Modal — z-[60], above the Add/Edit Product
+          modal's z-50, since it can now be opened from inside that form
+          (via "+ Add new category") and needs to land on top of it rather
+          than behind, regardless of which is later in the DOM. */}
       {showCatManager && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">Manage Categories & Units</h3>

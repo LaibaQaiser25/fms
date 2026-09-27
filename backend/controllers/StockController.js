@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const { broadcast } = require('../services/wsServer');
+const { alertIfNewlyLow } = require('../services/stockAlerts');
 
 // GET all stock items
 exports.getAllStock = async (req, res) => {
@@ -76,13 +77,21 @@ exports.addStock = async (req, res) => {
 exports.updateStock = async (req, res) => {
   const { name, unit_price, quantity, category, size, extra } = req.body;
   try {
+    // Pre-update row, to tell whether this edit newly drops it to low stock.
+    const before = await pool.query(
+      'SELECT quantity, minimum_stock FROM stock WHERE id = $1',
+      [req.params.id]
+    );
     const result = await pool.query(
       `UPDATE stock SET name=$1, unit_price=$2, quantity=$3, category=$4, size=$5, extra=$6
        WHERE id=$7 RETURNING *`,
       [name, unit_price, quantity, category, size, extra, req.params.id]
     );
     res.json(result.rows[0]);
-    if (result.rows.length > 0) broadcast('stock:updated', result.rows[0]);
+    if (result.rows.length > 0) {
+      broadcast('stock:updated', result.rows[0]);
+      alertIfNewlyLow('stock', before.rows[0], result.rows[0]);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const pool = require('../db/pool');
 const { sendWhatsApp } = require('./whatsappService');
+const { sendDailyDigest } = require('./stockAlerts');
 const ReportsController = require('../controllers/ReportsController');
 
 const startCronJobs = () => {
@@ -82,6 +83,21 @@ const startCronJobs = () => {
       console.error('❌ Report automation error:', error.message);
     }
   });
+
+  // Daily WhatsApp digest of the dashboard alert panel. Sent twice: 7:30 AM,
+  // and again at 10:00 AM as a retry — Meta only delivers free-text messages
+  // inside the 24h window opened by the owner messaging the business number,
+  // so if that window had lapsed at 7:30, messaging the number any time
+  // before 10:00 means the second send gets through.
+  const digest = (label) => async () => {
+    try {
+      await sendDailyDigest(label);
+    } catch (error) {
+      console.error(`❌ Daily alert digest (${label}) error:`, error.message);
+    }
+  };
+  cron.schedule('30 7 * * *', digest('7:30 AM'), { timezone: 'Asia/Karachi' });
+  cron.schedule('0 10 * * *', digest('10:00 AM'), { timezone: 'Asia/Karachi' });
 
   console.log('✅ Cron jobs started');
 };

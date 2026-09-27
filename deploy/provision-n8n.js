@@ -40,6 +40,8 @@ const env = {
   META_PHONE_NUMBER_ID: n8nEnv.META_PHONE_NUMBER_ID,
   WHATSAPP_TO_NUMBER: n8nEnv.WHATSAPP_TO_NUMBER,
   WEBHOOK_URL: n8nEnv.WEBHOOK_URL || 'http://localhost:5678/',
+  // Must match N8N_WEBHOOK_SECRET in backend/.env (sent as X-FMS-Secret).
+  N8N_WEBHOOK_SECRET: n8nEnv.N8N_WEBHOOK_SECRET,
 };
 for (const [k, v] of Object.entries(env)) {
   if (!v || v === 'change-me') {
@@ -100,48 +102,49 @@ function transformWorkflow(rawPath) {
 (async () => {
   const alerts = transformWorkflow(path.join(ROOT, 'n8n/fms-whatsapp-alerts.json'));
 
-  // 1. Meta WhatsApp credential ------------------------------------------
-  // The public API forbids LISTING credentials, so we derive the existing
-  // credential id from the workflow that already references it, and verify
-  // it still exists (GET by id). If none is found, create one.
-  let credId = null;
+  // 1. httpHeaderAuth credentials (one per node) --------------------------
+  // The public API forbids LISTING credentials, so we derive each existing
+  // credential id from the node in the deployed workflow that references it
+  // (matched by node name — both nodes use httpHeaderAuth), and verify it
+  // still exists (GET by id). If none is found, create one.
   const list = await api('GET', '/api/v1/workflows');
-  if (list.status === 200 && list.json?.data) {
-    for (const w of list.json.data) {
-      for (const n of w.nodes || []) {
-        const id = n.credentials?.httpHeaderAuth?.id;
-        if (!id) continue;
-        const check = await api('GET', `/api/v1/credentials/${id}`);
-        if (check.status === 200) credId = id;
-        break;
-      }
-      if (credId) break;
+  const deployed = (list.status === 200 && list.json?.data || []).find((w) => w.name === alerts.name);
+
+  async function ensureHeaderCred(nodeName, credName, header, value) {
+    const id = deployed?.nodes?.find((n) => n.name === nodeName)?.credentials?.httpHeaderAuth?.id;
+    if (id && (await api('GET', `/api/v1/credentials/${id}`)).status === 200) {
+      console.log(`Reusing credential "${credName}" from existing workflow ref:`, id);
+      return id;
     }
-  }
-  if (!credId) {
     const created = await api('POST', '/api/v1/credentials', {
-      name: 'Meta WhatsApp Cloud API Credentials',
+      name: credName,
       type: 'httpHeaderAuth',
-      data: {
-        name: 'Authorization',
-        value: `Bearer ${env.META_WHATSAPP_TOKEN}`,
-      },
+      data: { name: header, value },
     });
     if (created.status !== 201 && created.status !== 200) {
-      console.error('credential create failed:', JSON.stringify(created.json || created.text));
+      console.error(`credential create failed for "${credName}":`, JSON.stringify(created.json || created.text));
       process.exit(1);
     }
-    credId = created.json.id;
-    console.log('Meta WhatsApp credential created:', credId);
-  } else {
-    console.log('Reusing Meta WhatsApp credential from existing workflow ref:', credId);
+    console.log(`Credential "${credName}" created:`, created.json.id);
+    return created.json.id;
   }
+
+  const credIds = {
+    'Send WhatsApp Message': await ensureHeaderCred(
+      'Send WhatsApp Message', 'Meta WhatsApp Cloud API Credentials',
+      'Authorization', `Bearer ${env.META_WHATSAPP_TOKEN}`),
+    // Checked by the Webhook node's header auth — requests without a matching
+    // X-FMS-Secret header are rejected with 403 before any node runs.
+    'Webhook': await ensureHeaderCred(
+      'Webhook', 'FMS Webhook Secret',
+      'X-FMS-Secret', env.N8N_WEBHOOK_SECRET),
+  };
 
   // 2. Workflow (upsert by name, then activate) --------------------------
   const existing = (list.json?.data || []).reduce((m, w) => { m[w.name] = w; return m; }, {});
 
   alerts.nodes.forEach((n) => {
-    if (n.credentials?.httpHeaderAuth) n.credentials.httpHeaderAuth.id = credId;
+    if (n.credentials?.httpHeaderAuth) n.credentials.httpHeaderAuth.id = credIds[n.name];
   });
   const payload = { name: alerts.name, nodes: alerts.nodes, connections: alerts.connections, settings: alerts.settings || {} };
   let id = existing[alerts.name]?.id;

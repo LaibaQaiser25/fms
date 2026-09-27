@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { alertIfNewlyLow } = require('../services/stockAlerts');
 
 class RawMaterialConsumptionController {
   /**
@@ -60,6 +61,11 @@ class RawMaterialConsumptionController {
         success: true,
         message: 'Consumption logged successfully',
         data: logResult.rows[0]
+      });
+
+      alertIfNewlyLow('raw', material, {
+        ...material,
+        quantity: Number(material.quantity) - Number(quantity_used)
       });
 
     } catch (error) {

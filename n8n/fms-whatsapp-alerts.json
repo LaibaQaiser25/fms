@@ -5,6 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "fms-alert",
+        "authentication": "headerAuth",
         "responseMode": "lastNode",
         "options": {}
       },
@@ -13,7 +14,13 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [220, 300],
-      "webhookId": "fms-alert"
+      "webhookId": "fms-alert",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fms-webhook-secret-header-auth",
+          "name": "FMS Webhook Secret"
+        }
+      }
     },
     {
       "parameters": {

@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { alertIfNewlyLow } = require('../services/stockAlerts');
 
 class RawMaterialsController {
   /**
@@ -174,6 +175,12 @@ class RawMaterialsController {
       const { id } = req.params;
       const { name, unit, unit_price, quantity, category, minimum_stock } = req.body;
 
+      // Pre-update row, to tell whether this edit newly drops it to low stock.
+      const before = await pool.query(
+        'SELECT quantity, minimum_stock FROM raw_materials WHERE id = $1',
+        [id]
+      );
+
       const result = await pool.query(
         `UPDATE raw_materials
          SET name = COALESCE($1, name),
@@ -197,6 +204,8 @@ class RawMaterialsController {
         message: 'Raw material updated',
         data: result.rows[0]
       });
+
+      alertIfNewlyLow('raw', before.rows[0], result.rows[0]);
 
     } catch (error) {
       console.error('❌ Error updating raw material:', error);

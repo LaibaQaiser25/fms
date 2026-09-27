@@ -6,10 +6,17 @@ const sendWhatsApp = async (message) => {
     return;
   }
 
+  // Shared secret checked by the n8n Webhook node's header auth — without it
+  // n8n rejects the request with 403 and no alert is sent.
+  const headers = { 'Content-Type': 'application/json' };
+  if (process.env.N8N_WEBHOOK_SECRET) {
+    headers['X-FMS-Secret'] = process.env.N8N_WEBHOOK_SECRET;
+  }
+
   try {
     const response = await fetch(webhookUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ message })
     });
 

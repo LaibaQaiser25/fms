@@ -115,7 +115,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
                 textShadow: 'var(--title-glow)',
               }}
             >
-              Bin-Zahid & Partners'
+              Bin-Zahid & Partners
             </div>
             <div
               className="text-xs hidden sm:block"

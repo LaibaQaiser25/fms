@@ -1,45 +1,39 @@
+import { alpha, steel, ground, serifNavy } from '../homeTheme';
+import { Tag, Title } from './Public/ui';
+import { bodyStyle } from './Public/styles';
+
+// The banner at the top of each inner public page, in the home hero's look:
+// the off-white ground with faint blueprint verticals, a "-TAG-" line, a
+// League Gothic title and Montserrat subtitle on the left, and the photo on the
+// right in a flat frame with an offset hairline outline (a drafting-style
+// double edge, no shadow).
 export default function PageHero({ eyebrow, title, subtitle, image }) {
   return (
-    <section
-      className="relative text-white py-20 md:py-28 overflow-hidden"
-      style={{ background: '#1a1a1a', borderBottom: '4px solid #b91c1c' }}
-    >
-      {image && (
-        <>
-          <img
-            src={image}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover opacity-30"
-            fetchPriority="high"
-          />
-          <div
-            className="absolute inset-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(20,17,17,0.94) 0%, rgba(20,17,17,0.8) 100%)',
-            }}
-          />
-        </>
-      )}
+    <section className="relative overflow-hidden" style={{ background: ground, borderBottom: `1px solid ${alpha(serifNavy, 0.12)}` }}>
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `repeating-linear-gradient(90deg, ${alpha(steel, 0.28)} 0 1px, transparent 1px 120px)`,
+          maskImage: 'linear-gradient(180deg, #000 0%, transparent 90%)',
+          WebkitMaskImage: 'linear-gradient(180deg, #000 0%, transparent 90%)',
+        }}
+      />
 
-      <div className="relative max-w-7xl mx-auto px-6">
-        {eyebrow && (
-          <span
-            className="inline-block px-4 py-1.5 rounded text-xs font-bold tracking-widest uppercase mb-5"
-            style={{ background: '#b91c1c', color: '#fff' }}
-          >
-            {eyebrow}
-          </span>
-        )}
-        <h1
-          className="font-bold mb-4 text-white"
-          style={{ fontSize: 'clamp(2.2rem, 4vw, 3.5rem)' }}
-        >
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-lg max-w-xl" style={{ color: 'rgba(255,255,255,0.7)' }}>
-            {subtitle}
-          </p>
+      <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-6 py-14 md:py-20 lg:grid-cols-12">
+        <div className={image ? 'lg:col-span-7' : 'lg:col-span-12'}>
+          {eyebrow && <Tag className="mb-5">{eyebrow}</Tag>}
+          <Title as="h1" size="clamp(3.25rem, 7.5vw, 6.25rem)">{title}</Title>
+          {subtitle && <p className="mt-6 max-w-xl text-lg leading-relaxed" style={bodyStyle}>{subtitle}</p>}
+        </div>
+
+        {image && (
+          <div className="relative lg:col-span-5">
+            <div aria-hidden="true" className="absolute inset-0 translate-x-3.5 translate-y-3.5 rounded-2xl"
+              style={{ border: `1px solid ${alpha(serifNavy, 0.45)}` }} />
+            <img src={image} alt="" fetchPriority="high"
+              className="relative aspect-[4/3] w-full rounded-2xl object-cover lg:aspect-[5/4]" />
+          </div>
         )}
       </div>
     </section>

@@ -1,6 +1,8 @@
 import PublicLayout from '../layouts/PublicLayout';
 import PageHero from '../components/PageHero';
-import { Lightbulb, Shield, Leaf, Sliders } from 'lucide-react';
+import { alpha, ground, ink, serifNavy, btnNavy, btnOrange, orangeSoft, gothicType, sans } from '../homeTheme';
+import { Tag, Title } from '../components/Public/ui';
+import { bodyStyle } from '../components/Public/styles';
 
 export default function SpecialitiesPage() {
   const specialities = [
@@ -31,7 +33,7 @@ export default function SpecialitiesPage() {
   ];
 
   return (
-    <PublicLayout>
+    <PublicLayout skin="home">
       <PageHero
         eyebrow="What Sets Us Apart"
         title="Our Specialities"
@@ -39,66 +41,57 @@ export default function SpecialitiesPage() {
         image="/gallery/pavers-pattern-samples-yard-overview.webp"
       />
 
-      {/* Specialities Cards */}
-      {/* Specialities Cards */}
-      <div className="py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="space-y-8">
-            {specialities.map((spec, i) => {
-              return (
-                <div key={i} className="bg-white rounded-lg shadow-lg overflow-hidden">
-                  <div className="grid md:grid-cols-2">
-                    {/* Image Container - Replaces Icon */}
-                    <div className="h-64 md:h-auto relative">
-                      <img
-                        src={spec.image}
-                        alt={spec.title}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
+      {/* Specialities: alternating photo / text rows */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6 space-y-20">
+          {specialities.map((spec, i) => (
+            <div key={spec.title} className="grid items-center gap-12 md:grid-cols-2">
+              <div className={`relative ${i % 2 ? 'md:order-2' : ''}`}>
+                <div aria-hidden="true" className="absolute inset-0 translate-x-3.5 translate-y-3.5 rounded-2xl"
+                  style={{ border: `1px solid ${alpha(serifNavy, 0.45)}` }} />
+                <img src={spec.image} alt={spec.title} className="relative h-72 w-full rounded-2xl object-cover md:h-80" loading="lazy" />
+              </div>
 
-                    <div className="p-12">
-                      <h2 className="text-3xl font-bold mb-4 text-gray-900">{spec.title}</h2>
-                      <p className="text-gray-600 mb-6 leading-relaxed">{spec.description}</p>
-                      <div className="flex flex-wrap gap-3">
-                        {spec.items.map((item, j) => (
-                          <span
-                            key={j}
-                            className="bg-red-100 text-red-800 px-4 py-2 rounded-full text-sm font-semibold"
-                          >
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+              <div>
+                <Tag className="mb-4">{String(i + 1).padStart(2, '0')}</Tag>
+                <Title font={i % 2 ? 'gothic' : 'serif'}>{spec.title}</Title>
+                <p className="mt-5 leading-relaxed" style={bodyStyle}>{spec.description}</p>
+                <div className="mt-7 flex flex-wrap gap-3">
+                  {spec.items.map((item) => (
+                    <span key={item} className="rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.12em]"
+                      style={{ fontFamily: sans, color: ink, background: ground, border: `1px solid ${alpha(serifNavy, 0.2)}` }}>
+                      {item}
+                    </span>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      </section>
 
       {/* Stats */}
-      <div className="text-white py-16" style={{ background: '#1a1a1a' }}>
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Our Achievements</h2>
-          <div className="grid md:grid-cols-4 gap-8 text-center">
+      <section className="py-20 text-white" style={{ background: btnNavy, borderTop: `3px solid ${btnOrange}` }}>
+        <div className="max-w-7xl mx-auto px-6">
+          <Tag className="text-center" color={orangeSoft}>By the numbers</Tag>
+          <Title className="mt-4 text-center" color="#fff" font="serif">Our Achievements</Title>
+          <div className="mt-12 grid grid-cols-2 gap-10 md:grid-cols-4 text-center">
             {[
               { number: '50+', label: 'International Awards' },
               { number: '100%', label: 'Quality Rate' },
               { number: '15+', label: 'Manufacturing Units' },
               { number: '5M+', label: 'Units Produced' },
-            ].map((item, i) => (
-              <div key={i}>
-                <div className="text-4xl font-bold mb-2" style={{ color: '#ef4444' }}>{item.number}</div>
-                <p className="text-gray-300">{item.label}</p>
+            ].map((item) => (
+              <div key={item.label}>
+                <div style={{ ...gothicType, fontSize: 'clamp(3rem, 6vw, 4.5rem)', color: orangeSoft }}>
+                  {item.number}
+                </div>
+                <p className="mt-3 text-xs font-bold uppercase tracking-[0.2em] text-white/75" style={{ fontFamily: sans }}>{item.label}</p>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </section>
     </PublicLayout>
   );
 }

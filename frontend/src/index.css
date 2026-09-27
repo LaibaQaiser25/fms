@@ -7,9 +7,11 @@
    Two selectable themes for the logged-in app only (sidebar, header,
    dashboard, login) — toggled via context/ThemeContext.jsx, which sets
    data-theme on <html>. The public marketing site never reads these; it
-   always uses the fixed construction palette hardcoded in its own files.
+   always uses fixed palettes hardcoded in its own files (the home page's blue
+   and orange live in src/homeTheme.js).
 
-   "construction": flat red/maroon/grey/gold, matching the public site.
+   "construction": flat red/maroon/grey/gold, matching the public site's inner
+   pages (the home page has its own palette).
    "generic": the original dark gradient/glow/backdrop-blur "AI" look. */
 
 :root,
@@ -117,6 +119,14 @@
   --color-success-hover: #15803d;
   --color-success-soft: #dcfce7;
   --color-success-soft-hover: #bbf7d0;
+}
+
+/* Public home page hero (components/Home/HomeHero.jsx): the active slide's
+   progress line fills over the slide interval, and its animationend advances
+   the slideshow. */
+@keyframes home-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 
 /* Hides the scrollbar on elements that need to scroll but shouldn't show one —

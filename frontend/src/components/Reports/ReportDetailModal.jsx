@@ -116,7 +116,7 @@ export default function ReportDetailModal({ isOpen, report, onClose, onUpdated, 
         <div className="flex items-center gap-3">
           <img src="/logo3.png" alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
           <div>
-            <p className="text-lg font-bold text-gray-900 leading-tight">Bin-Zahid &amp; Partners'</p>
+            <p className="text-lg font-bold text-gray-900 leading-tight">Bin-Zahid &amp; Partners</p>
             <p className="text-xs text-gray-500 leading-tight tracking-wide">PRECAST SOLUTIONS</p>
           </div>
         </div>

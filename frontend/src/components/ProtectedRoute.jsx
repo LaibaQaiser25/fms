@@ -7,9 +7,9 @@ const ProtectedRoute = ({ allowedRoles }) => {
   // While checking if user is logged in, show nothing
   if (loading) return null;
 
-  // If not logged in, redirect to home
+  // If not logged in, redirect to the login page
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // If roles are specified and user role doesn't match, deny access

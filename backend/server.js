@@ -49,8 +49,15 @@ const app = express();
 // instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request.
 app.set('trust proxy', 1);
 
+// FRONTEND_URL may list several origins, comma-separated — the dashboard
+// (app.ittefaqbuilder.com) and the public site are separate origins.
+const allowedOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
   credentials: true,
   // Without this, browsers cache the OPTIONS preflight for only ~5s (Chromium
   // default when the header is absent), so almost every authenticated

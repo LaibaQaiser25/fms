@@ -76,7 +76,7 @@ export default function Login({ isOpen, onClose }) {
       
       console.log('✅ Login successful:', data.user);
       setIsLoading(false);
-      onClose();
+      onClose?.();
       navigate('/dashboard');
     } catch (err) {
       console.error('Login error:', err);
@@ -96,12 +96,15 @@ export default function Login({ isOpen, onClose }) {
             <h2 className="text-2xl font-bold">Welcome Back</h2>
             <p className="text-gray-300 text-sm">Bin-Zahid & Partners</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-white/20 rounded-lg transition"
-          >
-            <X size={24} />
-          </button>
+          {/* No close button on the standalone /login page (no onClose) */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-white/20 rounded-lg transition"
+            >
+              <X size={24} />
+            </button>
+          )}
         </div>
 
         {/* Form */}

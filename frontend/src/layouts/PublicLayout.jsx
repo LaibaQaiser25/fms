@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import LoginModal from '../components/Login';
 import { white, navy, blue, orangeText, alpha } from '../homeTheme';
 
 // Every public page shares this navbar + footer. "default" is the original
@@ -17,7 +16,6 @@ const SKINS = {
         navBorder: '3px solid #b91c1c',
         navShadow: '0 2px 10px rgba(0,0,0,0.5)',
         navDesktop: 'hidden md:flex',
-        navLogin: 'hidden md:block',
         navToggle: 'md:hidden',
         navMenu: 'md:hidden',
         logoRule: '#b91c1c',
@@ -29,11 +27,6 @@ const SKINS = {
         menuLink: 'rgba(255,255,255,0.6)',
         menuRule: 'rgba(255,255,255,0.1)',
         toggle: 'rgba(255,255,255,0.7)',
-        btnBg: '#b91c1c',
-        btnText: '#fff',
-        btnBorder: undefined,
-        btnShadow: '0 2px 10px rgba(0,0,0,0.35)',
-        btnPad: 'py-2.5',
         footer: 'bg-gray-900 text-white',
         footHead: 'text-[#ef4444]',
         footText: 'text-gray-300',
@@ -48,7 +41,6 @@ const SKINS = {
         navShadow: `0 12px 30px -20px ${alpha(navy, 0.4)}`,
         // this skin's roomier brand + links only fit side by side from lg up
         navDesktop: 'hidden lg:flex',
-        navLogin: 'hidden lg:block',
         navToggle: 'lg:hidden',
         navMenu: 'lg:hidden',
         logoRule: blue,
@@ -60,13 +52,6 @@ const SKINS = {
         menuLink: alpha(navy, 0.72),
         menuRule: alpha(navy, 0.12),
         toggle: navy,
-        // hollow, so it doesn't compete with the hero's primary CTA; the 2px
-        // border comes out of the vertical padding to keep the 40px height
-        btnBg: 'transparent',
-        btnText: navy,
-        btnBorder: `2px solid ${navy}`,
-        btnShadow: 'none',
-        btnPad: 'py-2',
         footer: 'bg-[#1B2A4E] text-white border-t-[3px] border-[#DB5A32]',
         footHead: 'text-[#F58A5E]',
         footText: 'text-white/75',
@@ -79,7 +64,6 @@ const SKINS = {
 export default function PublicLayout({ children, skin = 'default' }) {
     const s = SKINS[skin] ?? SKINS.default;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isLoginOpen, setIsLoginOpen] = useState(false);
     const [navHidden, setNavHidden] = useState(false);
     const lastScrollY = useRef(0);
     const location = useLocation();
@@ -173,18 +157,6 @@ export default function PublicLayout({ children, skin = 'default' }) {
                         {/* Right Side */}
                         <div className="flex items-center gap-3">
                             <button
-                                onClick={() => setIsLoginOpen(true)}
-                                className={`${s.navLogin} text-sm font-bold px-6 ${s.btnPad} rounded-lg transition hover:opacity-90`}
-                                style={{
-                                    background: s.btnBg,
-                                    color: s.btnText,
-                                    border: s.btnBorder,
-                                    boxShadow: s.btnShadow,
-                                }}
-                            >
-                                Login
-                            </button>
-                            <button
                                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                                 className={`${s.navToggle} p-2`}
                                 style={{ color: s.toggle }}
@@ -209,13 +181,6 @@ export default function PublicLayout({ children, skin = 'default' }) {
                                     {item.label}
                                 </Link>
                             ))}
-                            <button
-                                onClick={() => { setIsLoginOpen(true); setIsMenuOpen(false); }}
-                                className={`mt-4 w-full ${s.btnPad} rounded-lg font-bold text-sm`}
-                                style={{ background: s.btnBg, color: s.btnText, border: s.btnBorder }}
-                            >
-                                Login
-                            </button>
                         </div>
                     )}
                 </div>
@@ -267,9 +232,6 @@ export default function PublicLayout({ children, skin = 'default' }) {
                     </div>
                 </div>
             </footer>
-
-            {/* Login Modal */}
-            <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
         </div>
     );
 }

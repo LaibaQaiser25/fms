@@ -29,7 +29,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/login');
   };
 
   const handleSearch = async () => {
@@ -97,7 +97,7 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
         </button>
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 sm:gap-3 group min-w-0">
+        <Link to="/dashboard" className="flex items-center gap-2 sm:gap-3 group min-w-0">
           <div
             className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden shrink-0"
             style={{ border: 'var(--logo-border)', boxShadow: 'var(--logo-glow)' }}

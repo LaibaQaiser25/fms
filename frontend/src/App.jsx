@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SocketProvider } from './context/SocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { APP_URL, SITE } from './config';
 
 import Layout from './components/Layout';
 const RoleDashboard = lazy(() => import('./components/RoleDashboard'));
@@ -28,6 +29,15 @@ const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const SpecialitiesPage = lazy(() => import('./pages/SpecialitiesPage'));
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+
+// Full-page redirect (different origin, so not a router <Navigate>) keeping
+// the path, query and hash — e.g. ittefaqbuilder.com/ledger?customerId=3.
+const RedirectToApp = () => {
+  const { pathname, search, hash } = window.location;
+  window.location.replace(`${APP_URL}${pathname}${search}${hash}`);
+  return null;
+};
 
 const PageLoadingFallback = () => (
   <div className="text-center py-8">
@@ -49,39 +59,55 @@ function App() {
     <SocketProvider>
     <BrowserRouter>
       <Routes>
-        {/* Public Routes - Accessible to everyone */}
-        <Route path="/" element={lazyRoute(HomePage)} />
-        <Route path="/about" element={lazyRoute(AboutPage)} />
-        <Route path="/services" element={lazyRoute(ServicesPage)} />
-        <Route path="/specialities" element={lazyRoute(SpecialitiesPage)} />
-        <Route path="/feedback" element={lazyRoute(FeedbackPage)} />
-        <Route path="/contact" element={lazyRoute(ContactPage)} />
+        {/* Which routes exist depends on the domain — see SITE in config.js. */}
+        {SITE !== 'app' && (
+          <>
+            {/* Public Routes - Accessible to everyone */}
+            <Route path="/" element={lazyRoute(HomePage)} />
+            <Route path="/about" element={lazyRoute(AboutPage)} />
+            <Route path="/services" element={lazyRoute(ServicesPage)} />
+            <Route path="/specialities" element={lazyRoute(SpecialitiesPage)} />
+            <Route path="/feedback" element={lazyRoute(FeedbackPage)} />
+            <Route path="/contact" element={lazyRoute(ContactPage)} />
+          </>
+        )}
+
+        {/* Public site has no dashboard: anything else (old /dashboard
+            bookmarks, /login, …) goes to the same path on the app domain. */}
+        {SITE === 'public' && <Route path="*" element={<RedirectToApp />} />}
+
+        {/* App domain has no public pages — "/" and unknown paths go to login
+            (which forwards to /dashboard when already signed in). */}
+        {SITE === 'app' && <Route path="*" element={<Navigate to="/login" replace />} />}
+        {SITE !== 'public' && <Route path="/login" element={lazyRoute(LoginPage)} />}
 
         {/* Protected Routes - Require authentication. Guest now has the same
             page access as Manager (Layout's click-blocker makes every action
             on those pages a no-op for Guest — see components/Layout.jsx) —
             only the innermost Owner-only group stays off-limits to both. */}
-        <Route element={<ProtectedRoute allowedRoles={['owner', 'manager', 'guest']} />}>
-          <Route element={<Layout />}>
-            <Route path="/dashboard" element={lazyRoute(RoleDashboard, <PageLoadingFallback />)} />
-            <Route path="/stock" element={lazyRoute(StockManager, <PageLoadingFallback />)} />
-            <Route path="/products" element={lazyRoute(ProductsManager, <PageLoadingFallback />)} />
-            <Route path="/ledger" element={lazyRoute(CustomerLedger, <PageLoadingFallback />)} />
-            <Route path="/purchase-ledger" element={lazyRoute(PurchaseLedger, <PageLoadingFallback />)} />
-            <Route path="/raw-materials" element={lazyRoute(RawMaterialsList, <PageLoadingFallback />)} />
-            <Route path="/production" element={lazyRoute(ProductionList, <PageLoadingFallback />)} />
-            <Route path="/expenses" element={lazyRoute(ExpenseList, <PageLoadingFallback />)} />
-            <Route path="/assets" element={lazyRoute(AssetList, <PageLoadingFallback />)} />
-            <Route path="/employees" element={lazyRoute(EmployeeList, <PageLoadingFallback />)} />
-            {/* Owner-only — Analytics, Cashbook, Reports, and Privacy (user management) are off-limits to Manager and Guest */}
-            <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
-              <Route path="/analytics" element={lazyRoute(Analytics, <PageLoadingFallback />)} />
-              <Route path="/cashbook" element={lazyRoute(Cashbook, <PageLoadingFallback />)} />
-              <Route path="/reports" element={lazyRoute(Reports, <PageLoadingFallback />)} />
-              <Route path="/privacy" element={lazyRoute(Privacy, <PageLoadingFallback />)} />
+        {SITE !== 'public' && (
+          <Route element={<ProtectedRoute allowedRoles={['owner', 'manager', 'guest']} />}>
+            <Route element={<Layout />}>
+              <Route path="/dashboard" element={lazyRoute(RoleDashboard, <PageLoadingFallback />)} />
+              <Route path="/stock" element={lazyRoute(StockManager, <PageLoadingFallback />)} />
+              <Route path="/products" element={lazyRoute(ProductsManager, <PageLoadingFallback />)} />
+              <Route path="/ledger" element={lazyRoute(CustomerLedger, <PageLoadingFallback />)} />
+              <Route path="/purchase-ledger" element={lazyRoute(PurchaseLedger, <PageLoadingFallback />)} />
+              <Route path="/raw-materials" element={lazyRoute(RawMaterialsList, <PageLoadingFallback />)} />
+              <Route path="/production" element={lazyRoute(ProductionList, <PageLoadingFallback />)} />
+              <Route path="/expenses" element={lazyRoute(ExpenseList, <PageLoadingFallback />)} />
+              <Route path="/assets" element={lazyRoute(AssetList, <PageLoadingFallback />)} />
+              <Route path="/employees" element={lazyRoute(EmployeeList, <PageLoadingFallback />)} />
+              {/* Owner-only — Analytics, Cashbook, Reports, and Privacy (user management) are off-limits to Manager and Guest */}
+              <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
+                <Route path="/analytics" element={lazyRoute(Analytics, <PageLoadingFallback />)} />
+                <Route path="/cashbook" element={lazyRoute(Cashbook, <PageLoadingFallback />)} />
+                <Route path="/reports" element={lazyRoute(Reports, <PageLoadingFallback />)} />
+                <Route path="/privacy" element={lazyRoute(Privacy, <PageLoadingFallback />)} />
+              </Route>
             </Route>
           </Route>
-        </Route>
+        )}
       </Routes>
     </BrowserRouter>
     </SocketProvider>

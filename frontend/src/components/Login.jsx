@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Mail, Lock, AlertCircle, ShieldCheck, UserCog, Eye } from 'lucide-react';
+import { X, Mail, Lock, AlertCircle, ShieldCheck, UserCog, Eye, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AUTH_BASE_URL } from '../config';
+import { alpha, orangeText, ground, ink, serifNavy, btnNavy, btnOrange, serif, sans } from '../homeTheme';
+import { Tag, Title, PillButton } from './Public/ui';
+import { fieldClass, fieldStyle, labelClass, labelStyle } from './Public/styles';
 
 const ROLES = [
   { value: 'owner', label: 'Owner', Icon: ShieldCheck },
@@ -10,6 +13,11 @@ const ROLES = [
   { value: 'guest', label: 'Guest', Icon: Eye },
 ];
 
+const Spinner = ({ size }) => <Loader2 size={size} className="animate-spin" />;
+
+// The login card, in the public site's look. With `onClose` it is a modal over a
+// dimmed page; without it (the standalone /login page) it sits on whatever the
+// page puts behind it and has no close button.
 export default function Login({ isOpen, onClose }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
@@ -30,7 +38,6 @@ export default function Login({ isOpen, onClose }) {
     }
 
     try {
-      console.log('Attempting login with username:', form.username);
       const response = await fetch(`${AUTH_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,11 +48,10 @@ export default function Login({ isOpen, onClose }) {
       });
 
       const data = await response.json();
-      console.log('Auth response:', response.status, data);
 
       if (!response.ok) {
         if (response.status === 401) {
-          setError('Invalid username or password. Try: admin / password123');
+          setError('Invalid username or password.');
         } else if (response.status === 400) {
           setError(data.error || 'Invalid input');
         } else if (response.status === 500) {
@@ -70,11 +76,10 @@ export default function Login({ isOpen, onClose }) {
       // Store token and user info
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      
+
       // Update auth context
       login(data.token);
-      
-      console.log('✅ Login successful:', data.user);
+
       setIsLoading(false);
       onClose?.();
       navigate('/dashboard');
@@ -87,119 +92,136 @@ export default function Login({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
+  const iconClass = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2';
+  const iconStyle = { color: alpha(serifNavy, 0.45) };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="text-white px-8 py-6 flex justify-between items-center" style={{ background: '#1a1a1a', borderBottom: '3px solid #b91c1c' }}>
-          <div>
-            <h2 className="text-2xl font-bold">Welcome Back</h2>
-            <p className="text-gray-300 text-sm">Bin-Zahid & Partners</p>
-          </div>
-          {/* No close button on the standalone /login page (no onClose) */}
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-white/20 rounded-lg transition"
-            >
-              <X size={24} />
-            </button>
-          )}
-        </div>
+    // As a modal it overlays the page (and scrolls inside itself if the window is short); on the standalone
+    // page it sits in normal flow, so the page scrolls instead.
+    <div className={onClose ? 'fixed inset-0 z-50 flex items-center justify-center p-4' : 'relative flex min-h-screen items-center justify-center px-4 py-5'}
+      style={{ background: onClose ? alpha(ink, 0.55) : 'transparent' }}>
+      <div className="relative w-full max-w-md">
+        {/* thin offset outline behind the card, the drafting-style double edge used across the site */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 translate-x-3.5 translate-y-3.5 rounded-2xl"
+          style={{ border: `1px solid ${alpha(serifNavy, 0.45)}` }} />
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="px-8 py-8 space-y-6">
-          {/* Role Selection */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Login as
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {ROLES.map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => { setSelectedRole(value); setError(''); }}
-                  className={`flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 transition font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                    selectedRole === value
-                      ? 'border-red-700 bg-red-50 text-red-800'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon size={20} />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <AlertCircle size={18} />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Username Field */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Username or Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3.5 text-gray-400" size={20} />
-              <input
-                type="text"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="Enter your username"
-                required
-                disabled={isLoading}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent disabled:bg-gray-100"
-              />
-            </div>
-          </div>
-
-          {/* Password Field */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3.5 text-gray-400" size={20} />
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Enter your password"
-                required
-                disabled={isLoading}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent disabled:bg-gray-100"
-              />
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-red-700 to-red-900 text-white py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Logging in...
-              </>
-            ) : (
-              'Login to Dashboard'
+        <div className={`relative rounded-2xl bg-white ${onClose ? 'max-h-[90vh] overflow-y-auto' : ''}`}
+          style={{ border: `1px solid ${alpha(serifNavy, 0.12)}` }}>
+          {/* Header */}
+          <div className="relative px-8 pt-6 pb-5" style={{ background: ground, borderBottom: `1px solid ${alpha(serifNavy, 0.12)}` }}>
+            <Tag className="mb-3 text-[0.7rem]">Staff Login</Tag>
+            <Title size="2.4rem">Welcome Back</Title>
+            <p className="mt-2 text-[0.95rem] font-medium uppercase"
+              style={{ fontFamily: serif, color: serifNavy, letterSpacing: '0.2em' }}>
+              Bin-Zahid &amp; Partners
+            </p>
+            {/* No close button on the standalone /login page (no onClose) */}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full transition hover:bg-black/5"
+                style={{ color: btnNavy }}
+              >
+                <X size={20} />
+              </button>
             )}
-          </button>
-        </form>
+          </div>
 
-        {/* Footer */}
-        <div className="border-t border-gray-200 px-8 py-4 text-center text-sm text-gray-600">
-          <p className="text-xs text-gray-500">Secure login powered by JWT</p>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5 px-8 py-6">
+            {/* Role Selection */}
+            <div>
+              <span className={labelClass} style={labelStyle}>Login as</span>
+              <div className="grid grid-cols-3 gap-2">
+                {ROLES.map(({ value, label, Icon: icon }) => {
+                  const Icon = icon;
+                  const on = selectedRole === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={isLoading}
+                      aria-pressed={on}
+                      onClick={() => { setSelectedRole(value); setError(''); }}
+                      className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        fontFamily: sans,
+                        color: on ? btnNavy : alpha(serifNavy, 0.6),
+                        background: on ? ground : '#fff',
+                        border: on ? `1.5px solid ${btnNavy}` : `1.5px solid ${alpha(serifNavy, 0.14)}`,
+                      }}
+                    >
+                      <Icon size={17} style={{ color: on ? btnOrange : undefined }} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div role="alert" className="flex items-start gap-2 rounded-xl p-3 text-sm"
+                style={{ fontFamily: sans, color: orangeText, background: '#FDF1EC', border: `1px solid ${alpha(orangeText, 0.25)}` }}>
+                <AlertCircle size={18} className="mt-px shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Username Field */}
+            <div>
+              <label htmlFor="login-username" className={labelClass} style={labelStyle}>Username or Email</label>
+              <div className="relative">
+                <Mail className={iconClass} style={iconStyle} size={18} />
+                <input
+                  id="login-username"
+                  type="text"
+                  autoComplete="username"
+                  value={form.username}
+                  onChange={(e) => setForm({ ...form, username: e.target.value })}
+                  placeholder="Enter your username"
+                  required
+                  disabled={isLoading}
+                  className={`${fieldClass} pl-11 disabled:opacity-60`}
+                  style={fieldStyle}
+                />
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <label htmlFor="login-password" className={labelClass} style={labelStyle}>Password</label>
+              <div className="relative">
+                <Lock className={iconClass} style={iconStyle} size={18} />
+                <input
+                  id="login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Enter your password"
+                  required
+                  disabled={isLoading}
+                  className={`${fieldClass} pl-11 disabled:opacity-60`}
+                  style={fieldStyle}
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <PillButton type="submit" disabled={isLoading} icon={isLoading ? Spinner : undefined} className="w-full disabled:cursor-not-allowed">
+              {isLoading ? 'Logging in…' : 'Login to Dashboard'}
+            </PillButton>
+          </form>
+
+          {/* Footer */}
+          <div className="px-8 py-3.5 text-center" style={{ borderTop: `1px solid ${alpha(serifNavy, 0.12)}` }}>
+            <p className="text-[0.7rem] font-bold uppercase tracking-[0.2em]" style={{ fontFamily: sans, color: alpha(serifNavy, 0.55) }}>
+              Secure login powered by JWT
+            </p>
+          </div>
         </div>
       </div>
     </div>

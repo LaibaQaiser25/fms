@@ -13,6 +13,7 @@ const StockManager = lazy(() => import('./components/StockManager'));
 const ProductsManager = lazy(() => import('./components/ProductsManager'));
 const CustomerLedger = lazy(() => import('./components/Sales/Ledger/CustomerLedger'));
 const PurchaseLedger = lazy(() => import('./components/Purchase/PLedger/PurchaseLedger'));
+const OrdersList = lazy(() => import('./components/Sales/OrdersList'));
 const RawMaterialsList = lazy(() => import('./components/RawMaterials/RawMaterialsList'));
 const ProductionList = lazy(() => import('./components/ProductionList'));
 const ExpenseList = lazy(() => import('./components/Expenses/ExpenseList'));
@@ -92,6 +93,7 @@ function App() {
               <Route path="/stock" element={lazyRoute(StockManager, <PageLoadingFallback />)} />
               <Route path="/products" element={lazyRoute(ProductsManager, <PageLoadingFallback />)} />
               <Route path="/ledger" element={lazyRoute(CustomerLedger, <PageLoadingFallback />)} />
+              <Route path="/orders" element={lazyRoute(OrdersList, <PageLoadingFallback />)} />
               <Route path="/purchase-ledger" element={lazyRoute(PurchaseLedger, <PageLoadingFallback />)} />
               <Route path="/raw-materials" element={lazyRoute(RawMaterialsList, <PageLoadingFallback />)} />
               <Route path="/production" element={lazyRoute(ProductionList, <PageLoadingFallback />)} />

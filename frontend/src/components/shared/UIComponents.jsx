@@ -1,5 +1,7 @@
 import React from 'react';
 import { SkeletonTable } from './Skeleton';
+import { MinimizeButton, MinimizedDock } from './Minimizable';
+import { useMinimize } from './useMinimize';
 
 export const Button = ({ type = 'button', variant = 'primary', size = 'md', className = '', children, ...props }) => {
   const baseStyles = 'font-semibold rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -71,6 +73,7 @@ export const Card = ({ title, children, className = '' }) => {
 };
 
 export const Modal = ({ isOpen, title, onClose, children, size = 'md' }) => {
+  const { minimized, minimize, restore } = useMinimize(isOpen);
   if (!isOpen) return null;
 
   const sizes = {
@@ -82,17 +85,23 @@ export const Modal = ({ isOpen, title, onClose, children, size = 'md' }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50">
+    <>
+    <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 ${minimized ? 'hidden' : ''}`}>
       <div className={`bg-white rounded-lg shadow-lg ${sizes[size]} w-full mx-4 max-h-[85vh] flex flex-col`}>
         <div className="flex justify-between items-center p-6 border-b shrink-0">
           <h2 className="text-lg font-bold">{title}</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">
-            ×
-          </button>
+          <div className="flex items-center gap-2">
+            <MinimizeButton onClick={minimize} className="text-gray-500 hover:text-gray-700" iconClassName="w-5 h-5" />
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">
+              ×
+            </button>
+          </div>
         </div>
         <div className="p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
+    <MinimizedDock minimized={minimized} title={title} onRestore={restore} onClose={onClose} />
+    </>
   );
 };
 

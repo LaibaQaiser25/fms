@@ -218,20 +218,27 @@ class SalesController {
   }
 
   /**
-   * Get all sales with pagination
-   * GET /api/sales?page=1&limit=10
+   * Get all sales with pagination, optionally filtered by fulfilment status
+   * GET /api/sales?page=1&limit=10&status=pending
    */
   static async getAllSales(req, res) {
     try {
-      const { page = 1, limit = 10 } = req.query;
+      const { page = 1, limit = 10, status } = req.query;
       const offset = (page - 1) * limit;
 
+      const statusFilter = ['pending', 'ready', 'delivered', 'cancelled'].includes(status) ? status : null;
+
       const result = await pool.query(
-        `SELECT * FROM sales ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-        [limit, offset]
+        `SELECT * FROM sales
+         WHERE $3::text IS NULL OR status = $3
+         ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset, statusFilter]
       );
 
-      const countResult = await pool.query('SELECT COUNT(*) FROM sales');
+      const countResult = await pool.query(
+        'SELECT COUNT(*) FROM sales WHERE $1::text IS NULL OR status = $1',
+        [statusFilter]
+      );
       const total = parseInt(countResult.rows[0].count);
 
       res.json({
@@ -414,8 +421,8 @@ class SalesController {
    */
   static async getDashboardData(req, res) {
     try {
-      // Execute all 4 queries in parallel
-      const [salesResult, ordersResult, stockResult, paymentsResult] = await Promise.all([
+      // Execute all queries in parallel
+      const [salesResult, ordersResult, stockResult, paymentsResult, statusResult] = await Promise.all([
         // 1. Today's sales summary
         pool.query(
           `SELECT 
@@ -446,6 +453,12 @@ class SalesController {
            FROM invoices
            WHERE status IN ('unpaid', 'partial')
            ORDER BY created_at DESC`
+        ),
+        // 5. All-time order counts/amounts per fulfilment status
+        pool.query(
+          `SELECT status, COUNT(*)::int AS count, COALESCE(SUM(total_amount), 0) AS total_amount
+           FROM sales
+           GROUP BY status`
         )
       ]);
 
@@ -456,7 +469,8 @@ class SalesController {
           salesSummary: salesResult.rows[0],
           recentOrders: ordersResult.rows,
           lowStockAlerts: stockResult.rows,
-          pendingPayments: paymentsResult.rows
+          pendingPayments: paymentsResult.rows,
+          orderStatusCounts: statusResult.rows
         }
       });
 

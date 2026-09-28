@@ -4,8 +4,11 @@ import * as productionApi from '../api/productionApi';
 import * as stockApi from '../api/stockApi';
 import * as productsApi from '../api/productsApi';
 import { capitalizeFirstLetter } from '../utils/text';
+import { MinimizeButton, MinimizedDock } from './shared/Minimizable';
+import { useMinimize } from './shared/useMinimize';
 
 function AddProductionDirect({ onClose, onSuccess }) {
+  const { minimized, minimize, restore } = useMinimize();
   const [stockList, setStockList] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -164,7 +167,8 @@ function AddProductionDirect({ onClose, onSuccess }) {
   const selectedCategoryName = categories.find(c => String(c.id) === String(selectedCategoryId))?.name;
 
   return (
-    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none">
+    <>
+    <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none ${minimized ? 'hidden' : ''}`}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 pointer-events-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
@@ -174,9 +178,12 @@ function AddProductionDirect({ onClose, onSuccess }) {
             </div>
             <h3 className="text-lg font-bold text-gray-800">Create Production Order</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-1">
+            <MinimizeButton onClick={minimize} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" iconClassName="w-5 h-5 text-gray-500" />
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -334,6 +341,8 @@ function AddProductionDirect({ onClose, onSuccess }) {
         </div>
       </div>
     </div>
+    <MinimizedDock minimized={minimized} title="Create Production Order" onRestore={restore} onClose={onClose} />
+    </>
   );
 }
 

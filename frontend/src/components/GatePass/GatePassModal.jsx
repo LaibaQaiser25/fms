@@ -5,6 +5,8 @@ import * as gatePassApi from '../../api/gatePassApi';
 import * as salesApi from '../../api/salesApi';
 import * as purchaseApi from '../../api/purchaseApi';
 import { AlertRefreshContext } from '../Layout';
+import { MinimizeButton, MinimizedDock } from '../shared/Minimizable';
+import { useMinimize } from '../shared/useMinimize';
 
 // kind 'order'    -> outward pass for a sale with status 'ready' (marks it delivered)
 // kind 'received' -> inward pass for goods from a purchase
@@ -26,6 +28,7 @@ const COPY = {
 };
 
 function GatePassModal({ kind, onClose }) {
+  const { minimized, minimize, restore } = useMinimize();
   const alertRefresh = useContext(AlertRefreshContext);
   const copy = COPY[kind];
 
@@ -141,7 +144,8 @@ function GatePassModal({ kind, onClose }) {
   const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]";
 
   return (
-    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex z-50 overflow-y-auto p-4">
+    <>
+    <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex z-50 overflow-y-auto p-4 ${minimized ? 'hidden' : ''}`}>
       <div className="bg-white w-full max-w-2xl h-fit max-h-[90vh] flex flex-col mx-auto my-auto rounded-lg shadow-xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
@@ -153,9 +157,12 @@ function GatePassModal({ kind, onClose }) {
             )}
             <h2 className="text-xl sm:text-2xl font-extrabold text-gray-800">{copy.title}</h2>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-            <X className="w-6 h-6 text-gray-600" />
-          </button>
+          <div className="flex items-center gap-1">
+            <MinimizeButton onClick={minimize} iconClassName="w-6 h-6 text-gray-600" />
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+              <X className="w-6 h-6 text-gray-600" />
+            </button>
+          </div>
         </div>
 
         <div className="p-4 sm:p-6 space-y-5 flex-1 overflow-y-auto">
@@ -340,6 +347,8 @@ function GatePassModal({ kind, onClose }) {
         )}
       </div>
     </div>
+    <MinimizedDock minimized={minimized} title={copy.title} onRestore={restore} onClose={onClose} />
+    </>
   );
 }
 

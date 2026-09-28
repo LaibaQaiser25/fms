@@ -3,6 +3,8 @@ import { X, ArrowLeft, Package, Layers } from 'lucide-react';
 import * as productsApi from '../api/productsApi';
 import { capitalizeFirstLetter } from '../utils/text';
 import { ACCENT_GRADIENT_STYLE } from '../theme';
+import { MinimizeButton, MinimizedDock } from './shared/Minimizable';
+import { useMinimize } from './shared/useMinimize';
 import { SkeletonCardGrid, SkeletonTable } from './shared/Skeleton';
 
 const emptyForm = { type: '', name: '', category_id: '', size: '', unit: '', description: '', quantity: '' };
@@ -46,6 +48,9 @@ export default function ProductsManager() {
 
   // Category/Unit manager modal (accessible via the "+ Add Category" button)
   const [showCatManager, setShowCatManager] = useState(false);
+  const formMin = useMinimize(showForm);
+  const excelMin = useMinimize(showExcelGrid);
+  const catMin = useMinimize(showCatManager);
   const [catManagerType, setCatManagerType] = useState('');
   const [catManagerSearch, setCatManagerSearch] = useState('');
   const [catManagerEditingId, setCatManagerEditingId] = useState(null);
@@ -464,13 +469,17 @@ export default function ProductsManager() {
           (via "+ Add new category") and needs to land on top of it rather
           than behind, regardless of which is later in the DOM. */}
       {showCatManager && (
-        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <>
+        <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-[60] p-4 ${catMin.minimized ? 'hidden' : ''}`}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">Manage Categories & Units</h3>
-              <button onClick={closeCatManager} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
+              <div className="flex items-center gap-1">
+                <MinimizeButton onClick={catMin.minimize} />
+                <button onClick={closeCatManager} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
             </div>
 
             <div className="mb-4">
@@ -556,6 +565,8 @@ export default function ProductsManager() {
             )}
           </div>
         </div>
+        <MinimizedDock minimized={catMin.minimized} title="Manage Categories & Units" onRestore={catMin.restore} onClose={closeCatManager} />
+        </>
       )}
 
       {/* Choose Add Method Modal */}
@@ -591,13 +602,17 @@ export default function ProductsManager() {
 
       {/* Bulk Add Products (Excel-style grid) Modal */}
       {showExcelGrid && (
-        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <>
+        <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${excelMin.minimized ? 'hidden' : ''}`}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl p-6 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">Add Products — Excel Sheet</h3>
-              <button onClick={closeExcelGrid} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
+              <div className="flex items-center gap-1">
+                <MinimizeButton onClick={excelMin.minimize} />
+                <button onClick={closeExcelGrid} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -747,17 +762,23 @@ export default function ProductsManager() {
             </div>
           </div>
         </div>
+        <MinimizedDock minimized={excelMin.minimized} title="Add Products — Excel Sheet" onRestore={excelMin.restore} onClose={closeExcelGrid} />
+        </>
       )}
 
       {/* Add/Edit Product Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <>
+        <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${formMin.minimized ? 'hidden' : ''}`}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">{editing ? 'Edit Product' : 'Add New Product'}</h3>
-              <button onClick={resetForm} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
+              <div className="flex items-center gap-1">
+                <MinimizeButton onClick={formMin.minimize} />
+                <button onClick={resetForm} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
             </div>
 
             {/* Mandatory gate: Stock vs Raw Material */}
@@ -918,6 +939,8 @@ export default function ProductsManager() {
             </button>
           </div>
         </div>
+        <MinimizedDock minimized={formMin.minimized} title={editing ? 'Edit Product' : 'Add New Product'} onRestore={formMin.restore} onClose={resetForm} />
+        </>
       )}
 
       {/* Type cards (default view) or search/filters + table (drilled into a type) */}

@@ -52,6 +52,8 @@ export default function Layout() {
   }, [location.pathname]);
   const [salesSummary, setSalesSummary] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [orderStatusCounts, setOrderStatusCounts] = useState([]);
+  const [purchasesSummary, setPurchasesSummary] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [pendingPayments, setPendingPayments] = useState([]);       // owed TO us (customers)
   const [payablePayments, setPayablePayments] = useState([]);       // owed BY us (sellers)
@@ -71,11 +73,13 @@ export default function Layout() {
         rawMaterialsApi.getLowStockRawMaterials()
       ]);
 
-      const { salesSummary, recentOrders, lowStockAlerts, pendingPayments } = salesResponse.data.data;
-      const { pendingPayments: payablePayments } = purchaseResponse.data.data;
+      const { salesSummary, recentOrders, lowStockAlerts, pendingPayments, orderStatusCounts } = salesResponse.data.data;
+      const { purchasesSummary, pendingPayments: payablePayments } = purchaseResponse.data.data;
 
       setSalesSummary(salesSummary);
       setRecentOrders(recentOrders || []);
+      setOrderStatusCounts(orderStatusCounts || []);
+      setPurchasesSummary(purchasesSummary || null);
       setLowStockAlerts(lowStockAlerts || []);
       setPendingPayments(pendingPayments || []);
       setPayablePayments(payablePayments || []);
@@ -141,7 +145,7 @@ export default function Layout() {
   };
 
   return (
-    <AlertRefreshContext.Provider value={{ fetchAlerts, salesSummary, recentOrders, pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials }}>
+    <AlertRefreshContext.Provider value={{ fetchAlerts, salesSummary, recentOrders, orderStatusCounts, purchasesSummary, pendingPayments, lowStockAlerts, payablePayments, lowStockRawMaterials }}>
       <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
         <Sidebar
           collapsed={sidebarCollapsed}

@@ -4,8 +4,8 @@ import http from './http';
 export const createSale = (data) => http.post(`/sales`, data);
 
 // Get all sales
-export const getAllSales = (page = 1, limit = 10) =>
-  http.get(`/sales?page=${page}&limit=${limit}`);
+export const getAllSales = (page = 1, limit = 10, status = '') =>
+  http.get(`/sales?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`);
 
 // Get single sale
 export const getSale = (id) => http.get(`/sales/${id}`);

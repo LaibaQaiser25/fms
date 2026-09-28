@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import * as productionApi from '../api/productionApi';
 import { capitalizeFirstLetter } from '../utils/text';
+import { MinimizeButton, MinimizedDock } from './shared/Minimizable';
+import { useMinimize } from './shared/useMinimize';
 
 function AddProductionForm({ item, onClose, onSubmit }) {
+  const { minimized, minimize, restore } = useMinimize();
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('normal');
   const [loading, setLoading] = useState(false);
@@ -35,14 +38,18 @@ function AddProductionForm({ item, onClose, onSubmit }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none">
+    <>
+    <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none ${minimized ? 'hidden' : ''}`}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 pointer-events-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h3 className="text-lg font-bold text-gray-800">Add to Production Queue</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
+          <div className="flex items-center gap-1">
+            <MinimizeButton onClick={minimize} />
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+              <X className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -113,6 +120,8 @@ function AddProductionForm({ item, onClose, onSubmit }) {
         </div>
       </div>
     </div>
+    <MinimizedDock minimized={minimized} title="Add to Production Queue" onRestore={restore} onClose={onClose} />
+    </>
   );
 }
 

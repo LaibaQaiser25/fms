@@ -1,5 +1,5 @@
-import React, { useState, useContext, useRef } from 'react';
-import { Bell, ShoppingCart, Package, BarChart3, AlertCircle, Truck, PackageCheck } from 'lucide-react';
+import React, { useState, useContext, useRef, useEffect } from 'react';
+import { Bell, ShoppingCart, Package, BarChart3, AlertCircle, Truck, PackageCheck, Boxes, Factory, Receipt, ClipboardList, AlertTriangle, HandCoins, ArrowRight } from 'lucide-react';
 import NewSaleModal from './Sales/NewSaleModal';
 import NewPurchaseModal from './Purchase/NewPurchaseModal';
 import AddPaymentModal from './Payments/AddPaymentModal';
@@ -9,6 +9,10 @@ import GatePassModal from './GatePass/GatePassModal';
 import { NavLink, Link } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';
 import { SkeletonStatGrid } from './shared/Skeleton';
+import * as stockApi from '../api/stockApi';
+import * as productionApi from '../api/productionApi';
+import expenseAPI from '../api/expenseApi';
+import { ORDER_STATUSES } from './Sales/orderStatuses';
 
 // Shrinks its own font-size to fit on one line within its container via a
 // fluid clamp() (15px-30px, matching the old measurement loop's bounds),
@@ -42,6 +46,59 @@ function useHoverPopover() {
   return { open, setOpen, show, hide };
 }
 
+// Dashboard tile. The whole card is a link to `to` (the page/list behind the
+// number); `accent` drives the top bar, icon badge and hover tint.
+function StatCard({ title, value, lines = [], icon: Icon, accent, to, cta = 'View all' }) {
+  return (
+    <Link
+      to={to}
+      className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+      style={{ '--accent': accent, '--tw-ring-color': accent }}
+    >
+      {/* accent bar + soft corner glow */}
+      <span className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: 'var(--accent)' }} />
+      <span
+        className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-60 transition-opacity duration-200 group-hover:opacity-100"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}
+      />
+
+      <div className="relative flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-gray-600">{title}</h3>
+        {Icon && (
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 14%, white)', color: 'var(--accent)' }}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+        )}
+      </div>
+
+      <FitText className="relative mt-1 font-bold tracking-tight text-gray-900">{value}</FitText>
+
+      <div className="relative mt-2 space-y-0.5">
+        {lines.filter(Boolean).map((line, i) => (
+          <p key={i} className="truncate text-xs text-gray-500">{line}</p>
+        ))}
+      </div>
+
+      <div
+        className="relative mt-auto flex items-center gap-1 pt-3 text-xs font-semibold opacity-80 transition-opacity group-hover:opacity-100"
+        style={{ color: 'color-mix(in srgb, var(--accent) 75%, black)' }}
+      >
+        {cta}
+        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+      </div>
+    </Link>
+  );
+}
+
+// Local YYYY-MM-DD for the first of this month (expenses.date is a DATE)
+const monthStart = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
 function Dashboard() {
   const alertRefresh = useContext(AlertRefreshContext);
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
@@ -61,7 +118,37 @@ function Dashboard() {
   const recentOrders = alertRefresh?.recentOrders ?? [];
   const lowStockAlerts = alertRefresh?.lowStockAlerts ?? [];
   const pendingPayments = alertRefresh?.pendingPayments ?? [];
+  const orderStatusCounts = alertRefresh?.orderStatusCounts ?? [];
+  const purchasesSummary = alertRefresh?.purchasesSummary ?? null;
+  const payablePayments = alertRefresh?.payablePayments ?? [];
   const loading = salesSummary === null;
+
+  // Stock / production / expense figures are only shown here, so they're
+  // fetched by the dashboard itself rather than added to Layout's shared fetch.
+  const [stockList, setStockList] = useState(null);
+  const [productionStats, setProductionStats] = useState(null);
+  const [monthExpenses, setMonthExpenses] = useState(null);
+
+  useEffect(() => {
+    stockApi.getAllStock()
+      .then((res) => setStockList(res.data || []))
+      .catch((err) => { console.error('Error fetching stock:', err); setStockList([]); });
+    productionApi.getStats()
+      .then((res) => setProductionStats(res.data.data || {}))
+      .catch((err) => { console.error('Error fetching production stats:', err); setProductionStats({}); });
+    expenseAPI.getSummary({ startDate: monthStart() })
+      .then((res) => {
+        const rows = res.data.data || [];
+        setMonthExpenses({
+          total: rows.reduce((sum, r) => sum + (Number(r.total) || 0), 0),
+          count: rows.reduce((sum, r) => sum + (Number(r.count) || 0), 0)
+        });
+      })
+      .catch((err) => { console.error('Error fetching expense summary:', err); setMonthExpenses({ total: 0, count: 0 }); });
+  }, []);
+
+  const totalOrders = orderStatusCounts.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
+  const statusCount = (status) => orderStatusCounts.find((r) => r.status === status) || { count: 0, total_amount: 0 };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-PK', {
@@ -214,87 +301,135 @@ function Dashboard() {
         {loading ? (
           <SkeletonStatGrid count={4} className="mb-6" />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-            {/* Card 1: Today's Sales Summary */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-accent)]">
-              <h3 className="text-gray-600 text-sm font-semibold mb-2">Today's Sales</h3>
-              <FitText className="font-bold text-gray-800">{formatCurrency(salesSummary?.total_amount)}</FitText>
-              <p className="text-xs text-gray-500 mt-2">Total Sales: {salesSummary?.total_sales || 0}</p>
-              <p className="text-xs text-gray-500">Received: {formatCurrency(salesSummary?.total_advance || 0)}</p>
-            </div>
-
-            {/* Card 2: Recent Orders */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-production)]">
-              <h3 className="text-gray-600 text-sm font-semibold mb-2">Recent Orders</h3>
-              <FitText className="font-bold text-gray-800">{recentOrders.length}</FitText>
-              <p className="text-xs text-gray-500 mt-2">New orders today</p>
-              {recentOrders.length > 0 && (
-                <p className="text-xs text-gray-500">Latest: {recentOrders[0].customer_name}</p>
-              )}
-            </div>
-
-            {/* Card 3: Low Stock Alerts */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
-              <h3 className="text-gray-600 text-sm font-semibold mb-2">Low Stock</h3>
-              <FitText className="font-bold text-gray-800">{lowStockAlerts.length}</FitText>
-              <p className="text-xs text-gray-500 mt-2">Items need restock</p>
-              {lowStockAlerts.length > 0 && (
-                <p className="text-xs text-yellow-600 font-semibold">{lowStockAlerts[0].name}</p>
-              )}
-            </div>
-
-            {/* Card 4: Pending Payments */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-[var(--color-payment)]">
-              <h3 className="text-gray-600 text-sm font-semibold mb-2">Pending Payments</h3>
-              <FitText className="font-bold text-gray-800">{formatCurrency(
-                pendingPayments.reduce((sum, p) => {
-                  const debt = parseFloat(p.outstanding_debt) || 0;
-                  return sum + (isNaN(debt) ? 0 : debt);
-                }, 0)
-              )}</FitText>
-              <p className="text-xs text-gray-500 mt-2">Outstanding: {pendingPayments.length} invoices</p>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+            <StatCard
+              title="Today's Sales"
+              value={formatCurrency(salesSummary?.total_amount)}
+              lines={[
+                `Total Sales: ${salesSummary?.total_sales || 0}`,
+                `Received: ${formatCurrency(salesSummary?.total_advance || 0)}`
+              ]}
+              icon={ShoppingCart}
+              accent="var(--color-accent)"
+              to="/orders"
+              cta="View orders"
+            />
+            <StatCard
+              title="Recent Orders"
+              value={recentOrders.length}
+              lines={[
+                'Latest orders',
+                recentOrders.length > 0 && `Latest: ${recentOrders[0].customer_name}`
+              ]}
+              icon={ClipboardList}
+              accent="var(--color-production)"
+              to="/orders"
+              cta="View orders"
+            />
+            <StatCard
+              title="Low Stock"
+              value={lowStockAlerts.length}
+              lines={[
+                'Items need restock',
+                lowStockAlerts.length > 0 && lowStockAlerts[0].name
+              ]}
+              icon={AlertTriangle}
+              accent="#eab308"
+              to="/stock"
+              cta="View stock"
+            />
+            <StatCard
+              title="Pending Payments"
+              value={formatCurrency(pendingPayments.reduce((sum, p) => sum + (parseFloat(p.outstanding_debt) || 0), 0))}
+              lines={[`Outstanding: ${pendingPayments.length} invoices`]}
+              icon={HandCoins}
+              accent="var(--color-payment)"
+              to="/ledger"
+              cta="View ledger"
+            />
           </div>
         )}
 
-        {/* Bottom Section: Recent Orders Table */}
-        {recentOrders.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Recent Orders</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-gray-200">
-                  <tr>
-                    <th className="text-left py-2 px-4 font-semibold text-gray-700">Order #</th>
-                    <th className="text-left py-2 px-4 font-semibold text-gray-700">Customer</th>
-                    <th className="text-left py-2 px-4 font-semibold text-gray-700">Amount</th>
-                    <th className="text-left py-2 px-4 font-semibold text-gray-700">Status</th>
-                    <th className="text-left py-2 px-4 font-semibold text-gray-700">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.slice(0, 5).map(order => (
-                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 font-semibold text-gray-800">{order.sale_no}</td>
-                      <td className="py-3 px-4 text-gray-700">{order.customer_name}</td>
-                      <td className="py-3 px-4 text-gray-700 font-semibold">{formatCurrency(order.total_amount)}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${order.status === 'ready' ? 'bg-gray-200 text-gray-900' :
-                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            order.status === 'delivered' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                          }`}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-gray-500 text-xs">{new Date(order.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Order status (left) and operations overview (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-800">Orders by Status</h2>
+              <Link to="/orders" className="text-sm font-semibold text-[var(--color-text-accent)] hover:underline">All orders →</Link>
             </div>
-          </div>
-        )}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              {ORDER_STATUSES.map(({ status, label, icon, accent }) => {
+                const row = statusCount(status);
+                return (
+                  <StatCard
+                    key={status}
+                    title={label}
+                    value={loading ? '—' : row.count}
+                    lines={[
+                      `Value: ${formatCurrency(row.total_amount)}`,
+                      `${totalOrders ? Math.round((row.count / totalOrders) * 100) : 0}% of all orders`
+                    ]}
+                    icon={icon}
+                    accent={accent}
+                    to={`/orders?status=${status}`}
+                    cta="View list"
+                  />
+                );
+              })}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-bold text-gray-800 mb-3">Operations</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <StatCard
+                title="Purchases Today"
+                value={loading ? '—' : formatCurrency(purchasesSummary?.total_amount)}
+                lines={[
+                  `Purchases: ${purchasesSummary?.total_purchases || 0}`,
+                  `Payable: ${formatCurrency(payablePayments.reduce((sum, p) => sum + (Number(p.outstanding_debt) || 0), 0))}`
+                ]}
+                icon={Package}
+                accent="var(--color-purchase)"
+                to="/purchase-ledger"
+                cta="View purchases"
+              />
+              <StatCard
+                title="Stock"
+                value={stockList === null ? '—' : `${stockList.length} items`}
+                lines={[
+                  `Units on hand: ${(stockList || []).reduce((sum, s) => sum + (Number(s.quantity) || 0), 0).toLocaleString()}`,
+                  `Low stock: ${lowStockAlerts.length}`
+                ]}
+                icon={Boxes}
+                accent="#0ea5e9"
+                to="/stock"
+                cta="View stock"
+              />
+              <StatCard
+                title="Production"
+                value={productionStats === null ? '—' : `${(Number(productionStats.pending_count) || 0) + (Number(productionStats.in_progress_count) || 0)} active`}
+                lines={[
+                  `Pending: ${productionStats?.pending_count || 0} · In progress: ${productionStats?.in_progress_count || 0}`,
+                  `Completed: ${productionStats?.completed_count || 0}`
+                ]}
+                icon={Factory}
+                accent="var(--color-production)"
+                to="/production"
+                cta="View queue"
+              />
+              <StatCard
+                title="Expenses This Month"
+                value={monthExpenses === null ? '—' : formatCurrency(monthExpenses.total)}
+                lines={[`Entries: ${monthExpenses?.count || 0}`]}
+                icon={Receipt}
+                accent="#e11d48"
+                to="/expenses"
+                cta="View expenses"
+              />
+            </div>
+          </section>
+        </div>
       </div>
 
       {/* New Sale Modal */}

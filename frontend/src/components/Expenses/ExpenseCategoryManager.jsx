@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import expenseAPI from '../../api/expenseApi';
 import { capitalizeFirstLetter } from '../../utils/text';
+import { MinimizeButton, MinimizedDock } from '../shared/Minimizable';
+import { useMinimize } from '../shared/useMinimize';
 
 // The categories that used to be seeded into expense_categories. They're no
 // longer created automatically (see migration 019) — only offered as
@@ -25,6 +27,7 @@ const inp = 'w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outli
 // z-[60], above the Add/Edit Expense modal's z-50, since it can be opened
 // from inside that form (via "+ Add new category").
 const ExpenseCategoryManager = ({ isOpen, onClose, categories, initialName = '', onCategoriesChanged }) => {
+  const { minimized, minimize, restore } = useMinimize(isOpen);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today());
@@ -95,13 +98,17 @@ const ExpenseCategoryManager = ({ isOpen, onClose, categories, initialName = '',
   };
 
   return (
-    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+    <>
+    <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-[60] p-4 ${minimized ? 'hidden' : ''}`}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-lg">Manage Expense Categories</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
+          <div className="flex items-center gap-1">
+            <MinimizeButton onClick={minimize} />
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+              <X className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
         </div>
 
         <div className="mb-4 space-y-2">
@@ -205,6 +212,8 @@ const ExpenseCategoryManager = ({ isOpen, onClose, categories, initialName = '',
         </div>
       </div>
     </div>
+    <MinimizedDock minimized={minimized} title="Manage Expense Categories" onRestore={restore} onClose={onClose} />
+    </>
   );
 };
 

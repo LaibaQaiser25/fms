@@ -189,6 +189,121 @@ const getCategories = async (req, res) => {
   }
 };
 
+// Create expense category — user-created, together with its initial expense
+// (same idea as a new product seeding its stock row with the initial quantity).
+// Body: { name, amount, date?, description? }. An amount of 0 creates the
+// category without an expense row.
+const createCategory = async (req, res) => {
+  const name = (req.body.name || '').trim();
+  const { amount } = req.body;
+  const date = req.body.date || new Date().toISOString().split('T')[0];
+  const description = (req.body.description || '').trim() || 'Initial expense';
+
+  if (!name) {
+    return res.status(400).json({ success: false, error: 'Category name is required' });
+  }
+  if (amount === undefined || amount === null || amount === '' || Number.isNaN(Number(amount)) || Number(amount) < 0) {
+    return res.status(400).json({ success: false, error: 'Initial amount is required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const dup = await client.query('SELECT id FROM expense_categories WHERE LOWER(name) = LOWER($1)', [name]);
+    if (dup.rows.length > 0) {
+      return res.status(400).json({ success: false, error: 'A category with this name already exists' });
+    }
+
+    await client.query('BEGIN');
+
+    const catResult = await client.query(
+      'INSERT INTO expense_categories (name) VALUES ($1) RETURNING *',
+      [name]
+    );
+    const category = catResult.rows[0];
+
+    let expense = null;
+    if (Number(amount) > 0) {
+      const expResult = await client.query(
+        `INSERT INTO expenses (category_id, description, amount, date)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [category.id, description, Number(amount), date]
+      );
+      expense = expResult.rows[0];
+    }
+
+    await client.query('COMMIT');
+
+    if (expense) {
+      await sendWhatsApp(
+        `💸 *New Expense*\n\n• Category: ${name}\n• Description: ${description}\n• Amount: Rs.${Number(amount)}\n• Date: ${date}`
+      );
+    }
+
+    res.status(201).json({ success: true, data: category, expense });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error.code === '23505') {
+      return res.status(400).json({ success: false, error: 'A category with this name already exists' });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+// Rename expense category
+const updateCategory = async (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Category name is required' });
+    }
+
+    const dup = await pool.query(
+      'SELECT id FROM expense_categories WHERE LOWER(name) = LOWER($1) AND id != $2',
+      [name, req.params.id]
+    );
+    if (dup.rows.length > 0) {
+      return res.status(400).json({ success: false, error: 'A category with this name already exists' });
+    }
+
+    const result = await pool.query(
+      'UPDATE expense_categories SET name = $1 WHERE id = $2 RETURNING *',
+      [name, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Category not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(400).json({ success: false, error: 'A category with this name already exists' });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Delete expense category (blocked while expenses still use it)
+const deleteCategory = async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM expense_categories WHERE id = $1 RETURNING *', [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Category not found' });
+    }
+
+    res.json({ success: true, message: 'Category deleted' });
+  } catch (error) {
+    if (error.code === '23503') {
+      return res.status(400).json({ success: false, error: 'Cannot delete: one or more expenses are using this category' });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 // Get expense summary
 const getExpenseSummary = async (req, res) => {
   try {
@@ -228,5 +343,8 @@ module.exports = {
   updateExpense,
   deleteExpense,
   getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
   getExpenseSummary
 };

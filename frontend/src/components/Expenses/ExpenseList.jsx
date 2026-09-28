@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Select, Alert, Table, Pagination, FilterBar } from '../shared/UIComponents';
 import expenseAPI from '../../api/expenseApi';
 import ExpenseForm from './ExpenseForm';
+import ExpenseCategoryManager from './ExpenseCategoryManager';
 
 const ExpenseList = () => {
   const [expenses, setExpenses] = useState([]);
@@ -13,6 +14,8 @@ const ExpenseList = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showCatManager, setShowCatManager] = useState(false);
+  const [catManagerInitialName, setCatManagerInitialName] = useState('');
   
   const [filters, setFilters] = useState({
     search: '',
@@ -56,6 +59,17 @@ const ExpenseList = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openCatManager = (initialName = '') => {
+    setCatManagerInitialName(initialName);
+    setShowCatManager(true);
+  };
+
+  // A new category records its initial expense, so the list needs a refresh too.
+  const handleCategoriesChanged = () => {
+    fetchCategories();
+    fetchExpenses();
   };
 
   const handleFilterChange = (key, value) => {
@@ -108,9 +122,14 @@ const ExpenseList = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Expenses</h1>
-        <Button variant="primary" onClick={() => setShowForm(true)}>
-          Add Expense
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => openCatManager()}>
+            + Add Category
+          </Button>
+          <Button variant="primary" onClick={() => setShowForm(true)}>
+            Add Expense
+          </Button>
+        </div>
       </div>
 
       {error && <Alert type="error" message={error} onClose={() => setError('')} />}
@@ -135,6 +154,15 @@ const ExpenseList = () => {
         onSubmit={handleFormSubmit}
         expense={editingExpense}
         categories={categories}
+        onAddCategory={openCatManager}
+      />
+
+      <ExpenseCategoryManager
+        isOpen={showCatManager}
+        onClose={() => setShowCatManager(false)}
+        categories={categories}
+        initialName={catManagerInitialName}
+        onCategoriesChanged={handleCategoriesChanged}
       />
     </div>
   );

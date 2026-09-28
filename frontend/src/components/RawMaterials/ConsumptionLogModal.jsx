@@ -46,7 +46,7 @@ function ConsumptionLogModal({ material, onClose, onSuccess }) {
   const inp = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]";
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex z-50 overflow-y-auto p-4">
+    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex z-50 overflow-y-auto p-4">
       <div className="bg-white w-full max-w-md h-fit max-h-screen flex flex-col mx-auto my-auto rounded-lg shadow-xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white z-10">

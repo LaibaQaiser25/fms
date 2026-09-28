@@ -464,7 +464,7 @@ export default function ProductsManager() {
           (via "+ Add new category") and needs to land on top of it rather
           than behind, regardless of which is later in the DOM. */}
       {showCatManager && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">Manage Categories & Units</h3>
@@ -560,7 +560,7 @@ export default function ProductsManager() {
 
       {/* Choose Add Method Modal */}
       {showChooseMethod && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">Add Product</h3>
@@ -591,7 +591,7 @@ export default function ProductsManager() {
 
       {/* Bulk Add Products (Excel-style grid) Modal */}
       {showExcelGrid && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl p-6 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">Add Products — Excel Sheet</h3>
@@ -751,7 +751,7 @@ export default function ProductsManager() {
 
       {/* Add/Edit Product Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg">{editing ? 'Edit Product' : 'Add New Product'}</h3>

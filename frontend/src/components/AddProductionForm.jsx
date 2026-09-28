@@ -35,7 +35,7 @@ function AddProductionForm({ item, onClose, onSubmit }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 pointer-events-none">
+    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 pointer-events-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">

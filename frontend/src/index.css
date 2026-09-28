@@ -28,6 +28,8 @@
   --color-production-hover: #374151;
   --color-payment: #b8860b;
   --color-payment-hover: #96690a;
+  --color-gatepass: #1f2937;
+  --color-gatepass-hover: #111827;
 
   --color-text-accent: #9b4c4c;
 
@@ -76,6 +78,8 @@
   --color-production-hover: #2563eb;
   --color-payment: #f97316;
   --color-payment-hover: #ea580c;
+  --color-gatepass: #0d9488;
+  --color-gatepass-hover: #0f766e;
 
   --color-text-accent: #6ee7b7;
 

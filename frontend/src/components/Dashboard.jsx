@@ -1,10 +1,11 @@
 import React, { useState, useContext, useRef } from 'react';
-import { Bell, ShoppingCart, Package, BarChart3, AlertCircle } from 'lucide-react';
+import { Bell, ShoppingCart, Package, BarChart3, AlertCircle, Truck, PackageCheck } from 'lucide-react';
 import NewSaleModal from './Sales/NewSaleModal';
 import NewPurchaseModal from './Purchase/NewPurchaseModal';
 import AddPaymentModal from './Payments/AddPaymentModal';
 import PurchasePaymentModal from './Payments/PurchasePaymentModal';
 import AddProductionDirect from './AddProductionDirect';
+import GatePassModal from './GatePass/GatePassModal';
 import { NavLink, Link } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';
 import { SkeletonStatGrid } from './shared/Skeleton';
@@ -26,14 +27,30 @@ function FitText({ children, className = '' }) {
   );
 }
 
+// Open/close state for a hover menu under an action button — the short close
+// delay lets the pointer cross the gap between the button and the menu.
+function useHoverPopover() {
+  const [open, setOpen] = useState(false);
+  const timeout = useRef(null);
+  const show = () => {
+    clearTimeout(timeout.current);
+    setOpen(true);
+  };
+  const hide = () => {
+    timeout.current = setTimeout(() => setOpen(false), 200);
+  };
+  return { open, setOpen, show, hide };
+}
+
 function Dashboard() {
   const alertRefresh = useContext(AlertRefreshContext);
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
   const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showPurchasePaymentModal, setShowPurchasePaymentModal] = useState(false);
-  const [showPaymentPopover, setShowPaymentPopover] = useState(false);
-  const paymentPopoverTimeout = useRef(null);
+  const paymentPopover = useHoverPopover();
+  const gatePassPopover = useHoverPopover();
+  const [gatePassKind, setGatePassKind] = useState(null); // 'order' | 'received'
   const [showAddProductionModal, setShowAddProductionModal] = useState(false);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
 
@@ -45,20 +62,6 @@ function Dashboard() {
   const lowStockAlerts = alertRefresh?.lowStockAlerts ?? [];
   const pendingPayments = alertRefresh?.pendingPayments ?? [];
   const loading = salesSummary === null;
-
-  const openPaymentPopover = () => {
-    if (paymentPopoverTimeout.current) {
-      clearTimeout(paymentPopoverTimeout.current);
-      paymentPopoverTimeout.current = null;
-    }
-    setShowPaymentPopover(true);
-  };
-
-  const closePaymentPopoverWithDelay = () => {
-    paymentPopoverTimeout.current = setTimeout(() => {
-      setShowPaymentPopover(false);
-    }, 200);
-  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-PK', {
@@ -87,7 +90,7 @@ function Dashboard() {
 
       {/* Action Buttons */}
       <div className="px-3 sm:px-6 md:px-8 py-4 bg-white border-b border-gray-200">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <button
             onClick={() => setShowNewSaleModal(true)}
             className="flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-sale)] hover:bg-[var(--color-sale-hover)] text-white rounded-lg transition font-semibold"
@@ -111,22 +114,22 @@ function Dashboard() {
           </button>
           <div
             className="relative"
-            onMouseEnter={openPaymentPopover}
-            onMouseLeave={closePaymentPopoverWithDelay}
+            onMouseEnter={paymentPopover.show}
+            onMouseLeave={paymentPopover.hide}
           >
             <button
-              onClick={() => setShowPaymentPopover(prev => !prev)}
+              onClick={() => paymentPopover.setOpen(prev => !prev)}
               className="w-full flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-payment)] hover:bg-[var(--color-payment-hover)] text-white rounded-lg transition font-semibold"
             >
               <BarChart3 className="w-5 h-5" />
               Add Payment
             </button>
 
-            {showPaymentPopover && (
+            {paymentPopover.open && (
               <div
                 className="absolute top-full left-0 right-0 pt-2 z-30"
-                onMouseEnter={openPaymentPopover}
-                onMouseLeave={closePaymentPopoverWithDelay}
+                onMouseEnter={paymentPopover.show}
+                onMouseLeave={paymentPopover.hide}
               >
                 <div className="relative p-2 rounded-xl bg-white border border-gray-200 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.28)] flex flex-col gap-1.5">
                   {/* pointer */}
@@ -134,7 +137,7 @@ function Dashboard() {
 
                   <button
                     onClick={() => {
-                      setShowPaymentPopover(false);
+                      paymentPopover.setOpen(false);
                       setShowAddPaymentModal(true);
                     }}
                     className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--color-sale)] hover:bg-[var(--color-sale-hover)] text-white rounded-lg transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
@@ -144,13 +147,60 @@ function Dashboard() {
                   </button>
                   <button
                     onClick={() => {
-                      setShowPaymentPopover(false);
+                      paymentPopover.setOpen(false);
                       setShowPurchasePaymentModal(true);
                     }}
                     className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--color-purchase)] hover:bg-[var(--color-purchase-hover)] text-white rounded-lg transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
                   >
                     <Package className="w-4 h-4" />
                     Purchase Payment
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div
+            className="relative col-span-2 lg:col-span-1"
+            onMouseEnter={gatePassPopover.show}
+            onMouseLeave={gatePassPopover.hide}
+          >
+            <button
+              onClick={() => gatePassPopover.setOpen(prev => !prev)}
+              className="w-full flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-[var(--color-gatepass)] hover:bg-[var(--color-gatepass-hover)] text-white rounded-lg transition font-semibold"
+            >
+              <Truck className="w-5 h-5 shrink-0" />
+              Gate Pass
+            </button>
+
+            {gatePassPopover.open && (
+              <div
+                className="absolute top-full left-0 right-0 pt-2 z-30"
+                onMouseEnter={gatePassPopover.show}
+                onMouseLeave={gatePassPopover.hide}
+              >
+                <div className="relative p-2 rounded-xl bg-white border border-gray-200 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.28)] flex flex-col gap-1.5">
+                  {/* pointer */}
+                  <span className="absolute -top-[7px] left-7 w-3 h-3 rotate-45 bg-white border-l border-t border-gray-200 rounded-tl-sm" />
+
+                  <button
+                    onClick={() => {
+                      gatePassPopover.setOpen(false);
+                      setGatePassKind('order');
+                    }}
+                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--color-sale)] hover:bg-[var(--color-sale-hover)] text-white rounded-lg transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Order
+                  </button>
+                  <button
+                    onClick={() => {
+                      gatePassPopover.setOpen(false);
+                      setGatePassKind('received');
+                    }}
+                    className="relative flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--color-purchase)] hover:bg-[var(--color-purchase-hover)] text-white rounded-lg transition-all duration-200 font-semibold text-sm shadow-sm hover:shadow-md"
+                  >
+                    <PackageCheck className="w-4 h-4" />
+                    Received Goods
                   </button>
                 </div>
               </div>
@@ -280,6 +330,14 @@ function Dashboard() {
           onClose={() => {
             setShowPurchasePaymentModal(false);
           }}
+        />
+      )}
+
+      {/* Gate Pass Modal */}
+      {gatePassKind && (
+        <GatePassModal
+          kind={gatePassKind}
+          onClose={() => setGatePassKind(null)}
         />
       )}
 

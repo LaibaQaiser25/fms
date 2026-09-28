@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Pencil, Trash2, Check } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
 import * as purchaseLedgerApi from '../../../api/purchaseLedgerApi';
 
-// Entries of these types are written by the purchase/payment flow and stay in
-// sync with purchase invoices/balances elsewhere — the backend refuses to
-// edit/delete them through this manual endpoint, so hide the controls too.
-const PROTECTED_TYPES = ['purchase', 'payment'];
+// Entries of these types are written by the purchase/payment flow. Editing them
+// cascades into purchase invoices/balances on the backend, so only the Owner
+// can change them — and the purchase row itself can't be deleted (its items/
+// stock would be left behind), only its advance edited.
+const LINKED_TYPES = ['purchase', 'payment'];
 
 function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
   const [ledgerData, setLedgerData] = useState(null);
@@ -14,6 +16,8 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ debit: 0, credit: 0, note: '' });
   const [actionError, setActionError] = useState('');
+  const { user } = useAuth();
+  const isOwner = user?.role?.toLowerCase() === 'owner';
 
   useEffect(() => {
     fetchLedgerHistory();
@@ -59,11 +63,14 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this ledger entry? This cannot be undone.')) return;
+  const handleDelete = async (entry) => {
+    const message = entry.transaction_type === 'payment'
+      ? `Delete this payment of ${formatCurrency(entry.credit)}? Its receipt and payment record are removed too, and the seller's invoice balances are recalculated. This cannot be undone.`
+      : 'Delete this ledger entry? This cannot be undone.';
+    if (!window.confirm(message)) return;
     try {
       setActionError('');
-      await purchaseLedgerApi.deleteLedgerEntry(id);
+      await purchaseLedgerApi.deleteLedgerEntry(entry.id);
       fetchLedgerHistory();
     } catch (err) {
       setActionError(err.response?.data?.error || 'Error deleting entry');
@@ -80,7 +87,7 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent)]"></div>
           <p className="mt-2 text-gray-600">Loading ledger history...</p>
@@ -91,7 +98,7 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
 
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8 max-w-md">
           <p className="text-red-600 font-semibold">{error}</p>
           <button
@@ -107,7 +114,7 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
 
   if (!ledgerData) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8 max-w-md">
           <p className="text-gray-600">No ledger data found</p>
           <button
@@ -124,7 +131,7 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
   const { seller, history, summary } = ledgerData;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
@@ -183,7 +190,9 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {history.map((entry) => {
-                    const isProtected = PROTECTED_TYPES.includes(entry.transaction_type);
+                    const isLinked = LINKED_TYPES.includes(entry.transaction_type);
+                    const canEdit = !isLinked || isOwner;
+                    const canDelete = canEdit && entry.transaction_type !== 'purchase';
                     const isEditing = editingId === entry.id;
                     return (
                       <tr key={entry.id} className="hover:bg-gray-50 transition">
@@ -207,19 +216,27 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
                         {isEditing ? (
                           <>
                             <td className="py-2 px-4 text-right">
-                              <input
-                                type="number"
-                                min="0"
-                                value={editForm.debit}
-                                onChange={(e) => setEditForm({ ...editForm, debit: e.target.value })}
-                                className="w-24 px-2 py-1 border border-gray-300 rounded text-right text-sm"
-                              />
+                              {/* Linked rows only edit their credit side (advance / payment amount) */}
+                              {isLinked ? (
+                                <span className="text-sm text-gray-500">
+                                  {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
+                                </span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editForm.debit}
+                                  onChange={(e) => setEditForm({ ...editForm, debit: e.target.value })}
+                                  className="w-24 px-2 py-1 border border-gray-300 rounded text-right text-sm"
+                                />
+                              )}
                             </td>
                             <td className="py-2 px-4 text-right">
                               <input
                                 type="number"
                                 min="0"
                                 value={editForm.credit}
+                                title={entry.transaction_type === 'payment' ? 'Payment amount' : isLinked ? 'Advance paid' : undefined}
                                 onChange={(e) => setEditForm({ ...editForm, credit: e.target.value })}
                                 className="w-24 px-2 py-1 border border-gray-300 rounded text-right text-sm"
                               />
@@ -269,24 +286,26 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
                               {entry.note || '-'}
                             </td>
                             <td className="py-3 px-4">
-                              {isProtected ? (
-                                <p className="text-center text-xs text-gray-400">Locked</p>
+                              {!canEdit ? (
+                                <p className="text-center text-xs text-gray-400" title="Only the Owner can change this entry">Locked</p>
                               ) : (
                                 <div className="flex items-center justify-center gap-2">
                                   <button
                                     onClick={() => startEdit(entry)}
                                     className="p-1 text-red-700 hover:bg-red-100 rounded"
-                                    title="Edit entry"
+                                    title={isLinked && entry.transaction_type !== 'payment' ? 'Edit advance / note' : 'Edit entry'}
                                   >
                                     <Pencil className="w-4 h-4" />
                                   </button>
-                                  <button
-                                    onClick={() => handleDelete(entry.id)}
-                                    className="p-1 text-red-700 hover:bg-red-100 rounded"
-                                    title="Delete entry"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => handleDelete(entry)}
+                                      className="p-1 text-red-700 hover:bg-red-100 rounded"
+                                      title="Delete entry"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>

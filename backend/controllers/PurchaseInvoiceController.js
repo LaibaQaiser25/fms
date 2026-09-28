@@ -178,6 +178,52 @@ class PurchaseInvoiceController {
   }
 
   /**
+   * Recompute a seller's purchase invoice/purchase balances from the ledger.
+   *
+   * Mirror of InvoiceController.rebuildCustomerBalances — used after a
+   * 'purchase' or 'payment' ledger row is edited/deleted. Resets every purchase
+   * invoice to total - advance and re-applies all payment credits oldest-first.
+   *
+   * Runs inside the caller's transaction. Returns the amount of payments left
+   * over with no open invoice to land on (seller overpaid).
+   */
+  static async rebuildSellerBalances(client, sellerId) {
+    await client.query(
+      `UPDATE purchase_invoices
+          SET outstanding_debt = GREATEST(total_amount - advance_paid, 0),
+              status = CASE
+                WHEN total_amount - advance_paid <= 0 THEN 'paid'
+                WHEN advance_paid > 0 THEN 'partial'
+                ELSE 'unpaid'
+              END
+        WHERE seller_id = $1 AND invoice_type <> 'payment_receipt'`,
+      [sellerId]
+    );
+
+    await client.query(
+      `UPDATE purchases p
+          SET balance = i.outstanding_debt, updated_at = NOW()
+         FROM purchase_invoices i
+        WHERE i.purchase_id = p.id
+          AND i.seller_id = $1
+          AND i.invoice_type <> 'payment_receipt'`,
+      [sellerId]
+    );
+
+    const paidResult = await client.query(
+      `SELECT COALESCE(SUM(credit), 0) AS total
+         FROM purchase_ledger
+        WHERE seller_id = $1 AND transaction_type = 'payment'`,
+      [sellerId]
+    );
+    const totalPaid = Number(paidResult.rows[0].total) || 0;
+
+    const { unallocated } =
+      await PurchaseInvoiceController.applyPaymentToInvoices(client, sellerId, null, totalPaid);
+    return unallocated;
+  }
+
+  /**
    * Record a payment to a seller and create payment receipt invoice
    * POST /api/purchase-invoices/payment
    * Body: { seller_id, seller_name, purchase_id, invoice_id, payment_amount, payment_type, note }
@@ -222,14 +268,7 @@ class PurchaseInvoiceController {
       const linkedInvoiceId = invoice_id || primaryInvoiceId;
       const linkedPurchaseId = purchase_id || primaryPurchaseId;
 
-      // 2. Record payment, linked to whichever invoice/purchase it landed on
-      await client.query(
-        `INSERT INTO purchase_payment_records (seller_id, seller_name, purchase_id, invoice_id, payment_amount, payment_type, bank_name, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [seller_id, seller_name, linkedPurchaseId, linkedInvoiceId, amount, payment_type, bank_name || null, note]
-      );
-
-      // 3. Create payment receipt invoice — phone/address are looked up fresh
+      // 2. Create payment receipt invoice — phone/address are looked up fresh
       // rather than trusted from the request body, same as seller_name here
       const sellerResult = await client.query('SELECT phone, address FROM sellers WHERE id = $1', [seller_id]);
       const sellerPhone = sellerResult.rows[0]?.phone || null;
@@ -245,12 +284,20 @@ class PurchaseInvoiceController {
         [receiptInvoiceNo, linkedPurchaseId, seller_id, seller_name, sellerPhone, sellerAddress, amount, payment_type, bank_name || null]
       );
 
-      // 4. Update ledger — linked to the payment receipt invoice, so the
+      // 3. Update ledger — linked to the payment receipt invoice, so the
       //    ledger history can show a clickable reference for this payment
-      await client.query(
+      const ledgerResult = await client.query(
         `INSERT INTO purchase_ledger (seller_id, seller_name, purchase_id, invoice_no, debit, credit, transaction_type, note)
-         VALUES ($1, $2, $3, $4, 0, $5, 'payment', $6)`,
+         VALUES ($1, $2, $3, $4, 0, $5, 'payment', $6)
+         RETURNING id`,
         [seller_id, seller_name, linkedPurchaseId, receiptInvoiceNo, amount, `Payment made: ${payment_type}`]
+      );
+
+      // 4. Record payment, linked to whichever invoice/purchase it landed on
+      await client.query(
+        `INSERT INTO purchase_payment_records (seller_id, seller_name, purchase_id, invoice_id, payment_amount, payment_type, bank_name, notes, ledger_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [seller_id, seller_name, linkedPurchaseId, linkedInvoiceId, amount, payment_type, bank_name || null, note, ledgerResult.rows[0].id]
       );
 
       // 5. Fall back to the caller-supplied purchase when no invoice was

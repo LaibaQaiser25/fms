@@ -178,6 +178,54 @@ class InvoiceController {
   }
 
   /**
+   * Recompute a customer's invoice/sale balances from the ledger.
+   *
+   * Used after a 'sale' or 'payment' ledger row is edited/deleted. How an
+   * individual payment was spread across invoices isn't stored, so a single
+   * payment can't be reversed in isolation — instead every sale invoice is
+   * reset to total - advance and the sum of all payment credits is re-applied
+   * oldest-first, the same allocation recordPayment uses.
+   *
+   * Runs inside the caller's transaction. Returns the amount of payments left
+   * over with no open invoice to land on (customer in credit).
+   */
+  static async rebuildCustomerBalances(client, customerId) {
+    await client.query(
+      `UPDATE invoices
+          SET outstanding_debt = GREATEST(total_amount - advance_paid, 0),
+              status = CASE
+                WHEN total_amount - advance_paid <= 0 THEN 'paid'
+                WHEN advance_paid > 0 THEN 'partial'
+                ELSE 'unpaid'
+              END
+        WHERE customer_id = $1 AND invoice_type <> 'payment_receipt'`,
+      [customerId]
+    );
+
+    await client.query(
+      `UPDATE sales s
+          SET balance = i.outstanding_debt, updated_at = NOW()
+         FROM invoices i
+        WHERE i.sale_id = s.id
+          AND i.customer_id = $1
+          AND i.invoice_type <> 'payment_receipt'`,
+      [customerId]
+    );
+
+    const paidResult = await client.query(
+      `SELECT COALESCE(SUM(credit), 0) AS total
+         FROM customer_ledger
+        WHERE customer_id = $1 AND transaction_type = 'payment'`,
+      [customerId]
+    );
+    const totalPaid = Number(paidResult.rows[0].total) || 0;
+
+    const { unallocated } =
+      await InvoiceController.applyPaymentToInvoices(client, customerId, null, totalPaid);
+    return unallocated;
+  }
+
+  /**
    * Record a payment and create payment receipt invoice
    * POST /api/invoices/payment
    * Body: { customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, note }
@@ -222,14 +270,7 @@ class InvoiceController {
       const linkedInvoiceId = invoice_id || primaryInvoiceId;
       const linkedSaleId = sale_id || primarySaleId;
 
-      // 2. Record payment, linked to whichever invoice/sale it landed on
-      await client.query(
-        `INSERT INTO payment_records (customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, bank_name, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [customer_id, customer_name, linkedSaleId, linkedInvoiceId, amount, payment_type, bank_name || null, note]
-      );
-
-      // 3. Create payment receipt invoice — phone/address are looked up fresh
+      // 2. Create payment receipt invoice — phone/address are looked up fresh
       // rather than trusted from the request body, same as customer_name here
       const customerResult = await client.query('SELECT phone, address FROM customers WHERE id = $1', [customer_id]);
       const customerPhone = customerResult.rows[0]?.phone || null;
@@ -245,12 +286,20 @@ class InvoiceController {
         [receiptInvoiceNo, linkedSaleId, customer_id, customer_name, customerPhone, customerAddress, amount, payment_type, bank_name || null]
       );
 
-      // 4. Update ledger — linked to the payment receipt invoice, so the
+      // 3. Update ledger — linked to the payment receipt invoice, so the
       //    ledger history can show a clickable reference for this payment
-      await client.query(
+      const ledgerResult = await client.query(
         `INSERT INTO customer_ledger (customer_id, customer_name, invoice_id, invoice_no, debit, credit, transaction_type, note)
-         VALUES ($1, $2, $3, $4, 0, $5, 'payment', $6)`,
+         VALUES ($1, $2, $3, $4, 0, $5, 'payment', $6)
+         RETURNING id`,
         [customer_id, customer_name, paymentReceiptResult.rows[0].id, receiptInvoiceNo, amount, `Payment received: ${payment_type}`]
+      );
+
+      // 4. Record payment, linked to whichever invoice/sale it landed on
+      await client.query(
+        `INSERT INTO payment_records (customer_id, customer_name, sale_id, invoice_id, payment_amount, payment_type, bank_name, notes, ledger_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [customer_id, customer_name, linkedSaleId, linkedInvoiceId, amount, payment_type, bank_name || null, note, ledgerResult.rows[0].id]
       );
 
       // 5. Fall back to the caller-supplied sale when no invoice was allocated

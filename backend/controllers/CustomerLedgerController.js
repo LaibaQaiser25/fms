@@ -1,4 +1,13 @@
 const pool = require('../db/pool');
+const InvoiceController = require('./InvoiceController');
+
+// Rows written by createSale/recordPayment — editing them cascades into
+// invoices, sales and payment_records, so it's restricted to the Owner.
+const LINKED_TYPES = ['sale', 'payment'];
+
+const isOwner = (req) => req.user?.role?.toLowerCase() === 'owner';
+
+const ledgerError = (status, message) => Object.assign(new Error(message), { status });
 
 class CustomerLedgerController {
   /**
@@ -218,38 +227,97 @@ class CustomerLedgerController {
   }
 
   /**
-   * Update a manual ledger entry
+   * Update a ledger entry
    * PUT /api/ledger/:id
    * Body: { debit, credit, note }
+   *
+   * Manual entries: debit/credit/note are written as-is.
+   * 'sale' entries (Owner only): only the advance (credit) and note — the total
+   *   (debit) comes from the sale's items/stock, so it isn't editable here. The
+   *   sale and its invoice get the new advance.
+   * 'payment' entries (Owner only): only the amount (credit) and note — the
+   *   receipt invoice and payment_records row get the new amount.
+   * Either linked type then rebuilds the customer's invoice/sale balances.
    */
   static async updateLedgerEntry(req, res) {
+    const client = await pool.connect();
     try {
       const { id } = req.params;
       const { debit = 0, credit = 0, note } = req.body;
 
-      const existing = await pool.query('SELECT * FROM customer_ledger WHERE id = $1', [id]);
+      await client.query('BEGIN');
+
+      const existing = await client.query('SELECT * FROM customer_ledger WHERE id = $1 FOR UPDATE', [id]);
       if (existing.rows.length === 0) {
-        return res.status(404).json({ error: 'Ledger entry not found' });
+        throw ledgerError(404, 'Ledger entry not found');
+      }
+      const entry = existing.rows[0];
+      const type = entry.transaction_type;
+      const isLinked = LINKED_TYPES.includes(type);
+
+      if (isLinked && !isOwner(req)) {
+        throw ledgerError(403, `Only the Owner can edit '${type}' entries`);
       }
 
-      // 'sale' and 'payment' rows are kept in sync with invoices/sales balances
-      // elsewhere — editing them here would desync those. Only manual entries
-      // (see addLedgerEntry) can be edited through this endpoint.
-      if (['sale', 'payment'].includes(existing.rows[0].transaction_type)) {
-        return res.status(400).json({
-          error: `'${existing.rows[0].transaction_type}' entries must be edited through the sale/payment endpoints, not a manual ledger edit`
-        });
+      let newDebit = Number(debit) || 0;
+      let newCredit = Number(credit) || 0;
+      if (newDebit < 0 || newCredit < 0) {
+        throw ledgerError(400, 'Debit and credit cannot be negative');
       }
 
-      const debt = debit - credit;
+      if (type === 'sale') {
+        newDebit = Number(entry.debit) || 0;
+        if (newCredit > newDebit + 0.01) {
+          throw ledgerError(400, `Advance cannot exceed the sale total of ${newDebit.toFixed(2)}`);
+        }
+        if (entry.invoice_id) {
+          const invoiceResult = await client.query(
+            'UPDATE invoices SET advance_paid = $1 WHERE id = $2 RETURNING sale_id',
+            [newCredit, entry.invoice_id]
+          );
+          const saleId = invoiceResult.rows[0]?.sale_id;
+          if (saleId) {
+            await client.query(
+              'UPDATE sales SET advance_paid = $1, updated_at = NOW() WHERE id = $2',
+              [newCredit, saleId]
+            );
+          }
+        }
+      } else if (type === 'payment') {
+        newDebit = 0;
+        if (newCredit <= 0) {
+          throw ledgerError(400, 'Payment amount must be positive — delete the entry instead');
+        }
+        if (entry.invoice_id) {
+          await client.query(
+            `UPDATE invoices SET total_amount = $1 WHERE id = $2 AND invoice_type = 'payment_receipt'`,
+            [newCredit, entry.invoice_id]
+          );
+        }
+        await client.query(
+          'UPDATE payment_records SET payment_amount = $1 WHERE ledger_id = $2',
+          [newCredit, id]
+        );
+      }
 
-      const result = await pool.query(
+      const result = await client.query(
         `UPDATE customer_ledger
-         SET debit = $1, credit = $2, debt = $3, note = $4
+         SET debit = $1, credit = $2, debt = $3, note = $4, updated_at = NOW()
          WHERE id = $5
          RETURNING *`,
-        [debit, credit, debt, note, id]
+        [newDebit, newCredit, newDebit - newCredit, note, id]
       );
+
+      if (isLinked) {
+        const unallocated = await InvoiceController.rebuildCustomerBalances(client, entry.customer_id);
+        // Only block edits that push payments past what's owed — lowering a
+        // payment or advance on an already-overpaid customer is still allowed.
+        if (unallocated > 0.01 && newCredit > Number(entry.credit)) {
+          throw ledgerError(400, `This would make payments exceed what the customer owes by ${unallocated.toFixed(2)}`);
+        }
+      }
+
+      await client.query('COMMIT');
 
       res.json({
         success: true,
@@ -258,31 +326,64 @@ class CustomerLedgerController {
       });
 
     } catch (error) {
+      await client.query('ROLLBACK');
+      if (error.status) {
+        return res.status(error.status).json({ error: error.message });
+      }
       console.error('❌ Error updating ledger entry:', error);
       res.status(500).json({ error: error.message });
+    } finally {
+      client.release();
     }
   }
 
   /**
-   * Delete a manual ledger entry
+   * Delete a ledger entry
    * DELETE /api/ledger/:id
+   *
+   * Manual entries are simply removed. 'payment' entries (Owner only) also
+   * remove their receipt invoice and payment_records row, then rebuild the
+   * customer's balances. 'sale' entries can't be deleted here — the sale's
+   * items, stock movement and invoice would be left behind.
    */
   static async deleteLedgerEntry(req, res) {
+    const client = await pool.connect();
     try {
       const { id } = req.params;
 
-      const existing = await pool.query('SELECT * FROM customer_ledger WHERE id = $1', [id]);
+      await client.query('BEGIN');
+
+      const existing = await client.query('SELECT * FROM customer_ledger WHERE id = $1 FOR UPDATE', [id]);
       if (existing.rows.length === 0) {
-        return res.status(404).json({ error: 'Ledger entry not found' });
+        throw ledgerError(404, 'Ledger entry not found');
+      }
+      const entry = existing.rows[0];
+      const type = entry.transaction_type;
+
+      if (type === 'sale') {
+        throw ledgerError(400, "Sale entries can't be deleted from the ledger — the sale's items, stock and invoice would be left behind. Edit the advance instead.");
       }
 
-      if (['sale', 'payment'].includes(existing.rows[0].transaction_type)) {
-        return res.status(400).json({
-          error: `'${existing.rows[0].transaction_type}' entries must be removed through the sale/payment flow, not a manual ledger delete`
-        });
+      if (type === 'payment') {
+        if (!isOwner(req)) {
+          throw ledgerError(403, "Only the Owner can delete 'payment' entries");
+        }
+        await client.query('DELETE FROM payment_records WHERE ledger_id = $1', [id]);
       }
 
-      await pool.query('DELETE FROM customer_ledger WHERE id = $1', [id]);
+      await client.query('DELETE FROM customer_ledger WHERE id = $1', [id]);
+
+      if (type === 'payment') {
+        if (entry.invoice_id) {
+          await client.query(
+            `DELETE FROM invoices WHERE id = $1 AND invoice_type = 'payment_receipt'`,
+            [entry.invoice_id]
+          );
+        }
+        await InvoiceController.rebuildCustomerBalances(client, entry.customer_id);
+      }
+
+      await client.query('COMMIT');
 
       res.json({
         success: true,
@@ -290,8 +391,14 @@ class CustomerLedgerController {
       });
 
     } catch (error) {
+      await client.query('ROLLBACK');
+      if (error.status) {
+        return res.status(error.status).json({ error: error.message });
+      }
       console.error('❌ Error deleting ledger entry:', error);
       res.status(500).json({ error: error.message });
+    } finally {
+      client.release();
     }
   }
 

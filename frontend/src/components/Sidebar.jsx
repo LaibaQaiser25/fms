@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
 import {
   LayoutDashboard,
+  ClipboardList,
   BookText,
   Boxes,
   Wallet,
@@ -224,6 +225,14 @@ export default function Sidebar({ collapsed = false, mobileOpen = false, onClose
             {!effectiveCollapsed && 'Dashboard'}
           </NavLink>
           <Tooltip label="Dashboard" />
+        </div>
+
+        <div className="relative group">
+          <NavLink to="/orders" className={link} style={navStyle}>
+            <ClipboardList size={19} strokeWidth={2} className="shrink-0" />
+            {!effectiveCollapsed && 'Orders'}
+          </NavLink>
+          <Tooltip label="Orders" />
         </div>
 
         {/* Ledger */}

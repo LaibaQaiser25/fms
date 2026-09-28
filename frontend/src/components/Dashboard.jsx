@@ -1,5 +1,5 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
-import { Bell, ShoppingCart, Package, BarChart3, AlertCircle, Truck, PackageCheck, Boxes, Factory, Receipt, ClipboardList, AlertTriangle, HandCoins, ArrowRight } from 'lucide-react';
+import { Bell, ShoppingCart, Package, BarChart3, AlertCircle, Truck, PackageCheck, Boxes, Factory, Receipt, ClipboardList, AlertTriangle, HandCoins, ChevronRight } from 'lucide-react';
 import NewSaleModal from './Sales/NewSaleModal';
 import NewPurchaseModal from './Purchase/NewPurchaseModal';
 import AddPaymentModal from './Payments/AddPaymentModal';
@@ -8,28 +8,11 @@ import AddProductionDirect from './AddProductionDirect';
 import GatePassModal from './GatePass/GatePassModal';
 import { NavLink, Link } from 'react-router-dom';
 import { AlertRefreshContext } from './Layout';
-import { SkeletonStatGrid } from './shared/Skeleton';
+import { SkeletonStatCard } from './shared/Skeleton';
 import * as stockApi from '../api/stockApi';
 import * as productionApi from '../api/productionApi';
 import expenseAPI from '../api/expenseApi';
 import { ORDER_STATUSES } from './Sales/orderStatuses';
-
-// Shrinks its own font-size to fit on one line within its container via a
-// fluid clamp() (15px-30px, matching the old measurement loop's bounds),
-// with ellipsis truncation as a fallback for the rare oversized string —
-// avoids the per-pixel scrollWidth/clientWidth measurement loop that used
-// to force a layout reflow on every iteration.
-function FitText({ children, className = '' }) {
-  return (
-    <p
-      className={`${className} whitespace-nowrap overflow-hidden text-ellipsis`}
-      style={{ fontSize: 'clamp(0.9375rem, 1.1vw + 0.6rem, 1.875rem)' }}
-      title={typeof children === 'string' ? children : undefined}
-    >
-      {children}
-    </p>
-  );
-}
 
 // Open/close state for a hover menu under an action button — the short close
 // delay lets the pointer cross the gap between the button and the menu.
@@ -46,49 +29,42 @@ function useHoverPopover() {
   return { open, setOpen, show, hide };
 }
 
-// Dashboard tile. The whole card is a link to `to` (the page/list behind the
-// number); `accent` drives the top bar, icon badge and hover tint.
+// Dashboard tile — a flat, wide strip: tinted icon, label, value and one
+// line of detail, with a chevron on the right. The whole card links to `to`
+// (the page/list behind the number). `cta` names that destination for
+// screen readers and the hover tooltip.
 function StatCard({ title, value, lines = [], icon: Icon, accent, to, cta = 'View all' }) {
+  const detail = lines.filter(Boolean);
   return (
     <Link
       to={to}
-      className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-      style={{ '--accent': accent, '--tw-ring-color': accent }}
+      title={cta}
+      aria-label={`${title}: ${value}. ${cta}`}
+      className="group flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-5 py-4 transition-colors duration-150 hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1"
     >
-      {/* accent bar + soft corner glow */}
-      <span className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: 'var(--accent)' }} />
-      <span
-        className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-60 transition-opacity duration-200 group-hover:opacity-100"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}
-      />
-
-      <div className="relative flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-gray-600">{title}</h3>
-        {Icon && (
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-            style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 14%, white)', color: 'var(--accent)' }}
-          >
-            <Icon className="h-5 w-5" />
-          </span>
+      {Icon && (
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
+          style={{ backgroundColor: `color-mix(in srgb, ${accent} 10%, white)`, color: accent }}
+        >
+          <Icon className="h-5 w-5" strokeWidth={1.75} />
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium uppercase tracking-wide text-gray-500">{title}</p>
+        <p className="truncate text-xl font-semibold tabular-nums text-gray-900">{value}</p>
+        {detail.length > 0 && (
+          <p className="text-xs leading-5 text-gray-500">
+            {detail.map((line, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && ' · '}
+                <span className="whitespace-nowrap">{line}</span>
+              </React.Fragment>
+            ))}
+          </p>
         )}
       </div>
-
-      <FitText className="relative mt-1 font-bold tracking-tight text-gray-900">{value}</FitText>
-
-      <div className="relative mt-2 space-y-0.5">
-        {lines.filter(Boolean).map((line, i) => (
-          <p key={i} className="truncate text-xs text-gray-500">{line}</p>
-        ))}
-      </div>
-
-      <div
-        className="relative mt-auto flex items-center gap-1 pt-3 text-xs font-semibold opacity-80 transition-opacity group-hover:opacity-100"
-        style={{ color: 'color-mix(in srgb, var(--accent) 75%, black)' }}
-      >
-        {cta}
-        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-      </div>
+      <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-gray-500" />
     </Link>
   );
 }
@@ -299,9 +275,11 @@ function Dashboard() {
       {/* Main Content */}
       <div className="px-3 sm:px-6 md:px-8 py-6">
         {loading ? (
-          <SkeletonStatGrid count={4} className="mb-6" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
             <StatCard
               title="Today's Sales"
               value={formatCurrency(salesSummary?.total_amount)}
@@ -318,8 +296,7 @@ function Dashboard() {
               title="Recent Orders"
               value={recentOrders.length}
               lines={[
-                'Latest orders',
-                recentOrders.length > 0 && `Latest: ${recentOrders[0].customer_name}`
+                recentOrders.length > 0 ? `Latest: ${recentOrders[0].customer_name}` : 'No orders yet'
               ]}
               icon={ClipboardList}
               accent="var(--color-production)"
@@ -351,84 +328,76 @@ function Dashboard() {
         )}
 
         {/* Order status (left) and operations overview (right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-800">Orders by Status</h2>
-              <Link to="/orders" className="text-sm font-semibold text-[var(--color-text-accent)] hover:underline">All orders →</Link>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              {ORDER_STATUSES.map(({ status, label, icon, accent }) => {
-                const row = statusCount(status);
-                return (
-                  <StatCard
-                    key={status}
-                    title={label}
-                    value={loading ? '—' : row.count}
-                    lines={[
-                      `Value: ${formatCurrency(row.total_amount)}`,
-                      `${totalOrders ? Math.round((row.count / totalOrders) * 100) : 0}% of all orders`
-                    ]}
-                    icon={icon}
-                    accent={accent}
-                    to={`/orders?status=${status}`}
-                    cta="View list"
-                  />
-                );
-              })}
-            </div>
-          </section>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:grid-flow-col sm:grid-rows-[auto_repeat(4,auto)] sm:gap-x-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Orders by Status</h2>
+            <Link to="/orders" className="text-xs font-medium text-gray-500 hover:text-gray-900">All orders</Link>
+          </div>
+          {ORDER_STATUSES.map(({ status, label, icon, accent }) => {
+            const row = statusCount(status);
+            return (
+              <StatCard
+                key={status}
+                title={label}
+                value={loading ? '—' : row.count}
+                lines={[
+                  `Value: ${formatCurrency(row.total_amount)}`,
+                  `${totalOrders ? Math.round((row.count / totalOrders) * 100) : 0}% of all orders`
+                ]}
+                icon={icon}
+                accent={accent}
+                to={`/orders?status=${status}`}
+                cta="View list"
+              />
+            );
+          })}
 
-          <section>
-            <h2 className="text-lg font-bold text-gray-800 mb-3">Operations</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <StatCard
-                title="Purchases Today"
-                value={loading ? '—' : formatCurrency(purchasesSummary?.total_amount)}
-                lines={[
-                  `Purchases: ${purchasesSummary?.total_purchases || 0}`,
-                  `Payable: ${formatCurrency(payablePayments.reduce((sum, p) => sum + (Number(p.outstanding_debt) || 0), 0))}`
-                ]}
-                icon={Package}
-                accent="var(--color-purchase)"
-                to="/purchase-ledger"
-                cta="View purchases"
-              />
-              <StatCard
-                title="Stock"
-                value={stockList === null ? '—' : `${stockList.length} items`}
-                lines={[
-                  `Units on hand: ${(stockList || []).reduce((sum, s) => sum + (Number(s.quantity) || 0), 0).toLocaleString()}`,
-                  `Low stock: ${lowStockAlerts.length}`
-                ]}
-                icon={Boxes}
-                accent="#0ea5e9"
-                to="/stock"
-                cta="View stock"
-              />
-              <StatCard
-                title="Production"
-                value={productionStats === null ? '—' : `${(Number(productionStats.pending_count) || 0) + (Number(productionStats.in_progress_count) || 0)} active`}
-                lines={[
-                  `Pending: ${productionStats?.pending_count || 0} · In progress: ${productionStats?.in_progress_count || 0}`,
-                  `Completed: ${productionStats?.completed_count || 0}`
-                ]}
-                icon={Factory}
-                accent="var(--color-production)"
-                to="/production"
-                cta="View queue"
-              />
-              <StatCard
-                title="Expenses This Month"
-                value={monthExpenses === null ? '—' : formatCurrency(monthExpenses.total)}
-                lines={[`Entries: ${monthExpenses?.count || 0}`]}
-                icon={Receipt}
-                accent="#e11d48"
-                to="/expenses"
-                cta="View expenses"
-              />
-            </div>
-          </section>
+          <h2 className="mt-5 text-xs font-semibold uppercase tracking-wider text-gray-500 sm:mt-0">Operations</h2>
+          <StatCard
+            title="Purchases Today"
+            value={loading ? '—' : formatCurrency(purchasesSummary?.total_amount)}
+            lines={[
+              `Purchases: ${purchasesSummary?.total_purchases || 0}`,
+              `Payable: ${formatCurrency(payablePayments.reduce((sum, p) => sum + (Number(p.outstanding_debt) || 0), 0))}`
+            ]}
+            icon={Package}
+            accent="var(--color-purchase)"
+            to="/purchase-ledger"
+            cta="View purchases"
+          />
+          <StatCard
+            title="Stock"
+            value={stockList === null ? '—' : `${stockList.length} items`}
+            lines={[
+              `Units on hand: ${(stockList || []).reduce((sum, s) => sum + (Number(s.quantity) || 0), 0).toLocaleString()}`,
+              `Low stock: ${lowStockAlerts.length}`
+            ]}
+            icon={Boxes}
+            accent="#0ea5e9"
+            to="/stock"
+            cta="View stock"
+          />
+          <StatCard
+            title="Production"
+            value={productionStats === null ? '—' : `${(Number(productionStats.pending_count) || 0) + (Number(productionStats.in_progress_count) || 0)} active`}
+            lines={[
+              `Pending: ${productionStats?.pending_count || 0} · In progress: ${productionStats?.in_progress_count || 0}`,
+              `Completed: ${productionStats?.completed_count || 0}`
+            ]}
+            icon={Factory}
+            accent="var(--color-production)"
+            to="/production"
+            cta="View queue"
+          />
+          <StatCard
+            title="Expenses This Month"
+            value={monthExpenses === null ? '—' : formatCurrency(monthExpenses.total)}
+            lines={[`Entries: ${monthExpenses?.count || 0}`]}
+            icon={Receipt}
+            accent="#e11d48"
+            to="/expenses"
+            cta="View expenses"
+          />
         </div>
       </div>
 

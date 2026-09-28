@@ -132,15 +132,22 @@ class ProductionController {
 
       await client.query('BEGIN');
 
+      const existing = await client.query(
+        'SELECT * FROM production_queue WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+
+      if (existing.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Production item not found' });
+      }
+
+      const previousStatus = existing.rows[0].status;
+
       const result = await client.query(
         'UPDATE production_queue SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
         [status, id]
       );
-
-      if (result.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Production item not found' });
-      }
 
       const productionItem = result.rows[0];
       // Broadcast only after COMMIT succeeds below.
@@ -234,6 +241,19 @@ class ProductionController {
               );
             }
           }
+        }
+      }
+
+      // Cancelling an order that was already completed means the stock it
+      // added is no longer real — reverse that addition. (The frontend
+      // confirms this with the user before sending the request.)
+      if (status === 'cancelled' && previousStatus === 'completed' && productionItem.stock_id) {
+        const stockReversalResult = await client.query(
+          'UPDATE stock SET quantity = quantity - $1 WHERE id = $2 RETURNING *',
+          [productionItem.required_quantity, productionItem.stock_id]
+        );
+        if (stockReversalResult.rows.length > 0) {
+          stockUpdate = stockReversalResult.rows[0];
         }
       }
 

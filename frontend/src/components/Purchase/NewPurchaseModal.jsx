@@ -21,6 +21,8 @@ function NewPurchaseModal({ onClose }) {
   const [showSellerDropdown, setShowSellerDropdown] = useState(false);
   const [showSellerPhoneDropdown, setShowSellerPhoneDropdown] = useState(false);
   const [selectedSeller, setSelectedSeller] = useState(null);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 
   // Purchase classification — Type is compulsory and gates everything below it.
   // `category` keeps the values the backend already expects ('stock-ready' /
@@ -32,7 +34,7 @@ function NewPurchaseModal({ onClose }) {
   const [selectedUnitName, setSelectedUnitName] = useState('');
 
   // Purchase Items
-  const emptyItem = { description: '', price: '', quantity: '', availableQty: undefined, product_id: null, stock_id: null, raw_material_id: null };
+  const emptyItem = { description: '', size: '', productDescription: '', price: '', quantity: '', availableQty: undefined, product_id: null, stock_id: null, raw_material_id: null };
   const [items, setItems] = useState([{ ...emptyItem }]);
   const [suggestions, setSuggestions] = useState({});
   const [stockList, setStockList] = useState([]);
@@ -47,6 +49,8 @@ function NewPurchaseModal({ onClose }) {
   const latestSellerQuery = useRef('');
   const sellerPhoneSearchTimer = useRef(null);
   const latestSellerPhoneQuery = useRef('');
+  const addressSearchTimer = useRef(null);
+  const latestAddressQuery = useRef('');
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
@@ -184,6 +188,37 @@ function NewPurchaseModal({ onClose }) {
     }, 250);
   };
 
+  // Address doubles as a search field over every address previously entered for any
+  // seller, so a repeat pickup point can be picked instead of retyped.
+  const handleAddressChange = (value) => {
+    const capitalizedValue = capitalizeAddress(value);
+    setSellerAddress(capitalizedValue);
+
+    latestAddressQuery.current = value;
+    clearTimeout(addressSearchTimer.current);
+
+    if (value.length === 0) {
+      setShowAddressDropdown(false);
+      return;
+    }
+
+    addressSearchTimer.current = setTimeout(async () => {
+      try {
+        const response = await sellersApi.searchAddresses(value, 10);
+        if (latestAddressQuery.current !== value) return; // a newer keystroke superseded this request
+        setAddressSuggestions(response.data.data || []);
+        setShowAddressDropdown(true);
+      } catch (error) {
+        console.error('Error searching addresses:', error);
+      }
+    }, 250);
+  };
+
+  const selectAddress = (address) => {
+    setSellerAddress(address);
+    setShowAddressDropdown(false);
+  };
+
   const selectSeller = async (seller) => {
     try {
       // Fetch full seller details to ensure phone and address are populated
@@ -219,6 +254,8 @@ function NewPurchaseModal({ onClose }) {
     newItems[index].product_id = null;
     newItems[index].stock_id = null;
     newItems[index].raw_material_id = null;
+    newItems[index].size = '';
+    newItems[index].productDescription = '';
     setItems(newItems);
 
     latestQuery.current[index] = value;
@@ -256,10 +293,16 @@ function NewPurchaseModal({ onClose }) {
     // stock_id/raw_material_id/availableQty stay unset (first-ever purchase of it).
     const newItems = [...items];
 
+    // Category/Unit was an optional pre-search filter; picking the item now
+    // fetches its own category/unit straight from the product and fills the
+    // field in, rather than leaving it on the user to have set it first.
     if (category === 'raw-material') {
+      setSelectedUnitName(product.unit || '');
       const matched = rawMaterialsList.find((r) => r.product_id === product.id);
       newItems[index] = {
         description: product.name,
+        size: product.size || '',
+        productDescription: product.description || '',
         price: matched ? matched.unit_price || '' : '',
         quantity: newItems[index].quantity || 1,
         availableQty: matched ? matched.quantity : 0,
@@ -268,9 +311,12 @@ function NewPurchaseModal({ onClose }) {
         raw_material_id: matched ? matched.id : null
       };
     } else {
+      setSelectedCategoryId(product.category_id != null ? String(product.category_id) : '');
       const matched = stockList.find((s) => s.product_id === product.id);
       newItems[index] = {
         description: product.name,
+        size: product.size || '',
+        productDescription: product.description || '',
         price: matched ? matched.unit_price || '' : '',
         quantity: newItems[index].quantity || 1,
         availableQty: matched ? matched.quantity : 0,
@@ -475,8 +521,26 @@ function NewPurchaseModal({ onClose }) {
                       </div>
                     )}
                   </div>
-                  <input className={`${inp}`} placeholder="Address"
-                    value={sellerAddress} onChange={e => setSellerAddress(capitalizeAddress(e.target.value))} />
+                  <div className="relative">
+                    <input className={`${inp}`} placeholder="Address"
+                      value={sellerAddress}
+                      onChange={e => handleAddressChange(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowAddressDropdown(false), 150)}
+                    />
+                    {showAddressDropdown && addressSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
+                        {addressSuggestions.map((address, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => selectAddress(address)}
+                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 text-sm text-gray-800"
+                          >
+                            {address}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -546,13 +610,20 @@ function NewPurchaseModal({ onClose }) {
                       {/* Description with autocomplete — its own full-width row on
                           mobile so it never has to share space with price/qty/remove;
                           sits beside them from sm up. */}
-                      <div className="relative sm:flex-[2]">
+                      <div className="relative sm:flex-[2]" title={item.product_id ? (item.productDescription || '') : undefined}>
                         <input
                           className={inp}
                           placeholder="Item description..."
                           value={item.description}
                           onChange={e => handleDescriptionChange(i, e.target.value)}
                         />
+                        {/* Size shown once a catalog product is picked; hovering the
+                            whole field (title above) shows the product's description */}
+                        {item.product_id && item.size && (
+                          <div className="text-xs text-gray-500 mt-0.5 px-1">
+                            Size: <span className="font-medium text-gray-700">{item.size}</span>
+                          </div>
+                        )}
                         {/* Suggestions dropdown — names only; availability shows after selection */}
                         {suggestions[i]?.length > 0 && (
                           <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-b shadow-lg z-10 max-h-40 overflow-y-auto">

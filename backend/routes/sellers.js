@@ -5,6 +5,9 @@ const SellersController = require('../controllers/SellersController');
 // Search/auto-suggest sellers (MUST come before /:id route)
 router.get('/search', SellersController.searchSellers);
 
+// Search/auto-suggest previously used addresses (MUST come before /:id route)
+router.get('/addresses', SellersController.searchAddresses);
+
 // Get single seller
 router.get('/:id', SellersController.getSeller);
 

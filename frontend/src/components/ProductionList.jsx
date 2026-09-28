@@ -45,9 +45,16 @@ function ProductionList() {
     }
   };
 
-  const handleStatusChange = async (id, newStatus) => {
+  const handleStatusChange = async (item, newStatus) => {
+    if (item.status === 'completed' && newStatus === 'cancelled') {
+      const confirmed = window.confirm(
+        `This order was already completed. Cancelling it will remove ${item.required_quantity} unit(s) of "${item.product_name}" from stock. Continue?`
+      );
+      if (!confirmed) return;
+    }
+
     try {
-      await productionApi.updateProductionStatus(id, newStatus);
+      await productionApi.updateProductionStatus(item.id, newStatus);
       fetchData();
     } catch (error) {
       console.error('Error updating status:', error);
@@ -193,7 +200,7 @@ function ProductionList() {
                       <td className="py-4 px-6">
                         <select
                           value={item.status}
-                          onChange={(e) => handleStatusChange(item.id, e.target.value)}
+                          onChange={(e) => handleStatusChange(item, e.target.value)}
                           className={`px-3 py-1 rounded text-sm font-semibold border-0 cursor-pointer ${
                             item.status === 'pending'
                               ? 'bg-yellow-100 text-yellow-800'

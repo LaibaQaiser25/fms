@@ -20,9 +20,11 @@ function NewSaleModal({ onClose }) {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showPhoneDropdown, setShowPhoneDropdown] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 
   // Sale Items
-  const emptyItem = { description: '', price: '', quantity: '', availableQty: undefined, product_id: null, stock_id: null };
+  const emptyItem = { description: '', size: '', productDescription: '', category: '', price: '', quantity: '', availableQty: undefined, product_id: null, stock_id: null };
   const [items, setItems] = useState([emptyItem]);
   const [suggestions, setSuggestions] = useState({});
   const [stockList, setStockList] = useState([]);
@@ -37,6 +39,8 @@ function NewSaleModal({ onClose }) {
   const latestCustomerQuery = useRef('');
   const phoneSearchTimer = useRef(null);
   const latestPhoneQuery = useRef('');
+  const addressSearchTimer = useRef(null);
+  const latestAddressQuery = useRef('');
 
   // Payment
   const [paymentType, setPaymentType] = useState('Cash');
@@ -138,6 +142,37 @@ function NewSaleModal({ onClose }) {
     }, 250);
   };
 
+  // Address doubles as a search field over every address previously entered for any
+  // customer, so a repeat delivery point can be picked instead of retyped.
+  const handleAddressChange = (value) => {
+    const capitalizedValue = capitalizeAddress(value);
+    setCustomerAddress(capitalizedValue);
+
+    latestAddressQuery.current = value;
+    clearTimeout(addressSearchTimer.current);
+
+    if (value.length === 0) {
+      setShowAddressDropdown(false);
+      return;
+    }
+
+    addressSearchTimer.current = setTimeout(async () => {
+      try {
+        const response = await customersApi.searchAddresses(value, 10);
+        if (latestAddressQuery.current !== value) return; // a newer keystroke superseded this request
+        setAddressSuggestions(response.data.data || []);
+        setShowAddressDropdown(true);
+      } catch (error) {
+        console.error('Error searching addresses:', error);
+      }
+    }, 250);
+  };
+
+  const selectAddress = (address) => {
+    setCustomerAddress(address);
+    setShowAddressDropdown(false);
+  };
+
   const selectCustomer = async (customer) => {
     try {
       // Fetch full customer details to ensure phone and address are populated
@@ -202,6 +237,9 @@ function NewSaleModal({ onClose }) {
     const newItems = [...items];
     newItems[index] = {
       description: product.name,
+      size: product.size || '',
+      productDescription: product.description || '',
+      category: product.category_name || '',
       price: matchedStock ? matchedStock.unit_price : '',
       quantity: 1,
       availableQty: matchedStock ? matchedStock.quantity : 0,
@@ -399,8 +437,26 @@ function NewSaleModal({ onClose }) {
                       </div>
                     )}
                   </div>
-                  <input className={`${inp}`} placeholder="Address"
-                    value={customerAddress} onChange={e => setCustomerAddress(capitalizeAddress(e.target.value))} />
+                  <div className="relative">
+                    <input className={`${inp}`} placeholder="Address"
+                      value={customerAddress}
+                      onChange={e => handleAddressChange(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowAddressDropdown(false), 150)}
+                    />
+                    {showAddressDropdown && addressSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
+                        {addressSuggestions.map((address, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => selectAddress(address)}
+                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 text-sm text-gray-800"
+                          >
+                            {address}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -413,13 +469,22 @@ function NewSaleModal({ onClose }) {
                       {/* Description with autocomplete — its own full-width row on
                           mobile so it never has to share space with price/qty/remove;
                           sits beside them from sm up. */}
-                      <div className="relative sm:flex-[2]">
+                      <div className="relative sm:flex-[2]" title={item.product_id ? (item.productDescription || '') : undefined}>
                         <input
                           className={inp}
                           placeholder="Item description..."
                           value={item.description}
                           onChange={e => handleDescriptionChange(i, e.target.value)}
                         />
+                        {/* Size/Category shown once a catalog product is picked; hovering the
+                            whole field (title above) shows the product's description */}
+                        {item.product_id && (item.size || item.category) && (
+                          <div className="text-xs text-gray-500 mt-0.5 px-1">
+                            {item.size && <span>Size: <span className="font-medium text-gray-700">{item.size}</span></span>}
+                            {item.size && item.category && <span> · </span>}
+                            {item.category && <span>Category: <span className="font-medium text-gray-700">{item.category}</span></span>}
+                          </div>
+                        )}
                         {/* Suggestions dropdown — names only; availability shows
                             after selection, not while browsing */}
                         {suggestions[i]?.length > 0 && (

@@ -3,14 +3,11 @@ import { X, AlertCircle, CheckCircle } from 'lucide-react';
 import * as customersApi from '../../api/customersApi';
 import * as ledgerApi from '../../api/ledgerApi';
 import * as invoiceApi from '../../api/invoiceApi';
-import * as productionApi from '../../api/productionApi';
-import AddProductionDirect from '../AddProductionDirect';
 import { AlertRefreshContext } from '../Layout';
 import { PAYMENT_METHODS, PAKISTANI_BANKS } from '../../paymentOptions';
 
 function AddPaymentModal({ onClose }) {
   const alertRefresh = useContext(AlertRefreshContext);
-  const [showProductionModal, setShowProductionModal] = useState(false);
   // Customer Search
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState([]);
@@ -121,16 +118,7 @@ function AddPaymentModal({ onClose }) {
       alertRefresh?.fetchAlerts();
 
       alert('✅ Payment recorded successfully!');
-      
-      // Ask if user wants to add production order
-      const addProduction = window.confirm('Would you like to create a production order?');
-      if (addProduction) {
-        setShowProductionModal(true);
-        setPaymentAmount('');
-        setPaymentNote('');
-      } else {
-        onClose();
-      }
+      onClose();
     } catch (err) {
       console.error('❌ Error:', err.response?.data || err.message);
       alert('❌ Error: ' + (err.response?.data?.error || err.message));
@@ -320,21 +308,6 @@ function AddPaymentModal({ onClose }) {
           </div>
         )}
       </div>
-
-      {/* Production Modal */}
-      {showProductionModal && (
-        <AddProductionDirect
-          onClose={() => {
-            setShowProductionModal(false);
-            onClose();
-          }}
-          onSuccess={() => {
-            setShowProductionModal(false);
-            onClose();
-            alertRefresh?.fetchAlerts?.();
-          }}
-        />
-      )}
     </div>
   );
 }

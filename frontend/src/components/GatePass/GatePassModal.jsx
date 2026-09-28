@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { X, Search, Printer, ArrowLeft, Truck } from 'lucide-react';
+import { X, Search, Printer, ArrowLeft, Truck, Download } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import * as gatePassApi from '../../api/gatePassApi';
 import * as salesApi from '../../api/salesApi';
@@ -43,6 +43,44 @@ function GatePassModal({ kind, onClose }) {
   const [pass, setPass] = useState(null); // { gatePass, reference, items }
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: pass?.gatePass.gate_pass_no });
+  const [savingPdf, setSavingPdf] = useState(false);
+
+  // Same approach as InvoiceModal: rasterize the pass and place it on A4 pages
+  const handleSavePdf = async () => {
+    if (!printRef.current) return;
+    setSavingPdf(true);
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas-pro'),
+        import('jspdf'),
+      ]);
+      const canvas = await html2canvas(printRef.current, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      const pageWidth = pdf.internal.pageSize.getWidth() - 20;
+      const pageHeight = pdf.internal.pageSize.getHeight() - 20;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 10;
+      pdf.addImage(imgData, 'JPEG', 10, position, pageWidth, imgHeight);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 10, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${pass?.gatePass.gate_pass_no || 'gate-pass'}.pdf`);
+    } catch (err) {
+      console.error('Error saving gate pass PDF:', err);
+      alert('❌ Could not save PDF: ' + err.message);
+    } finally {
+      setSavingPdf(false);
+    }
+  };
 
   // Debounced search; an empty query lists the most recent eligible records
   useEffect(() => {
@@ -271,6 +309,15 @@ function GatePassModal({ kind, onClose }) {
               Close
             </button>
             {pass ? (
+              <>
+              <button
+                onClick={handleSavePdf}
+                disabled={savingPdf}
+                className="flex-1 py-2 bg-[var(--color-purchase)] text-white rounded-lg hover:bg-[var(--color-purchase-hover)] transition font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <Download className="w-4 h-4" />
+                {savingPdf ? 'Saving…' : 'Save as PDF'}
+              </button>
               <button
                 onClick={handlePrint}
                 className="flex-1 py-2 bg-[var(--color-gatepass)] text-white rounded-lg hover:bg-[var(--color-gatepass-hover)] transition font-semibold flex items-center justify-center gap-2"
@@ -278,6 +325,7 @@ function GatePassModal({ kind, onClose }) {
                 <Printer className="w-4 h-4" />
                 Print
               </button>
+              </>
             ) : (
               <button
                 onClick={handleGenerate}

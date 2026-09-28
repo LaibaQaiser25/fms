@@ -4,6 +4,10 @@ import http from './http';
 export const searchCustomers = (search = '', limit = 10) =>
   http.get(`/customers/search?search=${search}&limit=${limit}`);
 
+// Search/auto-suggest previously used addresses
+export const searchAddresses = (search = '', limit = 10) =>
+  http.get(`/customers/addresses?search=${search}&limit=${limit}`);
+
 // Get all customers
 export const getAllCustomers = (page = 1, limit = 10) =>
   http.get(`/customers?page=${page}&limit=${limit}`);

@@ -5,6 +5,9 @@ const CustomersController = require('../controllers/CustomersController');
 // Search/auto-suggest customers (MUST come before /:id route)
 router.get('/search', CustomersController.searchCustomers);
 
+// Search/auto-suggest previously used addresses (MUST come before /:id route)
+router.get('/addresses', CustomersController.searchAddresses);
+
 // Get single customer
 router.get('/:id', CustomersController.getCustomer);
 

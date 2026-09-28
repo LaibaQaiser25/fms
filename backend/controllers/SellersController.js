@@ -67,6 +67,33 @@ class SellersController {
   }
 
   /**
+   * Search previously used seller addresses for auto-suggestion
+   * GET /api/sellers/addresses?search=address&limit=10
+   */
+  static async searchAddresses(req, res) {
+    try {
+      const { search = '', limit = 10 } = req.query;
+
+      const result = await pool.query(
+        `SELECT DISTINCT address FROM sellers
+         WHERE address IS NOT NULL AND address <> '' AND address ILIKE $1
+         ORDER BY address
+         LIMIT $2`,
+        [`%${search}%`, limit]
+      );
+
+      res.json({
+        success: true,
+        data: result.rows.map((row) => row.address)
+      });
+
+    } catch (error) {
+      console.error('❌ Error searching seller addresses:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * Get all sellers with pagination
    * GET /api/sellers?page=1&limit=10
    */

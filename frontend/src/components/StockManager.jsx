@@ -4,6 +4,7 @@ import { getAllStock, createStock, updateStock, deleteStock } from '../api/stock
 import * as productsApi from '../api/productsApi';
 import { ACCENT_GRADIENT_STYLE } from '../theme';
 import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 import { SkeletonCardGrid, SkeletonTable } from './shared/Skeleton';
 
 // Cycled left-border accents for category cards — mirrors the stat-card language
@@ -11,6 +12,8 @@ import { SkeletonCardGrid, SkeletonTable } from './shared/Skeleton';
 const CARD_ACCENTS = ['border-[var(--color-accent)]', 'border-gray-500', 'border-amber-500', 'border-[var(--color-accent-hover)]', 'border-gray-700', 'border-[var(--color-accent)]'];
 
 export default function StockManager() {
+  const { user } = useAuth();
+  const isOwner = user?.role?.toLowerCase() === 'owner';
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -248,11 +251,13 @@ export default function StockManager() {
         </div>
         {/* --- BUTTONS --- */}
         <div className="flex gap-2">
-          <button onClick={() => setShowCalculator(!showCalculator)}
-            className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showCalculator ? 'bg-gray-600 hover:bg-gray-700' : 'bg-black hover:bg-gray-900'}`}
-          >
-            {showCalculator ? '✕ Close Calc' : '󱐋 Calculator'}
-          </button>
+          {isOwner && (
+            <button onClick={() => setShowCalculator(!showCalculator)}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showCalculator ? 'bg-gray-600 hover:bg-gray-700' : 'bg-black hover:bg-gray-900'}`}
+            >
+              {showCalculator ? '✕ Close Calc' : '󱐋 Calculator'}
+            </button>
+          )}
 
           <button onClick={() => { resetForm(); setShowForm(!showForm); }}
             className={`px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors ${showForm ? 'bg-gray-600 hover:bg-gray-700' : 'bg-black hover:bg-gray-900'}`}>

@@ -4,7 +4,8 @@
 //   3. run the unchanged Express backend in a utility process, which also
 //      serves the built frontend (FMS_STATIC_DIR)
 //   4. open a window on http://127.0.0.1:<APP_PORT>
-// Everything talks over 127.0.0.1 only; nothing here needs internet.
+//   5. push every local change to the VPS whenever it's reachable (lib/sync.js)
+// The app itself talks over 127.0.0.1 only; internet is needed only for sync.
 const { app, BrowserWindow, dialog, shell, utilityProcess, clipboard } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -13,6 +14,10 @@ const http = require('http');
 const crypto = require('crypto');
 const { APP_PORT } = require('./lib/ports');
 const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./lib/database');
+const { installSyncCapture } = require('./lib/syncCapture');
+const { SyncWorker } = require('./lib/sync');
+
+const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
 
 const STAGED_DIR = path.join(__dirname, 'staged');
 const BACKEND_DIR = path.join(STAGED_DIR, 'backend');
@@ -44,6 +49,9 @@ function loadConfig() {
   let changed = false;
   if (!cfg.pgPassword) { cfg.pgPassword = crypto.randomBytes(24).toString('hex'); changed = true; }
   if (!cfg.jwtSecret) { cfg.jwtSecret = crypto.randomBytes(32).toString('hex'); changed = true; }
+  // syncToken must equal SYNC_TOKEN in the VPS's backend/.env; until it's
+  // set, changes still pile up in sync_outbox and go out once it is.
+  if (!cfg.syncServerUrl) { cfg.syncServerUrl = DEFAULT_SYNC_SERVER; changed = true; }
   if (changed) fs.writeFileSync(file, JSON.stringify(cfg, null, 2));
   return cfg;
 }
@@ -73,7 +81,31 @@ function waitForServer(timeoutMs = 30000) {
 
 let backend = null;
 let mainWindow = null;
+let syncWorker = null;
 let quitting = false;
+
+// The window title doubles as the sync status line.
+let syncStatusText = '';
+function refreshTitle() {
+  if (mainWindow) mainWindow.setTitle(syncStatusText ? `FMS  —  ${syncStatusText}` : 'FMS');
+}
+
+function ago(date) {
+  if (!date) return 'never';
+  const mins = Math.round((Date.now() - new Date(date).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+function describeSync({ state, pending, lastSyncedAt }) {
+  const waiting = pending === 1 ? '1 change waiting' : `${pending} changes waiting`;
+  if (state === 'ok') return pending ? `Uploading ${waiting}` : `All changes uploaded (last upload ${ago(lastSyncedAt)})`;
+  if (state === 'offline') return `Offline — ${waiting}, will upload when internet is back`;
+  return `Sync problem — ${waiting} (see log)`;
+}
 
 function startBackend({ databaseUrl, jwtSecret }) {
   backend = utilityProcess.fork(path.join(BACKEND_DIR, 'server.js'), [], {
@@ -130,6 +162,9 @@ function createWindow() {
     shell.openExternal(url);
     return { action: 'deny' };
   });
+  // Keep our own title (sync status) instead of the page's <title>.
+  mainWindow.on('page-title-updated', (event) => event.preventDefault());
+  refreshTitle();
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -147,11 +182,28 @@ async function boot() {
     log,
   });
   await prepareSchema({ databaseUrl, backendDir: BACKEND_DIR, log });
+  // Before ensureOwner, so even the very first account reaches the VPS.
+  await installSyncCapture({ databaseUrl, log });
   const owner = await ensureOwner({ databaseUrl });
 
   startBackend({ databaseUrl, jwtSecret: cfg.jwtSecret });
   await waitForServer();
   if (mainWindow) await mainWindow.loadURL(`${APP_ORIGIN}/login`);
+
+  if (cfg.syncToken) {
+    syncWorker = new SyncWorker({
+      databaseUrl,
+      serverUrl: cfg.syncServerUrl,
+      token: cfg.syncToken,
+      log,
+      onStatus: (status) => { syncStatusText = describeSync(status); refreshTitle(); },
+    });
+    syncWorker.start();
+  } else {
+    syncStatusText = 'Upload to server not set up';
+    refreshTitle();
+    log('sync: no syncToken in config.json, changes are kept locally');
+  }
 
   if (owner) {
     const { response } = await dialog.showMessageBox(mainWindow, {
@@ -189,6 +241,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   (async () => {
     try {
+      if (syncWorker) await syncWorker.stop();
       if (backend) backend.kill();
       await stopPostgres({ dataDir: pgDataDir, log });
     } catch (err) {

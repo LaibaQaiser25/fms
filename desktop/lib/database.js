@@ -34,6 +34,8 @@ async function startPostgres({ dataDir, password, log }) {
   if (!fs.existsSync(path.join(dataDir, 'PG_VERSION'))) {
     log('initialising new Postgres data directory');
     await pgServer.initialise();
+  } else {
+    await stopLeftoverPostgres({ dataDir, log });
   }
   await pgServer.start();
 
@@ -51,6 +53,25 @@ async function startPostgres({ dataDir, password, log }) {
   return url(DB_NAME);
 }
 
+// If the app crashed or was killed, its Postgres child can outlive it and
+// still hold the data directory + port, so start() would fail. pg_ctl status
+// exits 0 only when a server is running on this data directory.
+async function stopLeftoverPostgres({ dataDir, log }) {
+  const pgCtl = await pgCtlPath();
+  try {
+    await execFileAsync(pgCtl, ['status', '-D', dataDir], { windowsHide: true });
+  } catch {
+    return; // not running
+  }
+  log('found Postgres still running from a previous session, stopping it');
+  await execFileAsync(pgCtl, ['stop', '-D', dataDir, '-m', 'fast', '-w', '-t', '30'], { windowsHide: true });
+}
+
+async function pgCtlPath() {
+  const { pg_ctl } = await import(`@embedded-postgres/${process.platform === 'win32' ? 'windows' : process.platform}-${process.arch}`);
+  return pg_ctl;
+}
+
 // embedded-postgres's own stop() does `taskkill /f` on Windows, which is a
 // hard kill: Postgres then runs crash recovery on the next start. Ask pg_ctl
 // for a proper fast shutdown instead, and only fall back to stop() if it fails.
@@ -61,8 +82,7 @@ async function stopPostgres({ dataDir, log }) {
 
   if (process.platform === 'win32') {
     try {
-      const { pg_ctl } = await import('@embedded-postgres/windows-x64');
-      await execFileAsync(pg_ctl, ['stop', '-D', dataDir, '-m', 'fast', '-w', '-t', '30'], { windowsHide: true });
+      await execFileAsync(await pgCtlPath(), ['stop', '-D', dataDir, '-m', 'fast', '-w', '-t', '30'], { windowsHide: true });
       server.process = undefined; // already exited; stop() would wait for an exit event forever
       log('postgres stopped cleanly');
       return;

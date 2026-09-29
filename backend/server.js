@@ -25,6 +25,7 @@ const reportsRoutes = require('./routes/reports');
 const analyticsRoutes = require('./routes/analytics');
 const usersRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
+const syncRoutes = require('./routes/sync');
 const authMiddleware = require('./middleware/authMiddleware');
 const requireOwner = require('./middleware/requireOwner');
 const { startCronJobs } = require('./services/cronJobs');
@@ -67,6 +68,11 @@ app.use(cors({
   maxAge: 86400
 }));
 app.use(compression());
+
+// Factory desktop app -> VPS sync (SYNC_TOKEN auth, not JWT). Mounted before
+// the global JSON parser because it needs a larger body limit.
+app.use('/sync', syncRoutes);
+
 // Allow React to talk to Express
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -142,7 +148,7 @@ if (process.env.FMS_STATIC_DIR) {
   // Client-side routes (/sales, /ledger?...) fall back to index.html, but an
   // unknown /api or /auth path must still 404 rather than return HTML.
   app.get('/{*splat}', (req, res, next) => {
-    if (/^\/(api|auth|ws)(\/|$)/.test(req.path)) return next();
+    if (/^\/(api|auth|ws|sync)(\/|$)/.test(req.path)) return next();
     res.sendFile(path.join(staticDir, 'index.html'));
   });
 }

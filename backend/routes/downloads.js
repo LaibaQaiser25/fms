@@ -11,8 +11,13 @@ const path = require('path');
 const router = express.Router();
 const dir = process.env.DOWNLOADS_DIR;
 
-// Stable link for people: redirects to whatever installer latest.yml names.
-router.get('/FMS-Setup.exe', (req, res) => {
+// Stable links for people: redirect to whatever installer latest.yml names.
+// Prefer /latest: Cloudflare treats .exe URLs as static and stamps a 4-hour
+// browser cache on them (overriding our no-cache), so a browser that opened
+// /FMS-Setup.exe recently can keep getting the previous version's redirect.
+// An extension-less path isn't cached at all.
+router.get(['/latest', '/FMS-Setup.exe'], (req, res) => {
+  res.set('Cache-Control', 'no-cache');
   let yml;
   try {
     yml = fs.readFileSync(path.join(dir, 'latest.yml'), 'utf8');
@@ -21,7 +26,6 @@ router.get('/FMS-Setup.exe', (req, res) => {
   }
   const file = yml.match(/^path:\s*(.+)$/m)?.[1].trim();
   if (!file) return res.status(500).send('latest.yml has no path');
-  res.set('Cache-Control', 'no-cache');
   res.redirect(302, `${req.baseUrl}/${encodeURIComponent(file)}`);
 });
 

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install FMS</title>
+<meta name="description" content="Download and set up the FMS factory app for Windows.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="https://ittefaqbuilder.com/logo.jpeg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Palette from frontend/src/homeTheme.js — keep in sync */
+  :root {
+    --navy: #1B2A4E; --blue: #2A568F; --orange: #DB5A32; --orange-text: #C2401A;
+    --slate: #44536F; --steel: #90A6BF; --paper: #F5F7FA; --line: #D9E0E8; --white: #fff;
+    --ok: #1E7A4F;
+    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    --sans: 'Montserrat', 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--slate); font: 15px/1.6 var(--sans); }
+  a { color: var(--blue); }
+  button { font: inherit; cursor: pointer; }
+
+  header { background: var(--navy); color: var(--white); }
+  .bar { max-width: 1080px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+  .bar img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--white); }
+  .bar b { font: 800 20px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
+  .bar span { display: block; font-size: 11px; letter-spacing: .28em; text-transform: uppercase; color: var(--steel); margin-top: 3px; }
+
+  .hero { background: var(--navy); color: var(--white); border-top: 1px solid rgba(255,255,255,.08); }
+  .hero-in { max-width: 1080px; margin: 0 auto; padding: 40px 20px 48px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: end; }
+  .tag { font: 700 12px/1 var(--sans); letter-spacing: .4em; text-transform: uppercase; color: #F58A5E; margin: 0 0 14px; }
+  h1 { font: 800 clamp(40px, 7vw, 72px)/.92 var(--display); text-transform: uppercase; margin: 0 0 16px; letter-spacing: .005em; }
+  .hero p { margin: 0; color: #C9D3E0; max-width: 520px; }
+  .dl { border: 1px solid rgba(255,255,255,.18); padding: 22px; }
+  .dl .meta { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: #C9D3E0; margin-bottom: 16px; }
+  .dl .meta b { display: block; color: var(--white); font: 800 22px/1.1 var(--display); letter-spacing: .02em; }
+  .btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;
+         background: var(--orange); color: var(--white); border: 0; border-radius: 999px; padding: 10px 10px 10px 26px;
+         font: 700 15px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; text-decoration: none; }
+  .btn:hover { background: #C84E28; }
+  .btn .chip { width: 40px; height: 40px; border-radius: 50%; background: var(--white); display: grid; place-items: center; }
+  .btn[aria-disabled="true"] { background: #5B6780; pointer-events: none; }
+  .dl small { display: block; margin-top: 12px; font-size: 12px; color: var(--steel); }
+  .warn { display: none; margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(219,90,50,.12); color: #FBD9CB; font-size: 13px; }
+  .warn.show { display: block; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 40px 20px 64px; }
+  .section-title { font: 800 30px/1 var(--display); text-transform: uppercase; color: var(--navy); margin: 0 0 6px; }
+  .lede { margin: 0 0 24px; }
+
+  .guide { display: grid; grid-template-columns: 280px 1fr; border: 1px solid var(--line); background: var(--white); }
+  .steps { list-style: none; margin: 0; padding: 0; border-right: 1px solid var(--line); }
+  .steps button { width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line);
+                  padding: 16px 18px; display: flex; gap: 14px; align-items: center; color: var(--slate); }
+  .steps li:last-child button { border-bottom: 0; }
+  .steps button:hover { background: var(--paper); }
+  .steps button[aria-current="step"] { background: var(--paper); box-shadow: inset 3px 0 0 var(--orange); color: var(--navy); }
+  .num { flex: none; width: 30px; height: 30px; border: 1px solid var(--steel); border-radius: 50%; display: grid; place-items: center;
+         font: 800 16px/1 var(--display); color: var(--navy); }
+  .done .num { background: var(--ok); border-color: var(--ok); color: var(--white); }
+  [aria-current="step"] .num { border-color: var(--orange); color: var(--orange-text); }
+  .done[aria-current="step"] .num { color: var(--white); }
+  .steps strong { display: block; font-weight: 700; font-size: 14px; }
+  .steps small { display: block; font-size: 12px; color: #6B7A93; }
+
+  .panel { padding: 28px 30px; min-width: 0; }
+  .panel h3 { font: 800 28px/1 var(--display); text-transform: uppercase; color: var(--navy); margin: 0 0 12px; }
+  .panel ol { padding-left: 20px; margin: 0 0 20px; }
+  .panel li { margin-bottom: 8px; }
+  .panel li b { color: var(--navy); }
+  .note { font-size: 13px; padding: 10px 14px; background: var(--paper); border-left: 3px solid var(--blue); margin: 0 0 20px; }
+  .nav { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; margin-top: 8px; }
+  .ghost { background: none; border: 1px solid var(--line); color: var(--navy); padding: 10px 18px; border-radius: 999px; font-weight: 600; }
+  .ghost:hover { border-color: var(--navy); }
+  .next { background: var(--navy); color: var(--white); border: 0; padding: 10px 22px; border-radius: 999px; font-weight: 700; letter-spacing: .06em; }
+  .next:hover { background: var(--blue); }
+  [hidden] { display: none !important; }
+
+  /* Small drawings of the screens they'll see — flat, not screenshots */
+  .mock { border: 1px solid var(--line); margin: 0 0 20px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; max-width: 460px; }
+  .mock-title { background: var(--paper); border-bottom: 1px solid var(--line); padding: 6px 10px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #6B7A93; }
+  .mock-body { padding: 14px; }
+  .edge { background: #1F1F1F; color: #E8E8E8; }
+  .edge h4 { margin: 0 0 6px; font-size: 15px; }
+  .edge p { margin: 0 0 12px; color: #B5B5B5; font-size: 12px; }
+  .edge .row { display: flex; justify-content: flex-end; gap: 8px; }
+  .edge .b { border: 1px solid #555; border-radius: 4px; padding: 5px 10px; font-size: 12px; }
+  .edge .b.hl { outline: 2px solid var(--orange); outline-offset: 2px; background: #A7E0B8; color: #111; border-color: #A7E0B8; }
+  .edge .menu { margin: 8px 0 0 auto; width: 150px; border: 1px solid #444; background: #2A2A2A; }
+  .edge .menu div { padding: 6px 10px; font-size: 12px; }
+  .edge .menu .hl { background: #3A3A3A; box-shadow: inset 3px 0 0 var(--orange); }
+  .smart { background: #1459A5; color: #fff; }
+  .smart h4 { margin: 0 0 8px; font-size: 18px; font-weight: 400; }
+  .smart p { margin: 0 0 10px; font-size: 12px; color: #D6E4F5; }
+  .smart u { color: #fff; text-decoration: underline; outline: 2px solid var(--orange); outline-offset: 2px; }
+  .smart .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .smart .b { border: 1px solid #fff; padding: 5px 14px; font-size: 12px; }
+  .smart .b.hl { outline: 2px solid var(--orange); outline-offset: 2px; background: #fff; color: #1459A5; }
+  .inst { display: grid; grid-template-columns: 90px 1fr; min-height: 150px; }
+  .inst .side { background: var(--navy); }
+  .inst .main { padding: 14px; }
+  .inst .main b { display: block; color: var(--navy); margin-bottom: 6px; }
+  .inst .field { border: 1px solid var(--line); padding: 5px 8px; font-size: 12px; color: #6B7A93; margin-bottom: 14px; }
+  .inst .row { display: flex; justify-content: flex-end; gap: 6px; }
+  .inst .b { border: 1px solid #AAB4C2; padding: 3px 12px; font-size: 12px; background: var(--paper); }
+  .inst .b.hl { outline: 2px solid var(--orange); outline-offset: 2px; }
+  .fms b { display: block; color: var(--navy); font-size: 15px; margin-bottom: 10px; }
+  .fms label { display: block; font-size: 11px; font-weight: 700; color: var(--navy); margin: 8px 0 3px; }
+  .fms .field { border: 1px solid var(--line); padding: 6px 8px; font-size: 12px; color: #6B7A93; }
+  .fms .field.hl { outline: 2px solid var(--orange); outline-offset: 1px; color: var(--navy); letter-spacing: .2em; }
+  .fms .go { margin-top: 12px; background: #0F766E; color: #fff; text-align: center; padding: 7px; font-size: 12px; font-weight: 600; }
+  .title-bar { background: var(--white); border-bottom: 1px solid var(--line); padding: 8px 12px; font-size: 12px; color: var(--navy); }
+  .title-bar i { font-style: normal; color: var(--ok); font-weight: 600; }
+
+  .states { display: grid; gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; }
+  .states li { border: 1px solid var(--line); padding: 8px 12px; font-size: 13px; }
+  .states code { font: 600 12px var(--sans); color: var(--navy); }
+
+  .faq { margin-top: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--line); background: var(--white); }
+  .faq div { padding: 20px; border-right: 1px solid var(--line); }
+  .faq div:last-child { border-right: 0; }
+  .faq h4 { margin: 0 0 6px; font: 800 18px/1.1 var(--display); text-transform: uppercase; color: var(--navy); }
+  .faq p { margin: 0; font-size: 13px; }
+  footer { text-align: center; font-size: 12px; color: #6B7A93; padding: 0 20px 32px; }
+
+  @media (max-width: 820px) {
+    .hero-in { grid-template-columns: 1fr; gap: 24px; padding: 28px 16px 32px; }
+    main { padding: 28px 16px 48px; }
+    .btn { font-size: 14px; letter-spacing: .06em; padding-left: 20px; }
+    .guide { grid-template-columns: 1fr; }
+    .steps { border-right: 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); }
+    .steps button { flex-direction: column; gap: 4px; padding: 12px 4px; border-bottom: 0; border-right: 1px solid var(--line); text-align: center; }
+    .steps li:last-child button { border-right: 0; }
+    .steps button[aria-current="step"] { box-shadow: inset 0 -3px 0 var(--orange); }
+    .steps strong { font-size: 11px; } .steps small { display: none; }
+    .panel { padding: 20px 16px; }
+    .faq { grid-template-columns: 1fr; }
+    .faq div { border-right: 0; border-bottom: 1px solid var(--line); }
+    .faq div:last-child { border-bottom: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <img src="https://ittefaqbuilder.com/logo.jpeg" alt="">
+    <div><b>Bin-Zahid &amp; Partners</b><span>Precast solutions</span></div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-in">
+    <div>
+      <p class="tag">Factory app</p>
+      <h1>Install FMS on the factory computer</h1>
+      <p>FMS runs on this PC even without internet. Everything you enter is uploaded to the online dashboard automatically whenever the internet is on.</p>
+    </div>
+    <div class="dl">
+      <div class="meta">
+        <div><b>{{VERSION}}</b>Version</div>
+        <div><b>{{SIZE}}</b>Download</div>
+        <div><b>Windows</b>10 or 11, 64-bit</div>
+      </div>
+      <a class="btn" id="download" href="/downloads/latest" {{DISABLED}}>
+        {{BUTTON}}
+        <span class="chip" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DB5A32" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg></span>
+      </a>
+      <small>Released {{DATE}}. Already installed? FMS updates itself — no need to download again.</small>
+      <div class="warn" id="os-warn">This looks like a phone or a Mac. FMS only runs on Windows — open this page on the factory computer.</div>
+    </div>
+  </div>
+</section>
+
+<main>
+  <h2 class="section-title">Setup, step by step</h2>
+  <p class="lede">Takes about 5 minutes. Click a step to jump to it.</p>
+
+  <div class="guide">
+    <ol class="steps" id="steps">
+      <li><button type="button" data-step="0"><span class="num">1</span><span><strong>Download</strong><small>Get the installer</small></span></button></li>
+      <li><button type="button" data-step="1"><span class="num">2</span><span><strong>Keep file</strong><small>Browser warning</small></span></button></li>
+      <li><button type="button" data-step="2"><span class="num">3</span><span><strong>Install</strong><small>Windows warning</small></span></button></li>
+      <li><button type="button" data-step="3"><span class="num">4</span><span><strong>Connect</strong><small>Enter the sync key</small></span></button></li>
+      <li><button type="button" data-step="4"><span class="num">5</span><span><strong>Log in</strong><small>Start working</small></span></button></li>
+    </ol>
+
+    <div class="panel">
+      <section data-panel="0">
+        <h3>Download the installer</h3>
+        <ol>
+          <li>Click <b>Download for Windows</b> above ({{SIZE}}).</li>
+          <li>Wait for it to finish — on a slow connection this can take a few minutes.</li>
+        </ol>
+        <p class="note">Before you start, ask the owner for the <b>sync key</b>. You'll need it in step 4. It's a long code of letters and numbers.</p>
+      </section>
+
+      <section data-panel="1" hidden>
+        <h3>Keep the file</h3>
+        <p>The browser may say it "couldn't verify" FMS. That's normal for company software that isn't sold in shops.</p>
+        <div class="mock"><div class="mock-title">Microsoft Edge</div>
+          <div class="mock-body edge">
+            <h4>Make sure you trust FMS-Setup.exe before you open it</h4>
+            <p>Microsoft Defender SmartScreen couldn't verify if this file is safe…</p>
+            <div class="row"><span class="b">Cancel</span><span class="b hl">Delete&nbsp;&nbsp;⌄</span></div>
+            <div class="menu"><div class="hl">Keep</div><div>Report this app as safe</div></div>
+          </div>
+        </div>
+        <ol>
+          <li>Click the small <b>arrow next to Delete</b> — not Delete itself.</li>
+          <li>Choose <b>Keep</b>.</li>
+          <li>If it asks again, click <b>Show more</b>, then <b>Keep anyway</b>.</li>
+        </ol>
+        <p class="note">In Chrome: open the downloads list, click the file's <b>⋮</b> menu and choose <b>Keep</b>.</p>
+      </section>
+
+      <section data-panel="2" hidden>
+        <h3>Install FMS</h3>
+        <p>Open the downloaded file. Windows may show a blue warning first:</p>
+        <div class="mock"><div class="mock-title">Windows</div>
+          <div class="mock-body smart">
+            <h4>Windows protected your PC</h4>
+            <p>Microsoft Defender SmartScreen prevented an unrecognised app from starting…</p>
+            <p><u>More info</u></p>
+            <div class="row"><span class="b hl">Run anyway</span><span class="b">Don't run</span></div>
+          </div>
+        </div>
+        <ol>
+          <li>Click <b>More info</b>, then <b>Run anyway</b>.</li>
+          <li>In the installer, keep the suggested folder and click <b>Install</b>.</li>
+          <li>Click <b>Finish</b> — FMS opens. A shortcut is also placed on the desktop.</li>
+        </ol>
+        <div class="mock"><div class="mock-title">FMS Setup</div>
+          <div class="inst"><div class="side"></div>
+            <div class="main"><b>Choose install location</b><div class="field">C:\Users\…\AppData\Local\Programs\FMS</div>
+              <div class="row"><span class="b">&lt; Back</span><span class="b hl">Install</span><span class="b">Cancel</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section data-panel="3" hidden>
+        <h3>Connect to the server</h3>
+        <p>The first time FMS opens, it copies all your existing data from the online system onto this computer. The internet must be on for this step.</p>
+        <div class="mock"><div class="mock-title">FMS — first start</div>
+          <div class="mock-body fms">
+            <b>Set up FMS on this computer</b>
+            <label>Sync key</label><div class="field hl">••••••••••••••••</div>
+            <label>Server address</label><div class="field">https://api.ittefaqbuilder.com</div>
+            <div class="go">Copy data from server and start</div>
+          </div>
+        </div>
+        <ol>
+          <li>Paste the <b>sync key</b> from the owner into the first box.</li>
+          <li>Leave the <b>server address</b> as it is.</li>
+          <li>Click <b>Copy data from server and start</b> and wait about a minute.</li>
+        </ol>
+        <p class="note">"The sync key is wrong" means a character is missing — copy the whole key again. This step only happens once.</p>
+      </section>
+
+      <section data-panel="4" hidden>
+        <h3>Log in and start working</h3>
+        <ol>
+          <li>Log in with your usual FMS username and password.</li>
+          <li>Enter sales, purchases, stock and payments as normal — now in this app, not the website.</li>
+        </ol>
+        <p>The top of the FMS window always shows the upload status:</p>
+        <div class="mock"><div class="title-bar">FMS — <i>All changes uploaded</i> (last upload just now)</div></div>
+        <ul class="states">
+          <li><code>All changes uploaded</code> — the online dashboard is up to date.</li>
+          <li><code>Offline — 12 changes waiting</code> — no internet. Keep working; they upload by themselves later.</li>
+          <li><code>Sync problem</code> — tell the owner. Nothing is lost; changes wait until it's fixed.</li>
+        </ul>
+        <p class="note">When the owner releases a new version, FMS downloads it by itself and installs it the next time you close FMS.</p>
+      </section>
+
+      <div class="nav">
+        <button type="button" class="ghost" id="back">← Back</button>
+        <button type="button" class="next" id="next">Next step →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq">
+    <div><h4>Is my data safe?</h4><p>It's stored on this computer and copied to the online server whenever there's internet. Uninstalling FMS keeps the data.</p></div>
+    <div><h4>No internet?</h4><p>FMS works fully offline. Changes and WhatsApp alerts wait and go out when the connection is back.</p></div>
+    <div><h4>The website says "view-only"</h4><p>That's expected: data is now entered only in the factory app. The website shows what the factory has uploaded.</p></div>
+  </div>
+</main>
+
+<footer>FMS {{VERSION}} · Bin-Zahid &amp; Partners</footer>
+
+<script>
+(() => {
+  const buttons = [...document.querySelectorAll('#steps button')];
+  const panels = [...document.querySelectorAll('[data-panel]')];
+  const done = new Set();
+  let current = 0;
+
+  function show(i) {
+    current = Math.max(0, Math.min(panels.length - 1, i));
+    panels.forEach((p, n) => { p.hidden = n !== current; });
+    buttons.forEach((b, n) => {
+      if (n === current) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      b.classList.toggle('done', done.has(n));
+    });
+    document.getElementById('back').style.visibility = current === 0 ? 'hidden' : 'visible';
+    const next = document.getElementById('next');
+    next.textContent = current === panels.length - 1 ? 'All done ✓' : 'Next step →';
+  }
+
+  buttons.forEach((b, n) => b.addEventListener('click', () => show(n)));
+  document.getElementById('back').addEventListener('click', () => show(current - 1));
+  document.getElementById('next').addEventListener('click', () => {
+    done.add(current);
+    if (current === panels.length - 1) { show(current); return; }
+    show(current + 1);
+  });
+
+  // Starting the download finishes step 1 and moves on to the browser warning.
+  document.getElementById('download').addEventListener('click', () => {
+    done.add(0);
+    setTimeout(() => { show(1); document.querySelector('.guide').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 400);
+  });
+
+  const ua = navigator.userAgent;
+  if (/Android|iPhone|iPad|Macintosh|Mac OS X|Linux/.test(ua) && !/Windows/.test(ua)) {
+    document.getElementById('os-warn').classList.add('show');
+  }
+
+  show(0);
+})();
+</script>
+</body>
+</html>

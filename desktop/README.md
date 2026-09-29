@@ -51,8 +51,11 @@ changes waiting", or "Sync problem" (details in the log).
 Installers are served by the VPS backend from `~/fms/downloads` (mounted into
 the container, `backend/routes/downloads.js`):
 
-- People get: **https://api.ittefaqbuilder.com/downloads/latest** — always
-  redirects to the newest installer. (`/downloads/FMS-Setup.exe` does too, but
+- People get: **https://api.ittefaqbuilder.com/downloads** — an install guide
+  page (`backend/views/download.html`) with the download button and the setup
+  steps; version and size come from `latest.yml`. The direct file link is
+  **https://api.ittefaqbuilder.com/downloads/latest** — always redirects to
+  the newest installer. (`/downloads/FMS-Setup.exe` does too, but
   Cloudflare lets browsers cache `.exe` URLs for 4 h, so it can lag a release.)
 - The installed app checks `…/downloads/latest.yml` at start and every 4 h,
   downloads a newer version in the background and installs it when FMS is

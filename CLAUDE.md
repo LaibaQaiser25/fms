@@ -27,6 +27,14 @@ npm run lint     # eslint .
 npm run preview  # preview production build
 ```
 
+**Desktop app** (`desktop/`, Windows installer for the offline factory PC):
+```
+npm install        # postinstall downloads the Electron binary
+npm start          # stage + run: copies ../backend and builds ../frontend into desktop/staged/
+npm run dist       # stage + electron-builder -> desktop/dist/FMS Setup <version>.exe
+```
+`main.js` starts an embedded Postgres 16 (`embedded-postgres`, data in `%APPDATA%/FMS/pgdata`), loads `pgdb.sql` + runs migrations, then runs the unchanged `backend/server.js` in a utility process on `127.0.0.1:48620` — which also serves the frontend build because it sets `FMS_STATIC_DIR`. Backend deps resolve from `desktop/node_modules`, so a new dependency in `backend/package.json` must also be added to `desktop/package.json` (`scripts/stage.js` refuses to stage otherwise). Test launches: `npx electron . --user-data-dir=<scratch dir>` to avoid touching the real `%APPDATA%/FMS`.
+
 **Env files**: `backend/.env`, root `.env`, and `deploy/.env.n8n` are gitignored, each with a checked-in `.env.example` (`backend/.env.example`, `deploy/.env.n8n.example`) to copy from — `frontend/.env` (`VITE_API_URL`) has no example file, so ask the user for that one. WhatsApp alerts go through n8n (Meta WhatsApp Cloud API), not called directly from the backend — see `backend/services/whatsappService.js` (posts to `N8N_WEBHOOK_URL`) and `n8n/fms-whatsapp-alerts.json`.
 
 ## Architecture

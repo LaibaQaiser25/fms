@@ -132,8 +132,25 @@ if (typeof nlpSearch === 'function') {
 // directly, so the WebSocket server can attach to the same port via the
 // 'upgrade' event — no second port, no separate process, and it rides the
 // same Cloudflare Tunnel ingress rule as the rest of the API.
+// Desktop build only (desktop/main.js sets FMS_STATIC_DIR): this same server
+// also hands out the built frontend, so the Electron window loads the
+// dashboard from this origin. Unset on the VPS, where Vercel serves it.
+if (process.env.FMS_STATIC_DIR) {
+  const path = require('path');
+  const staticDir = process.env.FMS_STATIC_DIR;
+  app.use(express.static(staticDir));
+  // Client-side routes (/sales, /ledger?...) fall back to index.html, but an
+  // unknown /api or /auth path must still 404 rather than return HTML.
+  app.get('/{*splat}', (req, res, next) => {
+    if (/^\/(api|auth|ws)(\/|$)/.test(req.path)) return next();
+    res.sendFile(path.join(staticDir, 'index.html'));
+  });
+}
+
 const server = http.createServer(app);
 initWebSocketServer(server);
 
-server.listen(process.env.PORT || 5000, () =>
+// HOST is only set by the desktop build (127.0.0.1, so the factory PC's
+// API isn't exposed to the LAN); undefined keeps the default all-interfaces bind.
+server.listen(process.env.PORT || 5000, process.env.HOST, () =>
      { console.log('🚀 Server running on port ' + (process.env.PORT || 5000)); });

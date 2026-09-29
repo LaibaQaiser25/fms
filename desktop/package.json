@@ -1,0 +1,62 @@
+{
+  "name": "fms-desktop",
+  "productName": "FMS",
+  "version": "1.0.0",
+  "description": "FMS offline desktop app for the factory PC (bundled backend + embedded Postgres)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
+    "stage": "node scripts/stage.js",
+    "start": "npm run stage && electron .",
+    "start:nostage": "electron .",
+    "dist": "npm run stage && electron-builder --win"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bcrypt": "^6.0.0",
+    "compression": "^1.8.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "embedded-postgres": "16.14.0-beta.17",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.1",
+    "groq-sdk": "^1.1.2",
+    "jsonwebtoken": "^9.0.3",
+    "jwks-rsa": "^4.0.1",
+    "jwt-decode": "^4.0.0",
+    "node-cron": "^4.2.1",
+    "node-pg-migrate": "^8.0.4",
+    "pg": "^8.22.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.ittefaqbuilder.fms",
+    "productName": "FMS",
+    "asar": false,
+    "npmRebuild": false,
+    "files": [
+      "main.js",
+      "lib/**",
+      "staged/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "FMS"
+    }
+  }
+}

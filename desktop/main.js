@@ -6,7 +6,7 @@
 //   4. open a window on http://127.0.0.1:<APP_PORT>
 //   5. push every local change to the VPS whenever it's reachable (lib/sync.js)
 // The app itself talks over 127.0.0.1 only; internet is needed only for sync.
-const { app, BrowserWindow, dialog, shell, utilityProcess, clipboard } = require('electron');
+const { app, BrowserWindow, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const net = require('net');
@@ -16,6 +16,7 @@ const { APP_PORT } = require('./lib/ports');
 const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./lib/database');
 const { installSyncCapture } = require('./lib/syncCapture');
 const { SyncWorker } = require('./lib/sync');
+const { downloadSnapshot, importSnapshot } = require('./lib/snapshot');
 
 const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
 
@@ -52,8 +53,69 @@ function loadConfig() {
   // syncToken must equal SYNC_TOKEN in the VPS's backend/.env; until it's
   // set, changes still pile up in sync_outbox and go out once it is.
   if (!cfg.syncServerUrl) { cfg.syncServerUrl = DEFAULT_SYNC_SERVER; changed = true; }
-  if (changed) fs.writeFileSync(file, JSON.stringify(cfg, null, 2));
+  if (changed) saveConfig(cfg);
   return cfg;
+}
+
+function saveConfig(cfg) {
+  fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify(cfg, null, 2));
+}
+
+// First run only: a modal asking for the sync key, which then copies the
+// server's data into the local database (lib/snapshot.js). Resolves
+// 'imported', 'empty' (testing: no server) or 'cancelled' (window closed).
+function runSetup({ cfg, databaseUrl }) {
+  const CHANNELS = ['setup:defaults', 'setup:import', 'setup:empty'];
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      parent: mainWindow,
+      modal: true,
+      width: 620,
+      height: 640,
+      resizable: false,
+      minimizable: false,
+      autoHideMenuBar: true,
+      title: 'FMS setup',
+      webPreferences: {
+        preload: path.join(__dirname, 'setup', 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    let result = 'cancelled';
+    const finish = (r) => { result = r; win.close(); };
+    win.on('closed', () => {
+      CHANNELS.forEach((ch) => ipcMain.removeHandler(ch));
+      resolve(result);
+    });
+
+    ipcMain.handle('setup:defaults', () => ({ serverUrl: cfg.syncServerUrl }));
+    ipcMain.handle('setup:import', async (_e, { serverUrl, token }) => {
+      const progress = (msg) => { if (!win.isDestroyed()) win.webContents.send('setup:progress', msg); };
+      try {
+        progress('Downloading data from the server…');
+        const snapshot = await downloadSnapshot({ serverUrl, token });
+        progress('Saving data on this computer…');
+        await importSnapshot({ databaseUrl, snapshot, log });
+        Object.assign(cfg, { syncServerUrl: serverUrl, syncToken: token, setupDone: true });
+        saveConfig(cfg);
+        finish('imported');
+        return { ok: true };
+      } catch (err) {
+        log(`setup: import failed: ${err.message}`);
+        return { ok: false, error: err.message };
+      }
+    });
+    ipcMain.handle('setup:empty', () => {
+      cfg.setupDone = true;
+      saveConfig(cfg);
+      finish('empty');
+      return { ok: true };
+    });
+
+    win.loadFile(path.join(__dirname, 'setup', 'index.html'));
+  });
 }
 
 function portIsFree(port) {
@@ -184,6 +246,13 @@ async function boot() {
   await prepareSchema({ databaseUrl, backendDir: BACKEND_DIR, log });
   // Before ensureOwner, so even the very first account reaches the VPS.
   await installSyncCapture({ databaseUrl, log });
+
+  if (!cfg.setupDone) {
+    const result = await runSetup({ cfg, databaseUrl });
+    log(`setup: ${result}`);
+    if (result === 'cancelled') { app.quit(); return; }
+  }
+  // Only creates an account when there are none (i.e. "start empty").
   const owner = await ensureOwner({ databaseUrl });
 
   startBackend({ databaseUrl, jwtSecret: cfg.jwtSecret });

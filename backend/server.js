@@ -28,6 +28,7 @@ const authRoutes = require('./routes/auth');
 const syncRoutes = require('./routes/sync');
 const authMiddleware = require('./middleware/authMiddleware');
 const requireOwner = require('./middleware/requireOwner');
+const readOnlyMode = require('./middleware/readOnlyMode');
 const { startCronJobs } = require('./services/cronJobs');
 const { initWebSocketServer } = require('./services/wsServer');
 const http = require('http');
@@ -72,6 +73,9 @@ app.use(compression());
 // Factory desktop app -> VPS sync (SYNC_TOKEN auth, not JWT). Mounted before
 // the global JSON parser because it needs a larger body limit.
 app.use('/sync', syncRoutes);
+
+// READ_ONLY_MODE=true once the factory app is the only writer (see middleware).
+app.use(readOnlyMode);
 
 // Allow React to talk to Express
 app.use(express.json());
@@ -124,7 +128,13 @@ app.use('/api/analytics', requireOwner, analyticsRoutes);
 // Owner-only — user management (create users, edit others' username/email/password, change own password)
 app.use('/api/users', requireOwner, usersRoutes);
 
-startCronJobs(); // Start the cron jobs when the server starts
+// Scheduled reports write rows, so in read-only mode only the factory app runs
+// them (their results reach this server through /sync like everything else).
+if (process.env.READ_ONLY_MODE === 'true') {
+  console.log('🔒 READ_ONLY_MODE: writes blocked, cron jobs not started');
+} else {
+  startCronJobs(); // Start the cron jobs when the server starts
+}
 
 // NLP routes with error handling
 if (typeof nlpSearch === 'function') {

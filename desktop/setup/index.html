@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>FMS setup</title>
+<style>
+  :root { --ink: #1c1917; --muted: #78716c; --line: #e7e5e4; --bg: #fafaf9; --accent: #0f766e; --bad: #b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { width: min(520px, calc(100vw - 32px)); background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 32px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  p { margin: 0 0 20px; color: var(--muted); }
+  label { display: block; font-weight: 600; margin: 16px 0 6px; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  button { font: inherit; border-radius: 6px; padding: 10px 16px; cursor: pointer; }
+  .primary { width: 100%; margin-top: 24px; background: var(--accent); color: #fff; border: 0; font-weight: 600; }
+  .primary:disabled { opacity: .6; cursor: wait; }
+  .secondary { margin-top: 12px; width: 100%; background: none; border: 1px solid var(--line); color: var(--muted); }
+  #status { margin-top: 16px; min-height: 22px; font-size: 14px; }
+  #status.error { color: var(--bad); }
+  details { margin-top: 20px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Set up FMS on this computer</h1>
+  <p>This copies all current data from the server once. After that, this computer is where data is entered, and every change is uploaded to the server automatically whenever there is internet.</p>
+
+  <form id="form">
+    <label for="token">Sync key</label>
+    <input id="token" type="password" autocomplete="off" required>
+    <div class="hint">The SYNC_TOKEN value from the server's settings.</div>
+
+    <label for="server">Server address</label>
+    <input id="server" type="url" required>
+
+    <button class="primary" id="go" type="submit">Copy data from server and start</button>
+  </form>
+  <div id="status" role="status"></div>
+
+  <details>
+    <summary>Testing only</summary>
+    <button class="secondary" id="empty" type="button">Start with an empty database (no upload to server)</button>
+  </details>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const status = (msg, isError = false) => { $('status').textContent = msg; $('status').className = isError ? 'error' : ''; };
+  const busy = (on) => { $('go').disabled = on; $('empty').disabled = on; };
+
+  window.fmsSetup.defaults().then((d) => { $('server').value = d.serverUrl; $('token').focus(); });
+  window.fmsSetup.onProgress((msg) => status(msg));
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    busy(true);
+    status('Connecting…');
+    const result = await window.fmsSetup.importFromServer($('server').value.trim(), $('token').value.trim());
+    if (!result.ok) { status(result.error, true); busy(false); }
+  });
+
+  $('empty').addEventListener('click', async () => {
+    if (!confirm('Start with an empty database? Nothing entered will be uploaded to the server.')) return;
+    busy(true);
+    await window.fmsSetup.startEmpty();
+  });
+</script>
+</body>
+</html>

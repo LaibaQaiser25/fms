@@ -32,6 +32,37 @@ async function loadTables(client) {
 }
 
 class SyncController {
+  // One-time copy of every business table, for the factory app's first run
+  // (desktop/lib/snapshot.js). Refused unless READ_ONLY_MODE is on: otherwise
+  // someone could save here after the copy is taken, and that row would never
+  // reach the factory (and later be overwritten by factory data).
+  static async snapshot(req, res) {
+    if (process.env.READ_ONLY_MODE !== 'true') {
+      return res.status(409).json({
+        error: 'Turn on READ_ONLY_MODE=true on the server (and restart it) before copying data to the factory',
+      });
+    }
+    const client = await pool.connect();
+    try {
+      // One consistent point in time across all tables.
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const tables = await loadTables(client);
+      const out = {};
+      for (const name of [...tables.keys()].sort()) {
+        const { rows } = await client.query(`SELECT to_jsonb(t) AS r FROM public.${client.escapeIdentifier(name)} t`);
+        out[name] = rows.map((row) => row.r);
+      }
+      await client.query('COMMIT');
+      res.json({ takenAt: new Date().toISOString(), tables: out });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('❌ Sync snapshot failed:', err.message);
+      res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  }
+
   static async ingest(req, res) {
     const changes = req.body?.changes;
     if (!Array.isArray(changes)) {

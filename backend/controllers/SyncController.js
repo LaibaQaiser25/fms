@@ -32,6 +32,16 @@ async function loadTables(client) {
 }
 
 class SyncController {
+  // Settings the factory app needs but shouldn't have to be typed in there:
+  // where to send WhatsApp alerts (n8n's PUBLIC webhook — the backend's own
+  // N8N_WEBHOOK_URL is a Docker-internal hostname) and its shared secret.
+  // Fetched by desktop/main.js at startup and hourly.
+  static getConfig(req, res) {
+    const url = process.env.N8N_PUBLIC_WEBHOOK_URL;
+    res.json({
+      whatsapp: url ? { url, secret: process.env.N8N_WEBHOOK_SECRET || '' } : null,
+    });
+  }
   // One-time copy of every business table, for the factory app's first run
   // (desktop/lib/snapshot.js). Refused unless READ_ONLY_MODE is on: otherwise
   // someone could save here after the copy is taken, and that row would never

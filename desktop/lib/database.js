@@ -27,6 +27,10 @@ async function startPostgres({ dataDir, password, log }) {
     password,
     port: PG_PORT,
     persistent: true,
+    // Without these, initdb on Windows picks the system code page (WIN1252),
+    // and any Urdu text or emoji (the WhatsApp alerts use emoji) fails to
+    // save. ICU en-US sorts text the way the VPS's en_US.utf8 does.
+    initdbFlags: ['--encoding=UTF8', '--locale-provider=icu', '--icu-locale=en-US', '--locale=C'],
     onLog: (msg) => log(`[postgres] ${String(msg).trimEnd()}`),
     onError: (msg) => log(`[postgres:err] ${String(msg).trimEnd()}`),
   });
@@ -49,6 +53,16 @@ async function startPostgres({ dataDir, password, log }) {
     await admin.query(`CREATE DATABASE ${DB_NAME}`);
   }
   await admin.end();
+
+  // Data directories created by the first test builds (before initdbFlags
+  // above) are WIN1252; say so plainly instead of failing on odd saves later.
+  const db = new Client({ connectionString: url(DB_NAME) });
+  await db.connect();
+  const { rows: [{ enc }] } = await db.query('SELECT pg_encoding_to_char(encoding) AS enc FROM pg_database WHERE datname = current_database()');
+  await db.end();
+  if (enc !== 'UTF8') {
+    throw new Error(`The local database uses ${enc} text encoding, not UTF-8, so Urdu text and emoji can't be saved. It was created by an early test build: back up and delete ${dataDir}, then start FMS again.`);
+  }
 
   return url(DB_NAME);
 }

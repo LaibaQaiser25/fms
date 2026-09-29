@@ -5,18 +5,22 @@
 //      serves the built frontend (FMS_STATIC_DIR)
 //   4. open a window on http://127.0.0.1:<APP_PORT>
 //   5. push every local change to the VPS whenever it's reachable (lib/sync.js)
+//   6. queue WhatsApp alerts locally, send when online (lib/alertRelay.js)
+//   7. update itself from GitHub Releases (electron-updater)
 // The app itself talks over 127.0.0.1 only; internet is needed only for sync.
 const { app, BrowserWindow, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
 const net = require('net');
 const http = require('http');
 const crypto = require('crypto');
-const { APP_PORT } = require('./lib/ports');
+const { APP_PORT, ALERT_PORT } = require('./lib/ports');
 const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./lib/database');
 const { installSyncCapture } = require('./lib/syncCapture');
 const { SyncWorker } = require('./lib/sync');
 const { downloadSnapshot, importSnapshot } = require('./lib/snapshot');
+const { AlertRelay } = require('./lib/alertRelay');
 
 const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
 
@@ -32,7 +36,7 @@ fs.mkdirSync(logDir, { recursive: true });
 const logStream = fs.createWriteStream(path.join(logDir, 'fms.log'), { flags: 'a' });
 function log(msg) {
   const line = `${new Date().toISOString()} ${msg}\n`;
-  logStream.write(line);
+  if (!logStream.writableEnded) logStream.write(line);
   process.stdout.write(line);
 }
 
@@ -53,6 +57,8 @@ function loadConfig() {
   // syncToken must equal SYNC_TOKEN in the VPS's backend/.env; until it's
   // set, changes still pile up in sync_outbox and go out once it is.
   if (!cfg.syncServerUrl) { cfg.syncServerUrl = DEFAULT_SYNC_SERVER; changed = true; }
+  // Shared only between the backend and the local alert relay.
+  if (!cfg.relaySecret) { cfg.relaySecret = crypto.randomBytes(24).toString('hex'); changed = true; }
   if (changed) saveConfig(cfg);
   return cfg;
 }
@@ -144,12 +150,73 @@ function waitForServer(timeoutMs = 30000) {
 let backend = null;
 let mainWindow = null;
 let syncWorker = null;
+let alertRelay = null;
+let updateReady = null; // version string once an update has downloaded
 let quitting = false;
 
 // The window title doubles as the sync status line.
 let syncStatusText = '';
 function refreshTitle() {
-  if (mainWindow) mainWindow.setTitle(syncStatusText ? `FMS  —  ${syncStatusText}` : 'FMS');
+  const parts = ['FMS', syncStatusText, updateReady && `Update ${updateReady} will install when FMS is closed`].filter(Boolean);
+  if (mainWindow) mainWindow.setTitle(parts.join('  —  '));
+}
+
+// WhatsApp target etc. come from the server (GET /sync/config), so changing
+// them there reaches the factory without touching this PC. Last known values
+// are kept in config.json for offline starts.
+async function refreshServerConfig(cfg) {
+  try {
+    const res = await fetch(`${cfg.syncServerUrl.replace(/\/$/, '')}/sync/config`, {
+      headers: { 'X-Sync-Token': cfg.syncToken },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new Error(`server replied ${res.status}`);
+    const { whatsapp } = await res.json();
+    if (JSON.stringify(whatsapp) !== JSON.stringify(cfg.whatsapp)) {
+      cfg.whatsapp = whatsapp;
+      saveConfig(cfg);
+      log(`config: WhatsApp alerts ${whatsapp ? 'enabled' : 'not configured on the server'}`);
+    }
+  } catch (err) {
+    log(`config: could not refresh from server (${err.cause?.code || err.message})`);
+  }
+}
+
+// Downloads in the background; installs only from our own before-quit, after
+// Postgres has shut down cleanly (autoInstallOnAppQuit would race it).
+function setupAutoUpdate() {
+  if (!app.isPackaged) return;
+  // electron-builder only writes app-update.yml when package.json has a
+  // "publish" target; without one there is nowhere to check, so stay idle.
+  if (!fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) {
+    log('[update] no publish target configured, automatic updates off');
+    return;
+  }
+  autoUpdater.logger = {
+    info: (m) => log(`[update] ${m}`),
+    warn: (m) => log(`[update:warn] ${m}`),
+    error: (m) => log(`[update:err] ${m}`),
+    debug: () => {},
+  };
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.on('update-downloaded', async ({ version }) => {
+    if (updateReady) return;
+    updateReady = version;
+    refreshTitle();
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'FMS update',
+      message: `FMS ${version} is ready to install.`,
+      detail: 'Restart now, or it will install the next time FMS is closed. Your data is not affected.',
+      buttons: ['Restart now', 'Later'],
+      defaultId: 1,
+      noLink: true,
+    });
+    if (response === 0) app.quit();
+  });
+  const check = () => autoUpdater.checkForUpdates().catch((err) => log(`[update] check failed: ${err.message}`));
+  check();
+  setInterval(check, 4 * 3600_000);
 }
 
 function ago(date) {
@@ -169,7 +236,7 @@ function describeSync({ state, pending, lastSyncedAt }) {
   return `Sync problem — ${waiting} (see log)`;
 }
 
-function startBackend({ databaseUrl, jwtSecret }) {
+function startBackend({ databaseUrl, jwtSecret, relaySecret }) {
   backend = utilityProcess.fork(path.join(BACKEND_DIR, 'server.js'), [], {
     cwd: BACKEND_DIR,
     stdio: 'pipe',
@@ -184,8 +251,9 @@ function startBackend({ databaseUrl, jwtSecret }) {
       FRONTEND_URL: APP_ORIGIN,
       FMS_STATIC_DIR: FRONTEND_DIR,
       TZ: 'Asia/Karachi',
-      // No N8N_WEBHOOK_URL yet: WhatsApp alerts are logged and skipped until
-      // the offline alert queue exists.
+      // WhatsApp alerts go to the local relay, which queues them offline.
+      N8N_WEBHOOK_URL: `http://127.0.0.1:${ALERT_PORT}/alert`,
+      N8N_WEBHOOK_SECRET: relaySecret,
     },
   });
   backend.stdout.on('data', (d) => log(`[backend] ${String(d).trimEnd()}`));
@@ -234,8 +302,8 @@ async function boot() {
   createWindow();
   const cfg = loadConfig();
 
-  if (!(await portIsFree(APP_PORT))) {
-    throw new Error(`Port ${APP_PORT} is already in use by another program.`);
+  for (const port of [APP_PORT, ALERT_PORT]) {
+    if (!(await portIsFree(port))) throw new Error(`Port ${port} is already in use by another program.`);
   }
 
   const databaseUrl = await startPostgres({
@@ -255,9 +323,18 @@ async function boot() {
   // Only creates an account when there are none (i.e. "start empty").
   const owner = await ensureOwner({ databaseUrl });
 
-  startBackend({ databaseUrl, jwtSecret: cfg.jwtSecret });
+  alertRelay = new AlertRelay({
+    databaseUrl,
+    relaySecret: cfg.relaySecret,
+    getTarget: () => cfg.whatsapp || null,
+    log,
+  });
+  await alertRelay.start();
+
+  startBackend({ databaseUrl, jwtSecret: cfg.jwtSecret, relaySecret: cfg.relaySecret });
   await waitForServer();
   if (mainWindow) await mainWindow.loadURL(`${APP_ORIGIN}/login`);
+  setupAutoUpdate();
 
   if (cfg.syncToken) {
     syncWorker = new SyncWorker({
@@ -268,6 +345,8 @@ async function boot() {
       onStatus: (status) => { syncStatusText = describeSync(status); refreshTitle(); },
     });
     syncWorker.start();
+    refreshServerConfig(cfg);
+    setInterval(() => refreshServerConfig(cfg), 3600_000);
   } else {
     syncStatusText = 'Upload to server not set up';
     refreshTitle();
@@ -312,12 +391,19 @@ app.on('before-quit', (event) => {
     try {
       if (syncWorker) await syncWorker.stop();
       if (backend) backend.kill();
+      if (alertRelay) await alertRelay.stop();
       await stopPostgres({ dataDir: pgDataDir, log });
     } catch (err) {
       log(`shutdown error: ${err.message}`);
     } finally {
-      logStream.end();
-      app.exit(0);
+      if (updateReady) {
+        log(`installing update ${updateReady}`);
+        logStream.end();
+        autoUpdater.quitAndInstall(true, true); // silent, reopen FMS afterwards
+      } else {
+        logStream.end();
+        app.exit(0);
+      }
     }
   })();
 });

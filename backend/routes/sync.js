@@ -11,6 +11,9 @@ router.use(express.json({ limit: '20mb' }));
 // Factory desktop app -> this server (see desktop/lib/sync.js)
 router.post('/ingest', SyncController.ingest);
 
+// Settings for the factory app (WhatsApp webhook), fetched at startup + hourly
+router.get('/config', SyncController.getConfig);
+
 // This server -> factory desktop app, once, on its first run (desktop/lib/snapshot.js)
 router.get('/snapshot', SyncController.snapshot);
 

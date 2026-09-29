@@ -5,4 +5,5 @@
 module.exports = {
   APP_PORT: 48620,
   PG_PORT: 48621,
+  ALERT_PORT: 48622, // lib/alertRelay.js (backend -> relay -> n8n)
 };

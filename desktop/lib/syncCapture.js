@@ -10,7 +10,7 @@
 const { Client } = require('pg');
 
 // Tables that are local bookkeeping, not business data.
-const EXCLUDED_TABLES = ['pgmigrations', 'sync_outbox', 'sync_state'];
+const EXCLUDED_TABLES = ['pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox'];
 
 const SETUP_SQL = `
 CREATE TABLE IF NOT EXISTS public.sync_outbox (
@@ -103,6 +103,12 @@ async function installSyncCapture({ databaseUrl, log }) {
            AFTER INSERT OR UPDATE OR DELETE ON public.${ident}
            FOR EACH ROW EXECUTE FUNCTION public.fms_sync_capture(${args})`
       );
+    }
+
+    for (const table of EXCLUDED_TABLES) {
+      if ((await client.query('SELECT to_regclass($1) AS t', [`public.${table}`])).rows[0].t) {
+        await client.query(`DROP TRIGGER IF EXISTS fms_sync_capture ON public.${client.escapeIdentifier(table)}`);
+      }
     }
 
     // A table with no primary key can't be upserted on the VPS; say so loudly

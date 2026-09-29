@@ -46,16 +46,30 @@ changes waiting", or "Sync problem" (details in the log).
 - `config.json` — sync key, server address, local secrets.
 - `logs\fms.log` — everything: startup, sync, alerts, updates.
 
-## Releasing an update
+## Download link and updates
 
-1. Deploy the backend to the VPS **first** if the release adds migrations: the
-   VPS rejects changes for columns it doesn't have yet (they wait in the queue
-   and go through once it's updated, nothing is lost).
-2. Bump `version` in this `package.json` and build.
-3. Automatic updates need a `publish` target in `package.json` `build`
-   (e.g. GitHub Releases). Until one is configured the app logs "automatic
-   updates off" and new versions are installed by running the new installer
-   over the old one — data in `%APPDATA%\FMS` is kept.
+Installers are served by the VPS backend from `~/fms/downloads` (mounted into
+the container, `backend/routes/downloads.js`):
+
+- People get: **https://api.ittefaqbuilder.com/downloads/FMS-Setup.exe** —
+  always redirects to the newest version.
+- The installed app checks `…/downloads/latest.yml` at start and every 4 h,
+  downloads a newer version in the background and installs it when FMS is
+  closed (or at once via "Restart now"). Data in `%APPDATA%\FMS` is kept.
+
+To release a new version:
+
+1. If it adds migrations, deploy the backend to the VPS **first** (push to
+   `main`): the VPS rejects changes for columns it doesn't have yet (they wait
+   in the factory queue, nothing is lost, but sync stalls until then).
+2. Bump `version` in this `package.json`, then `npm run dist`.
+3. Upload the three files from `dist/` (PowerShell, from `desktop/`):
+   ```
+   scp dist/FMS-Setup-<version>.exe dist/FMS-Setup-<version>.exe.blockmap dist/latest.yml myuser@158.220.94.68:~/fms/downloads/
+   ```
+   Upload `latest.yml` last (the scp above does, it goes in order) so the app
+   never sees a version whose installer isn't there yet. Keep the previous
+   version's `.blockmap` — it lets updates download only what changed.
 
 ## How sync works
 

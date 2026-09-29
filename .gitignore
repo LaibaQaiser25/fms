@@ -7,3 +7,6 @@ backend/.gitignore
 
 # CLI tooling runtime state
 .commandcode/
+
+# Desktop app releases uploaded to the VPS (served at /downloads)
+/downloads/

@@ -74,6 +74,12 @@ app.use(compression());
 // the global JSON parser because it needs a larger body limit.
 app.use('/sync', syncRoutes);
 
+// Factory desktop app installer + update files (VPS only: DOWNLOADS_DIR is set
+// in docker-compose.yml, never by the desktop app itself).
+if (process.env.DOWNLOADS_DIR) {
+  app.use('/downloads', require('./routes/downloads'));
+}
+
 // READ_ONLY_MODE=true once the factory app is the only writer (see middleware).
 app.use(readOnlyMode);
 

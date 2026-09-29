@@ -198,7 +198,10 @@ function setupAutoUpdate() {
     error: (m) => log(`[update:err] ${m}`),
     debug: () => {},
   };
+  // Testing only: point at a local folder instead of the VPS.
+  if (process.env.FMS_UPDATE_URL) autoUpdater.setFeedURL({ provider: 'generic', url: process.env.FMS_UPDATE_URL });
   autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.disableWebInstaller = true; // we ship the full NSIS installer
   autoUpdater.on('update-downloaded', async ({ version }) => {
     if (updateReady) return;
     updateReady = version;

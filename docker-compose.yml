@@ -31,6 +31,12 @@ services:
       # actually fires 5 hours late, at 1:56 PM UTC. Matches n8n's
       # GENERIC_TIMEZONE below.
       TZ: "Asia/Karachi"
+      # Factory desktop app installer + update files (routes/downloads.js)
+      DOWNLOADS_DIR: /app/downloads
+    volumes:
+      # Create ~/fms/downloads as myuser BEFORE the first deploy with this
+      # line, or Docker creates it root-owned and scp uploads fail.
+      - ./downloads:/app/downloads:ro
     depends_on:
       db:
         condition: service_healthy

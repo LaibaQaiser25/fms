@@ -1,7 +1,7 @@
 {
   "name": "fms-desktop",
   "productName": "FMS",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "FMS offline desktop app for the factory PC (bundled backend + embedded Postgres)",
   "main": "main.js",
   "private": true,
@@ -10,7 +10,7 @@
     "stage": "node scripts/stage.js",
     "start": "npm run stage && electron .",
     "start:nostage": "electron .",
-    "dist": "npm run stage && electron-builder --win"
+    "dist": "npm run stage && electron-builder --win --publish never"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -47,6 +47,12 @@
       "staged/**",
       "package.json"
     ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://api.ittefaqbuilder.com/downloads"
+      }
+    ],
     "directories": {
       "output": "dist"
     },
@@ -58,7 +64,8 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "FMS"
+      "shortcutName": "FMS",
+      "artifactName": "FMS-Setup-${version}.${ext}"
     }
   }
 }

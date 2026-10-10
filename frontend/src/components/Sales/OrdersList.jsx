@@ -4,6 +4,8 @@ import * as salesApi from '../../api/salesApi';
 import { Pagination } from '../shared/UIComponents';
 import { SkeletonTable } from '../shared/Skeleton';
 import { ORDER_STATUSES, orderStatusMeta } from './orderStatuses';
+import { Truck } from 'lucide-react';
+import GatePassModal from '../GatePass/GatePassModal';
 
 const LIMIT = 15;
 
@@ -19,6 +21,7 @@ function OrdersList() {
   // The last response, tagged with the query it answers — anything else
   // means a fetch for the current status/page is still in flight.
   const queryKey = `${status}|${page}`;
+  const [gatePassId, setGatePassId] = useState(null);
   const [result, setResult] = useState({ key: null, orders: [], pages: 1, total: 0, error: '' });
   const loading = result.key !== queryKey;
   const { orders, pages, total, error } = result;
@@ -99,12 +102,12 @@ function OrdersList() {
           {error ? (
             <p className="text-red-600 font-semibold py-6 text-center">{error}</p>
           ) : loading ? (
-            <SkeletonTable rows={6} columns={7} bordered />
+            <SkeletonTable rows={6} columns={8} bordered />
           ) : orders.length === 0 ? (
             <p className="text-center py-10 text-gray-500">No orders found</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm text-gray-700 min-w-[720px]">
+              <table className="w-full text-sm text-gray-700 min-w-[820px]">
                 <thead className="bg-gray-100 border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Order #</th>
@@ -114,6 +117,7 @@ function OrdersList() {
                     <th className="px-4 py-3 text-right font-semibold">Balance</th>
                     <th className="px-4 py-3 text-left font-semibold">Status</th>
                     <th className="px-4 py-3 text-left font-semibold">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold">Gate Pass</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -143,6 +147,20 @@ function OrdersList() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">{new Date(order.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          {order.gate_pass_id ? (
+                            <button
+                              data-guest-allow="true"
+                              onClick={() => setGatePassId(order.gate_pass_id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-white bg-[var(--color-gatepass)] hover:bg-[var(--color-gatepass-hover)] transition"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              View
+                            </button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -156,6 +174,8 @@ function OrdersList() {
           )}
         </div>
       </div>
+
+      {gatePassId && <GatePassModal passId={gatePassId} onClose={() => setGatePassId(null)} />}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { useMinimize } from '../shared/useMinimize';
 
 // kind 'order'    -> outward pass for a sale with status 'ready' (marks it delivered)
 // kind 'received' -> inward pass for goods from a purchase
+// passId           -> skip creation and open an existing pass for reprinting
 const COPY = {
   order: {
     title: 'Gate Pass — Order',
@@ -27,10 +28,9 @@ const COPY = {
   },
 };
 
-function GatePassModal({ kind, onClose }) {
+function GatePassModal({ kind: kindProp, passId, onClose }) {
   const { minimized, minimize, restore } = useMinimize();
   const alertRefresh = useContext(AlertRefreshContext);
-  const copy = COPY[kind];
 
   const [search, setSearch] = useState('');
   const [results, setResults] = useState([]);
@@ -44,6 +44,22 @@ function GatePassModal({ kind, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const [pass, setPass] = useState(null); // { gatePass, reference, items }
+  const [loadError, setLoadError] = useState('');
+  const kind = pass?.gatePass.kind || kindProp || 'order';
+  const copy = COPY[kind];
+
+  // Viewing an existing pass: load it straight away
+  useEffect(() => {
+    if (!passId) return;
+    let stale = false;
+    gatePassApi.getGatePass(passId)
+      .then((response) => { if (!stale) setPass(response.data.data); })
+      .catch((err) => {
+        console.error('Error loading gate pass:', err);
+        if (!stale) setLoadError(err.response?.data?.error || 'Could not load gate pass');
+      });
+    return () => { stale = true; };
+  }, [passId]);
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: pass?.gatePass.gate_pass_no });
   const [savingPdf, setSavingPdf] = useState(false);
@@ -87,7 +103,7 @@ function GatePassModal({ kind, onClose }) {
 
   // Debounced search; an empty query lists the most recent eligible records
   useEffect(() => {
-    if (selected || pass) return;
+    if (passId || selected || pass) return;
     let stale = false;
     const t = setTimeout(async () => {
       setSearching(true);
@@ -101,7 +117,7 @@ function GatePassModal({ kind, onClose }) {
       }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [kind, search, selected, pass]);
+  }, [passId, kind, search, selected, pass]);
 
   const selectRecord = async (record) => {
     setSelected(record);
@@ -159,15 +175,21 @@ function GatePassModal({ kind, onClose }) {
           </div>
           <div className="flex items-center gap-1">
             <MinimizeButton onClick={minimize} iconClassName="w-6 h-6 text-gray-600" />
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <button data-guest-allow="true" onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
               <X className="w-6 h-6 text-gray-600" />
             </button>
           </div>
         </div>
 
         <div className="p-4 sm:p-6 space-y-5 flex-1 overflow-y-auto">
+          {passId && !pass && (
+            <p className={`p-4 text-sm ${loadError ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+              {loadError || 'Loading gate pass…'}
+            </p>
+          )}
+
           {/* Step 1: search & select */}
-          {!selected && !pass && (
+          {!passId && !selected && !pass && (
             <>
               <div className="relative">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -309,7 +331,7 @@ function GatePassModal({ kind, onClose }) {
         {/* Footer */}
         {(selected || pass) && (
           <div className="flex gap-2 p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
-            <button
+            <button data-guest-allow="true"
               onClick={onClose}
               className="flex-1 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-semibold"
             >
@@ -317,7 +339,7 @@ function GatePassModal({ kind, onClose }) {
             </button>
             {pass ? (
               <>
-              <button
+              <button data-guest-allow="true"
                 onClick={handleSavePdf}
                 disabled={savingPdf}
                 className="flex-1 py-2 bg-[var(--color-purchase)] text-white rounded-lg hover:bg-[var(--color-purchase-hover)] transition font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
@@ -325,7 +347,7 @@ function GatePassModal({ kind, onClose }) {
                 <Download className="w-4 h-4" />
                 {savingPdf ? 'Saving…' : 'Save as PDF'}
               </button>
-              <button
+              <button data-guest-allow="true"
                 onClick={handlePrint}
                 className="flex-1 py-2 bg-[var(--color-gatepass)] text-white rounded-lg hover:bg-[var(--color-gatepass-hover)] transition font-semibold flex items-center justify-center gap-2"
               >

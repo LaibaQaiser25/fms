@@ -10,3 +10,10 @@ export const createGatePass = (data) => http.post(`/gate-passes`, data);
 
 // Get a gate pass with its reference record and items
 export const getGatePass = (id) => http.get(`/gate-passes/${id}`);
+
+// List generated gate passes: { page, limit, kind, search }
+export const getAllGatePasses = (params) => http.get(`/gate-passes`, { params });
+
+// Gate pass for a sale (kind 'order') or purchase (kind 'received'), or null
+export const getGatePassByRef = (kind, refId) =>
+  http.get(`/gate-passes/by-ref`, { params: { kind, ref_id: refId } });

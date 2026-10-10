@@ -5,6 +5,7 @@ import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
 import {
   LayoutDashboard,
   ClipboardList,
+  Truck,
   BookText,
   Boxes,
   Wallet,
@@ -233,6 +234,14 @@ export default function Sidebar({ collapsed = false, mobileOpen = false, onClose
             {!effectiveCollapsed && 'Orders'}
           </NavLink>
           <Tooltip label="Orders" />
+        </div>
+
+        <div className="relative group">
+          <NavLink to="/gate-passes" className={link} style={navStyle}>
+            <Truck size={19} strokeWidth={2} className="shrink-0" />
+            {!effectiveCollapsed && 'Gate Passes'}
+          </NavLink>
+          <Tooltip label="Gate Passes" />
         </div>
 
         {/* Ledger */}

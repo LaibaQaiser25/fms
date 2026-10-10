@@ -147,6 +147,72 @@ class GatePassController {
   }
 
   /**
+   * List generated gate passes, newest first, with optional kind filter and
+   * search over pass no / party / phone / vehicle / sale or purchase no
+   * GET /api/gate-passes?page=1&limit=15&kind=order&search=ali
+   */
+  static async getAllGatePasses(req, res) {
+    try {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 15));
+      const offset = (page - 1) * limit;
+      const kind = ['order', 'received'].includes(req.query.kind) ? req.query.kind : null;
+      const search = (req.query.search || '').trim();
+      const like = search ? `%${search}%` : null;
+
+      const where = `
+        WHERE ($1::text IS NULL OR g.kind = $1)
+          AND ($2::text IS NULL
+               OR g.gate_pass_no ILIKE $2 OR g.party_name ILIKE $2 OR g.phone ILIKE $2
+               OR g.vehicle_no ILIKE $2 OR s.sale_no ILIKE $2 OR p.purchase_no ILIKE $2)`;
+      const joins = `
+        FROM gate_passes g
+        LEFT JOIN sales s ON s.id = g.sale_id
+        LEFT JOIN purchases p ON p.id = g.purchase_id`;
+
+      const [result, countResult] = await Promise.all([
+        pool.query(
+          `SELECT g.id, g.gate_pass_no, g.kind, g.party_name, g.phone, g.vehicle_no, g.driver_name,
+                  g.created_by_name, g.created_at, COALESCE(s.sale_no, p.purchase_no) AS ref_no
+           ${joins} ${where}
+           ORDER BY g.created_at DESC, g.id DESC LIMIT $3 OFFSET $4`,
+          [kind, like, limit, offset]
+        ),
+        pool.query(`SELECT COUNT(*) ${joins} ${where}`, [kind, like])
+      ]);
+      const total = parseInt(countResult.rows[0].count);
+
+      res.json({
+        success: true,
+        data: result.rows,
+        pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
+      });
+    } catch (error) {
+      console.error('❌ Error fetching gate passes:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Look up the gate pass for a sale or purchase, if one exists
+   * GET /api/gate-passes/by-ref?kind=order&ref_id=12
+   */
+  static async getByRef(req, res) {
+    try {
+      const { kind, ref_id } = req.query;
+      if (!['order', 'received'].includes(kind) || !ref_id) {
+        return res.status(400).json({ error: 'kind and ref_id are required' });
+      }
+      const column = kind === 'order' ? 'sale_id' : 'purchase_id';
+      const result = await pool.query(`SELECT id, gate_pass_no FROM gate_passes WHERE ${column} = $1`, [ref_id]);
+      res.json({ success: true, data: result.rows[0] || null });
+    } catch (error) {
+      console.error('❌ Error looking up gate pass:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * Get a gate pass with its source record and items
    * GET /api/gate-passes/:id
    */

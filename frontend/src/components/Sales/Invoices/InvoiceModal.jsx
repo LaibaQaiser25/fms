@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Printer, Download, List } from 'lucide-react';
+import { X, Printer, Download, List, Truck } from 'lucide-react';
 import * as invoiceApi from '../../../api/invoiceApi';
+import * as gatePassApi from '../../../api/gatePassApi';
+import GatePassModal from '../../GatePass/GatePassModal';
 
 function InvoiceModal({ invoiceId, customerId, onClose }) {
   const [currentInvoiceId, setCurrentInvoiceId] = useState(invoiceId);
@@ -11,6 +13,8 @@ function InvoiceModal({ invoiceId, customerId, onClose }) {
   const [showInvoiceList, setShowInvoiceList] = useState(false);
   const [customerInvoices, setCustomerInvoices] = useState([]);
   const invoiceContentRef = useRef(null);
+  const [gatePassId, setGatePassId] = useState(null);
+  const [showGatePass, setShowGatePass] = useState(false);
 
   useEffect(() => {
     fetchInvoice();
@@ -36,6 +40,15 @@ function InvoiceModal({ invoiceId, customerId, onClose }) {
       const response = invoiceResult.value;
       setInvoice(response.data.data.invoice);
       setItems(response.data.data.items || []);
+
+      // Offer "View Gate Pass" when this sale already has one
+      const refId = response.data.data.invoice.sale_id;
+      setGatePassId(null);
+      if (refId) {
+        gatePassApi.getGatePassByRef('order', refId)
+          .then((gp) => setGatePassId(gp.data.data?.id || null))
+          .catch((err) => console.error('Error looking up gate pass:', err));
+      }
 
       const resolvedCustomerId = customerId || response.data.data.invoice.customer_id;
       if (invoicesResult.status === 'fulfilled' && invoicesResult.value) {
@@ -323,8 +336,19 @@ function InvoiceModal({ invoiceId, customerId, onClose }) {
             <Printer className="w-4 h-4" />
             Print
           </button>
+          {gatePassId && (
+            <button
+              data-guest-allow="true"
+              onClick={() => setShowGatePass(true)}
+              className="flex-1 py-2 bg-[var(--color-gatepass)] text-white rounded-lg hover:bg-[var(--color-gatepass-hover)] transition font-semibold flex items-center justify-center gap-2"
+            >
+              <Truck className="w-4 h-4" />
+              View Gate Pass
+            </button>
+          )}
         </div>
         )}
+        {showGatePass && <GatePassModal passId={gatePassId} onClose={() => setShowGatePass(false)} />}
       </div>
     </div>
   );

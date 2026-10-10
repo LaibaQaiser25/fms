@@ -229,8 +229,9 @@ class SalesController {
       const statusFilter = ['pending', 'ready', 'delivered', 'cancelled'].includes(status) ? status : null;
 
       const result = await pool.query(
-        `SELECT * FROM sales
-         WHERE $3::text IS NULL OR status = $3
+        `SELECT s.*, (SELECT g.id FROM gate_passes g WHERE g.sale_id = s.id) AS gate_pass_id
+         FROM sales s
+         WHERE $3::text IS NULL OR s.status = $3
          ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
         [limit, offset, statusFilter]
       );

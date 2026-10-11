@@ -10,3 +10,6 @@ backend/.gitignore
 
 # Desktop app releases uploaded to the VPS (served at /downloads)
 /downloads/
+
+# dependencies (installed by npm ci in the Docker build)
+node_modules/

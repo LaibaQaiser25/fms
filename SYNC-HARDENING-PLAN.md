@@ -1290,14 +1290,14 @@ Two consequences worth stating plainly:
 
 <!-- ════════════════════════════════════════════════════════════════════════
      END OF THE REVIEW. Everything below is SECTION 3: the owner's agreed
-     plan for Offline Setup and editing from other devices. Nothing above
+     plan for Offline Setup and extra factory PCs. Nothing above
      this line has been changed.
      ════════════════════════════════════════════════════════════════════════ -->
 
 ---
 ---
 
-# 🧩 SECTION 3 — PLAN: Offline Setup & editing from other devices
+# 🧩 SECTION 3 — PLAN: Offline Setup & extra factory PCs
 
 > **Status:** agreed with the owner, 13–15 Oct 2026. **Nothing here is built yet.**
 > The factory has not started using the app, so these changes can go in before the first install,
@@ -1324,10 +1324,10 @@ Two consequences worth stating plainly:
    factory network.
 5. **Sync status is visible on both versions:** inside the factory app, and on the online
    dashboard.
-6. The browser version is **editable only while the main factory PC is online**, and only for
-   **Owner and Managers**. Guests are always view-only.
-7. **All edits are carried out on the main PC.** Data still copies only one way, factory →
-   online; browser saves travel to the main PC as requests.
+6. The **online browser version is view-only, always**, for every role (Owner, Manager, Guest),
+   whether the main factory PC is online or not.
+7. **All data is entered at the factory**, on the main PC or on extra factory PCs over the factory
+   network. Data copies only one way, factory → online.
 8. **Out of scope for now:** installing on phones, true two-way sync, and a custom installer
    built per download.
 
@@ -1411,6 +1411,8 @@ Two consequences worth stating plainly:
   "Problem". Today it shows only in the window title.
 - **Online dashboard:** "Factory last updated X min ago". Green when fresh, amber when stale, red
   when the factory is offline. Today there is none.
+- The online dashboard also shows a permanent **"View-only"** label, so nobody expects to edit
+  there.
 - The online server records the time of every upload (review R4 item 5).
 - **Done when:** both bars show; stopping the factory turns the online one amber, then red.
 
@@ -1426,33 +1428,15 @@ Two consequences worth stating plainly:
 - **Done when:** a second factory PC logs in at `http://fms-host:48620` and can save; the
   database port is refused from that PC.
 
-### OS-7 — Editing from the browser while the main PC is online
-- The main PC keeps a **secure outbound connection** to the online server. The server can't reach
-  into the factory network on its own.
-- **Main PC online:**
-  - the online dashboard shows 🟢 "Editable · connected to factory", with edit buttons for Owner
-    and Managers;
-  - each save is forwarded to the main PC as a request;
-  - the main PC applies it, then the normal sync brings it back online (~2 s).
-- **Main PC offline:** 🔴 "Factory offline · view only"; edit buttons disabled; viewing continues
-  from the online copy.
-- **If the connection drops mid-save:** "Not saved, factory went offline". Nothing is half-saved,
-  because each action is all-or-nothing on the main PC.
-- The online server never stores edits itself, so record numbers can't clash and totals can't
-  diverge.
-- **Done when:**
-  - a Manager's browser save appears on the main PC and back online within seconds;
-  - with the main PC off, every edit is disabled;
-  - a Guest can never edit.
-
 ---
 
 ## S3.3 Rules that must always hold
 
 - **One database decides everything:** the main factory PC.
-- **Data copies one way only:** factory → online. Browser saves reach the factory as requests,
-  never as a second sync.
-- **The online server accepts no business data edits** of its own; OS-4 is the only exception.
+- **Data copies one way only:** factory → online. Nothing travels from the online version back to
+  the factory.
+- **The online browser version is view-only for every role.** It accepts no business data edits;
+  the Owner's Offline Setup saves (OS-4) are the only exception.
 - **Only the registered main PC** may upload.
 - **The sync/upload key never travels by hand.**
 - **The factory database is never exposed** beyond the main PC.
@@ -1468,6 +1452,5 @@ Two consequences worth stating plainly:
 3. **OS-5:** sync status on both versions.
    - **First factory install happens here**, with read-only mode switched on right before it.
 4. **OS-6:** extra factory PCs over the factory network.
-5. **OS-7:** browser editing through the main PC.
 
 <!-- end of section 3 -->

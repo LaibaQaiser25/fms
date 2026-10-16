@@ -197,7 +197,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.6 | WhatsApp relay state + `whatsapp_dead` | — | CODE DONE, CHECKS FAILING | checks 1–4 seen on the real relay + fake n8n; factory install pending |
 | T1.7 | Config `reason` + startup warning | T1.6 | CODE DONE, CHECKS FAILING | checks 1–2 by `npm test`; check 3 (startup log) needs the deploy |
 | T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | CODE DONE, CHECKS FAILING | outcomes 1–2 seen with a fake n8n; 3 needs a real message to the owner's WhatsApp |
-| T1.9 | Faster upload + final upload on quit | T1.4 | NOT STARTED | |
+| T1.9 | Faster upload + final upload on quit | T1.4 | CODE DONE, CHECKS FAILING | 18/18 `npm test` (2.0 s to the server; 5 writes → 1 push; quit cap); real app quit needs Windows |
 | T1.10 | Release 1.0.2 + first factory install | T0.2, T1.0–T1.9 | NOT STARTED | go-live |
 | T2.1 | VPS send-only report scheduler | T1.10 | NOT STARTED | |
 | T2.2 | Factory `DISABLE_CRON` | T2.1 | NOT STARTED | |
@@ -1027,7 +1027,9 @@ n8n; the page in headless Chrome (desktop build):
 
 ### T1.9 — Faster upload + final upload on quit
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 verified on the real `SyncWorker` +
+change-capture trigger + `SyncController` in `npm test`; not yet by quitting the real app on a
+factory install against the deployed VPS
 **Deps:** T1.4
 
 **Do:**
@@ -1045,6 +1047,31 @@ n8n; the page in headless Chrome (desktop build):
    the app → it drains.
 
 **Gate:** all four observed.
+
+**Implementation notes:**
+- `fms_sync_capture()` does `PERFORM pg_notify('fms_sync_outbox', '')` after each outbox insert:
+  delivered only on commit, identical notifications in one transaction collapse.
+- `SyncWorker` keeps one `LISTEN fms_sync_outbox` connection (reconnects after 5 s; the 15 s idle
+  poll covers meanwhile). A notification starts a 2 s timer (`PUSH_DELAY_MS`); further ones in that
+  window are ignored, then `kick()`. A kick during a running round queues one more round right
+  after it, so nothing waits for the idle poll.
+- `finalUpload(timeoutMs)`: stops scheduling, waits for a running round, runs one more, and an
+  `AbortController` cuts the request in flight at the cap (`push()` uses
+  `AbortSignal.any([timeout, abort])`). Skipped when this PC is blocked. `main.js` `before-quit`
+  calls `finalUpload(10_000)` then `stop()`.
+
+**Evidence (16 Oct 2026)** — `npm test` → `tests 18 / pass 18`:
+- Check 1 ✅ — worker started and idle, one insert → on the server after **2038 ms** (idle poll
+  15 s).
+- Check 2 ✅ — five inserts in a row → the log shows exactly `["sync: pushed 5 change(s)"]`.
+- Check 3 ✅ — insert, then `finalUpload(10000)` straight away → 0 left, the row is on the server.
+- Check 4 ✅ — server never answering: `finalUpload(1000)` returns after ~1 s with 1 change left,
+  state `offline`, the row still in `sync_outbox`; a fresh worker round with the server back
+  drains it.
+- Sabotage: trigger without `pg_notify` → only the check 1/2 test fails (the change waits for
+  the 15 s poll); restored.
+- ⏳ On a factory install: sale + immediate quit with the network up and down, using the real
+  Electron `before-quit`.
 
 ---
 

@@ -478,7 +478,12 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   (async () => {
     try {
-      if (syncWorker) await syncWorker.stop();
+      // One last upload, at most 10 s, so a sale made just before closing
+      // usually reaches the server now rather than on the next start.
+      if (syncWorker) {
+        await syncWorker.finalUpload(10_000).catch((err) => log(`sync: final upload failed: ${err.message}`));
+        await syncWorker.stop();
+      }
       if (statusReporter) await statusReporter.stop();
       if (backend) backend.kill();
       if (alertRelay) await alertRelay.stop();

@@ -674,3 +674,75 @@ test('/sync/config gives a reason when N8N_PUBLIC_WEBHOOK_URL is unset, and none
     else process.env.N8N_PUBLIC_WEBHOOK_URL = prev;
   }
 });
+
+// ---- T1.9: faster upload + final upload on quit ----
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitFor(check, timeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (await check()) return Date.now() - started;
+    await sleep(100);
+  }
+  return null;
+}
+
+test('a write is uploaded within ~3 s, and a burst of five goes up as one push', async (t) => {
+  await resetProducts();
+  const worker = new SyncWorker({ databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey, log, onStatus: () => {} });
+  worker.start();
+  try {
+    // Let the start-up round finish, so only the notification can trigger the next one.
+    await waitFor(async () => !worker.running && worker.timer, 5000);
+    await sleep(300);
+
+    const t0 = Date.now();
+    await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+    const took = await waitFor(async () => (await customersOn(vps)).length === 1, 6000);
+    assert.ok(took !== null && Date.now() - t0 < 3500, `on the server after ${took} ms (idle poll is 15 s)`);
+    t.diagnostic(`write -> on the server in ${Date.now() - t0} ms`);
+
+    const before = logs.length;
+    for (const name of ['B1', 'B2', 'B3', 'B4', 'B5']) {
+      await factory.query('INSERT INTO customers (name) VALUES ($1)', [name]);
+    }
+    assert.ok(await waitFor(async () => (await customersOn(vps)).length === 6, 6000) !== null);
+    const pushes = logs.slice(before).filter((l) => l.startsWith('sync: pushed'));
+    assert.deepEqual(pushes, ['sync: pushed 5 change(s)'], 'one coalesced push');
+    t.diagnostic(`five writes -> log: ${JSON.stringify(pushes)}`);
+  } finally {
+    await worker.stop();
+  }
+});
+
+test('the final upload on quit sends what is waiting; with the server unreachable it gives up at the cap and keeps it', async () => {
+  await resetProducts();
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+  let worker = new SyncWorker({ databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey, log, onStatus: () => {} });
+  assert.equal(await worker.finalUpload(10_000), 0);
+  await worker.stop();
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali']);
+
+  // Server never answers: the request hangs until the final upload aborts it.
+  await factory.query("INSERT INTO customers (name) VALUES ('Bilal')");
+  const routed = globalThis.fetch;
+  globalThis.fetch = (url, init = {}) => new Promise((resolve, reject) => {
+    init.signal?.addEventListener('abort', () => reject(new Error('aborted', { cause: { code: 'ABORT_ERR' } })));
+  });
+  let status;
+  worker = new SyncWorker({ databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey, log, onStatus: (s) => { status = s; } });
+  try {
+    const t0 = Date.now();
+    assert.equal(await worker.finalUpload(1000), 1, 'one change left for the next start');
+    assert.ok(Date.now() - t0 < 2500, `returned after ${Date.now() - t0} ms`);
+    assert.equal(status.state, 'offline');
+  } finally {
+    globalThis.fetch = routed;
+    await worker.stop();
+  }
+  assert.equal((await outbox()).length, 1, 'still in the outbox');
+
+  // Next start, network back: it drains.
+  assert.equal((await syncRound()).pending, 0);
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal']);
+});

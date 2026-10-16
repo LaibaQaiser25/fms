@@ -5,15 +5,22 @@
 // Delivery is at-least-once: if the VPS applied a batch but the reply got
 // lost, the same batch is re-sent. That's safe because the VPS applies every
 // change as an upsert-by-primary-key or delete-by-primary-key.
-const { Pool } = require('pg');
+//
+// Speed (T1.9): every committed business write NOTIFYs fms_sync_outbox
+// (syncCapture.js); the worker pushes PUSH_DELAY_MS later, so a burst of
+// writes goes up as one batch. The idle poll stays as the fallback.
+const { Pool, Client } = require('pg');
 
 const BATCH_SIZE = 500;
 const IDLE_INTERVAL_MS = 15_000;   // nothing waiting / last attempt fine
 const RETRY_INTERVAL_MS = 30_000;  // offline or server error
 const REQUEST_TIMEOUT_MS = 60_000;
+const PUSH_DELAY_MS = 2_000;       // after a write: wait this long, then push everything
+const RELISTEN_MS = 5_000;
 
 class SyncWorker {
   constructor({ databaseUrl, serverUrl, uploadKey, log, onStatus }) {
+    this.databaseUrl = databaseUrl;
     this.pool = new Pool({ connectionString: databaseUrl, max: 2 });
     this.ingestUrl = `${serverUrl.replace(/\/$/, '')}/sync/ingest`;
     this.uploadKey = uploadKey;
@@ -23,15 +30,59 @@ class SyncWorker {
     this.running = null;
     this.stopped = false;
     this.lastError = null;
+    this.kickPending = false;
+    this.nudgeTimer = null;
+    this.listener = null;
+    this.relistenTimer = null;
+    // Aborts the request in flight when the final upload's time is up.
+    this.abort = new AbortController();
   }
 
   start() {
+    this.listen();
     this.schedule(0);
   }
 
-  // Run a round now (e.g. the user clicked "Sync now"); no-op if one is running.
+  // Wakes up on every committed business write (NOTIFY fms_sync_outbox).
+  // If the connection drops, the idle poll covers until it's back.
+  async listen() {
+    if (this.stopped) return;
+    const client = new Client({ connectionString: this.databaseUrl });
+    const retry = () => {
+      if (this.listener !== client) return;
+      this.listener = null;
+      client.end().catch(() => {});
+      if (!this.stopped) this.relistenTimer = setTimeout(() => this.listen(), RELISTEN_MS);
+    };
+    this.listener = client;
+    client.on('notification', () => this.nudge());
+    client.on('error', retry);
+    client.on('end', retry);
+    try {
+      await client.connect();
+      await client.query('LISTEN fms_sync_outbox');
+    } catch {
+      retry();
+    }
+  }
+
+  // A write happened: push in PUSH_DELAY_MS, once for the whole burst.
+  nudge() {
+    if (this.nudgeTimer || this.stopped) return;
+    this.nudgeTimer = setTimeout(() => {
+      this.nudgeTimer = null;
+      this.kick();
+    }, PUSH_DELAY_MS);
+  }
+
+  // Run a round now. If one is running, run another right after it, so a
+  // change committed during it isn't left for the idle poll.
   kick() {
-    if (this.running || this.stopped) return;
+    if (this.stopped) return;
+    if (this.running) {
+      this.kickPending = true;
+      return;
+    }
     clearTimeout(this.timer);
     this.schedule(0);
   }
@@ -39,16 +90,42 @@ class SyncWorker {
   schedule(ms) {
     if (this.stopped) return;
     this.timer = setTimeout(() => {
+      this.kickPending = false;
       this.running = this.round()
-        .then((next) => this.schedule(next))
+        .then((next) => this.schedule(this.kickPending && next !== null ? 0 : next))
         .finally(() => { this.running = null; });
     }, ms);
+  }
+
+  // On quit (T1.9): one last upload, given at most timeoutMs in total —
+  // including a round already under way. What doesn't make it stays in
+  // sync_outbox for the next start.
+  async finalUpload(timeoutMs) {
+    const blocked = this.stopped;
+    this.stopped = true;
+    clearTimeout(this.timer);
+    clearTimeout(this.nudgeTimer);
+    const timer = setTimeout(() => this.abort.abort(), timeoutMs);
+    try {
+      if (this.running) await this.running.catch(() => {});
+      if (!blocked && !this.abort.signal.aborted) await this.round();
+    } finally {
+      clearTimeout(timer);
+    }
+    const { rows: [{ n }] } = await this.pool.query('SELECT count(*)::int AS n FROM sync_outbox');
+    this.log(`sync: final upload before quit — ${n === 0 ? 'everything uploaded' : `${n} change(s) left for next start`}`);
+    return n;
   }
 
   async stop() {
     this.stopped = true;
     clearTimeout(this.timer);
+    clearTimeout(this.nudgeTimer);
+    clearTimeout(this.relistenTimer);
     if (this.running) await this.running.catch(() => {});
+    const listener = this.listener;
+    this.listener = null;
+    if (listener) await listener.end().catch(() => {});
     await this.pool.end();
   }
 
@@ -73,7 +150,7 @@ class SyncWorker {
         const done = await this.settle(rows, reply);
         // Nothing settled (a reply that names none of the ids): stop rather
         // than send the same batch again in a tight loop.
-        if (done === 0 || rows.length < BATCH_SIZE) break;
+        if (done === 0 || rows.length < BATCH_SIZE || this.abort.signal.aborted) break;
       }
       this.lastError = null;
       await this.report('ok');
@@ -143,7 +220,7 @@ class SyncWorker {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Upload-Key': this.uploadKey },
         body: JSON.stringify({ changes }),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), this.abort.signal]),
       });
     } catch (err) {
       // DNS failure, no route, timeout: normal "no internet" — not a bug.

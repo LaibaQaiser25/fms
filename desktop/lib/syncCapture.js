@@ -74,8 +74,12 @@ BEGIN
     SELECT jsonb_object_agg(k, new_row -> k) INTO new_pk FROM unnest(TG_ARGV) AS k;
   END IF;
 
+  -- Wakes lib/sync.js so the change goes up within seconds (T1.9). Delivered
+  -- only on commit, and identical notifications in one transaction collapse
+  -- into one.
   IF TG_OP = 'DELETE' THEN
     INSERT INTO public.sync_outbox (table_name, op, row_data) VALUES (TG_TABLE_NAME, 'D', old_pk);
+    PERFORM pg_notify('fms_sync_outbox', '');
     RETURN OLD;
   END IF;
 
@@ -91,6 +95,7 @@ BEGIN
 
   INSERT INTO public.sync_outbox (table_name, op, row_data)
   VALUES (TG_TABLE_NAME, CASE TG_OP WHEN 'INSERT' THEN 'I' ELSE 'U' END, new_row);
+  PERFORM pg_notify('fms_sync_outbox', '');
   RETURN NEW;
 END
 $$;

@@ -111,6 +111,10 @@ To release a new version:
 
 - Triggers (`lib/syncCapture.js`) append every insert/update/delete to
   `sync_outbox` in the same transaction.
+- Each committed write also `NOTIFY`s the worker, which pushes 2 s later
+  (one batch for a burst of writes); the 15 s poll is only a fallback. On
+  quit FMS makes one last upload, at most 10 s; anything left goes on the
+  next start.
 - `lib/sync.js` sends committed changes, in order, to `POST /sync/ingest`,
   which upserts/deletes by primary key (`backend/controllers/SyncController.js`).
   Re-sending a batch is harmless.

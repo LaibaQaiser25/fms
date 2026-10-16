@@ -222,11 +222,12 @@ async function refreshServerConfig(cfg) {
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) throw new Error(`server replied ${res.status}`);
-    const { whatsapp, setup } = await res.json();
-    if (JSON.stringify(whatsapp) !== JSON.stringify(cfg.whatsapp)) {
+    const { whatsapp, reason, setup } = await res.json();
+    if (JSON.stringify(whatsapp) !== JSON.stringify(cfg.whatsapp) || (reason || null) !== (cfg.whatsappReason || null)) {
       cfg.whatsapp = whatsapp;
+      cfg.whatsappReason = whatsapp ? null : reason || null;
       saveConfig(cfg);
-      log(`config: WhatsApp alerts ${whatsapp ? 'enabled' : 'not configured on the server'}`);
+      log(`config: WhatsApp alerts ${whatsapp ? 'enabled' : `not configured on the server (${reason || 'no reason given'})`}`);
     }
     applySetup(cfg, setup);
   } catch (err) {
@@ -396,6 +397,9 @@ async function boot() {
     databaseUrl,
     relaySecret: cfg.relaySecret,
     getTarget: () => cfg.whatsapp || null,
+    // The server's reason for no target (T1.7), or why we don't know one yet
+    getNoTargetReason: () => cfg.whatsappReason
+      || (cfg.uploadKey ? 'no WhatsApp settings received from the server yet' : 'this PC is not registered with the server'),
     log,
   });
   await alertRelay.start();

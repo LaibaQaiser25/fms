@@ -28,10 +28,12 @@ class AlertRelay {
   // getTarget() -> { url, secret } | null, read on every send so config
   // refreshed from the server takes effect without a restart.
   // expireAfterMs: only lowered for testing the expiry (T1.6 check 4).
-  constructor({ databaseUrl, relaySecret, getTarget, log, expireAfterMs = EXPIRE_AFTER_MS }) {
+  // getNoTargetReason() -> why there is no target (the server's reason, T1.7).
+  constructor({ databaseUrl, relaySecret, getTarget, getNoTargetReason = () => null, log, expireAfterMs = EXPIRE_AFTER_MS }) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 2 });
     this.relaySecret = relaySecret;
     this.getTarget = getTarget;
+    this.getNoTargetReason = getNoTargetReason;
     this.log = log;
     this.expireAfterMs = expireAfterMs;
     this.server = null;
@@ -158,7 +160,7 @@ class AlertRelay {
     if (!target) {
       // The server hasn't given a target yet: keep everything queued, and
       // say so loudly but not every 30 s.
-      this.setState('no_target', 'no WhatsApp target from the server (N8N_PUBLIC_WEBHOOK_URL)');
+      this.setState('no_target', this.getNoTargetReason() || 'no WhatsApp target from the server');
       if (Date.now() - this.noTargetLoggedAt >= NO_TARGET_LOG_MS) {
         const { rows: [{ n }] } = await this.pool.query('SELECT count(*)::int AS n FROM whatsapp_outbox');
         this.log(`ERROR alerts: no WhatsApp target configured on the server; ${n} alert(s) queued, not sent`);

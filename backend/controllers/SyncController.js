@@ -102,6 +102,8 @@ class SyncController {
     const { name, logo } = await getSetup();
     res.json({
       whatsapp: url ? { url, secret: process.env.N8N_WEBHOOK_SECRET || '' } : null,
+      // Why there is no target, so the factory can say it instead of guessing.
+      ...(url ? {} : { reason: 'N8N_PUBLIC_WEBHOOK_URL unset' }),
       setup: { name, logo },
     });
   }

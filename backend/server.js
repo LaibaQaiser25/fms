@@ -149,6 +149,12 @@ if (process.env.SYNC_TOKEN) {
   app.use('/api/sync-status', require('./routes/syncStatus'));
 }
 
+// Sync on with alerts off is a valid setup, but almost never the intended one:
+// the factory then queues every WhatsApp alert and never sends it (T1.7).
+if (process.env.SYNC_TOKEN && !process.env.N8N_PUBLIC_WEBHOOK_URL) {
+  console.warn('⚠️⚠️⚠️  N8N_PUBLIC_WEBHOOK_URL is not set: the factory app will queue WhatsApp alerts and NOT send them. Set it in backend/.env to turn alerts on.');
+}
+
 // Scheduled reports write rows, so in read-only mode only the factory app runs
 // them (their results reach this server through /sync like everything else).
 if (process.env.READ_ONLY_MODE === 'true') {

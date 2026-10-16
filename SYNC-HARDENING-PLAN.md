@@ -195,7 +195,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.4 | Bad-row quarantine — factory + retry | T1.3 | CODE DONE, CHECKS FAILING | 13/13 `npm test`; Sync issues page + Retry seen in headless Chrome; Windows install pending |
 | T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | CODE DONE, CHECKS FAILING | 15/15 `npm test`; checks 1–4 seen end to end on a local harness; VPS + Windows pending |
 | T1.6 | WhatsApp relay state + `whatsapp_dead` | — | CODE DONE, CHECKS FAILING | checks 1–4 seen on the real relay + fake n8n; factory install pending |
-| T1.7 | Config `reason` + startup warning | T1.6 | NOT STARTED | |
+| T1.7 | Config `reason` + startup warning | T1.6 | CODE DONE, CHECKS FAILING | checks 1–2 by `npm test`; check 3 (startup log) needs the deploy |
 | T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | NOT STARTED | |
 | T1.9 | Faster upload + final upload on quit | T1.4 | NOT STARTED | |
 | T1.10 | Release 1.0.2 + first factory install | T0.2, T1.0–T1.9 | NOT STARTED | go-live |
@@ -935,7 +935,9 @@ code edit.
 
 ### T1.7 — Config `reason` + startup warning
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–2 verified through the real `/sync/config`
+route chain in `npm test`; check 3 is a line in `server.js`'s startup, not run here (§0.3: no
+second `server.js`) — observe it in `docker compose logs backend` after deploy
 **Deps:** T1.6
 
 **Do:**
@@ -952,6 +954,17 @@ code edit.
    keeps running.
 
 **Gate:** all three observed.
+
+**Implementation notes:** the factory keeps the reason as `cfg.whatsappReason` and the relay
+uses it as its `no_target` error (`getNoTargetReason`), so the status bar and T1.8's test button
+show "N8N_PUBLIC_WEBHOOK_URL unset" rather than a guess. Before the first `/sync/config` the
+relay says "no WhatsApp settings received from the server yet" (or "this PC is not registered").
+
+**Evidence (16 Oct 2026):**
+- Checks 1–2 ✅ — `npm test` (`tests 16 / pass 16`): unset → `{"whatsapp":null,"reason":
+  "N8N_PUBLIC_WEBHOOK_URL unset",...}`; set → `whatsapp.url` populated, no `reason` key.
+- ⏳ Check 3 — after deploy, with the variable unset: `⚠️⚠️⚠️  N8N_PUBLIC_WEBHOOK_URL is not set:
+  ...` once in the backend log, process still up. (The VPS has it set today, §1.)
 
 ---
 

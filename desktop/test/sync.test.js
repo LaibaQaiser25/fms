@@ -653,3 +653,24 @@ test('factory status: green when uploaded, amber after 5 min of backlog, red whe
     await pool.end();
   }
 });
+
+// ---- T1.7: /sync/config says why WhatsApp is off ----
+
+test('/sync/config gives a reason when N8N_PUBLIC_WEBHOOK_URL is unset, and none when set', async () => {
+  const prev = process.env.N8N_PUBLIC_WEBHOOK_URL;
+  try {
+    delete process.env.N8N_PUBLIC_WEBHOOK_URL;
+    let res = await call(route()['/sync/config'], { headers: withKey() });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.whatsapp, null);
+    assert.equal(res.body.reason, 'N8N_PUBLIC_WEBHOOK_URL unset');
+
+    process.env.N8N_PUBLIC_WEBHOOK_URL = 'https://n8n.example/webhook/fms-alert';
+    res = await call(route()['/sync/config'], { headers: withKey() });
+    assert.equal(res.body.whatsapp.url, 'https://n8n.example/webhook/fms-alert');
+    assert.ok(!('reason' in res.body));
+  } finally {
+    if (prev === undefined) delete process.env.N8N_PUBLIC_WEBHOOK_URL;
+    else process.env.N8N_PUBLIC_WEBHOOK_URL = prev;
+  }
+});

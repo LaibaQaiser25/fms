@@ -191,7 +191,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
 | T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | 8/8 `npm test` (4 new); observed checks need deploy + a factory install |
 | T1.2 | Offline Setup page, form, read-only exception | T1.1 | CODE DONE, CHECKS FAILING | checks 1–5 seen on a local harness + headless Chrome; VPS deploy + check 6 (Windows install) pending |
-| T1.3 | Bad-row quarantine — server | — | NOT STARTED | |
+| T1.3 | Bad-row quarantine — server | — | CODE DONE, CHECKS FAILING | 11/11 `npm test`; checks 1–5 seen on a local harness; VPS deploy pending |
 | T1.4 | Bad-row quarantine — factory + retry | T1.3 | NOT STARTED | |
 | T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | NOT STARTED | |
 | T1.6 | WhatsApp relay state + `whatsapp_dead` | — | NOT STARTED | |
@@ -598,7 +598,10 @@ throwaway Express app (not `server.js`) on a throwaway embedded Postgres, `READ_
 
 ### T1.3 — Bad-row quarantine — server
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 observed with `curl` + `psql` against the real
+`/sync` routes on a throwaway database and by `npm test`; not yet on the VPS (needs deploy).
+Until T1.4, the factory still deletes a rejected change from its outbox without quarantining it
+(the VPS keeps it in `sync_rejected`) — T1.10 depends on T1.4, so no install sees this
 
 **Problem (F15):** one bad row (typically a 23505 on a unique constraint) stalls all sync.
 
@@ -671,6 +674,32 @@ res.json({ applied: accepted.length, accepted, rejected });
    unchanged.
 
 **Gate:** checks 2–5 observed.
+
+**Implementation notes:** `validateChange` / `applyChange` / `pkOf` split out of `ingest`; all
+schema checks run before any change is applied. A failing change is rolled back to its savepoint;
+class 22/23 → `sync_rejected` + `rejected[]`, anything else → the whole batch rolls back (500,
+retried). The response is `{ applied, accepted, rejected }`. Rejections are resolved by an
+accepted change with the same table + primary key (only looked up for tables that have open
+rejections; partial index `sync_rejected_open_idx`). `sync_rejected` registered in
+`PROTECTED_TABLES`, `VPS_ONLY_TABLES`, `EXCLUDED_TABLES`.
+
+**Evidence (16 Oct 2026)** — the real `routes/sync.js` (and the rest, in `server.js` order) in a
+throwaway Express app on a throwaway embedded Postgres; registered with a setup code first:
+- Check 1 — `products` row `900|Block|stock|6in` on the server; factory batch: customer 1,
+  the same product as id 1, customer 2.
+- Check 2 ✅ — `HTTP/1.1 200 OK`, `{"applied":2,"accepted":[101,103],"rejected":[{"id":102,
+  "table_name":"products","op":"I","code":"23505","constraint":"products_name_type_size_idx",...}]}`.
+  In `npm test` the factory's `SyncWorker` round over the same scenario reports `state: 'ok'`,
+  `pending: 0` (not "Problem").
+- Check 3 ✅ — `sync_rejected`: exactly one row, `products | I | 23505 |
+  products_name_type_size_idx | Key (name, type, COALESCE(size, ''))=(Block, stock, 6in) already
+  exists.`
+- Check 4 ✅ — `customers` on the server: `1 Ali`, `2 Bilal`; `products`: only `900 Block`.
+- Check 5 ✅ — a batch with op `"Z"` → `HTTP/1.1 409 Conflict {"error":"unknown op \"Z\""}`;
+  `sync_rejected` count 1 before and after; the valid change in the same batch was not applied.
+- `npm test` → `tests 11 / pass 11` (new: the 23505 scenario incl. resolving on a later accepted
+  change; the 409 batch). Sabotage: treating every row error as fatal → only the 23505 test fails.
+- ⏳ The same on the VPS after deploy.
 
 ---
 

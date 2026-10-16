@@ -419,3 +419,72 @@ test('register and /sync/config hand the setup name and logo to the main PC', as
     await vps.query('UPDATE offline_setup SET setup_name = NULL, logo = NULL');
   }
 });
+
+// ---- T1.3: a bad row is set aside, the rest of the batch applies ----
+
+async function resetProducts() {
+  for (const db of [factory, vps]) await db.query('TRUNCATE products RESTART IDENTITY CASCADE');
+  await factory.query('DELETE FROM sync_outbox');
+  await vps.query('TRUNCATE sync_rejected');
+}
+
+test('a row the server rejects (23505) is set aside while the rest of the batch applies', async () => {
+  await resetProducts();
+  // Someone made this product on the server; the factory makes the same one.
+  await vps.query("INSERT INTO products (id, name, type, size) VALUES (900, 'Block', 'stock', '6in')");
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+  await factory.query("INSERT INTO products (name, type, size) VALUES ('Block', 'stock', '6in')");
+  await factory.query("INSERT INTO customers (name) VALUES ('Bilal')");
+  const sent = await outbox();
+  const productChange = sent.find((c) => c.table_name === 'products');
+
+  const res = await call(route()['/sync/ingest'], { body: { changes: sent }, headers: withKey() });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.applied, sent.length - 1);
+  assert.deepEqual(res.body.accepted, sent.filter((c) => c !== productChange).map((c) => c.id));
+  assert.equal(res.body.rejected.length, 1);
+  assert.equal(res.body.rejected[0].id, productChange.id);
+  assert.equal(res.body.rejected[0].code, '23505');
+  assert.equal(res.body.rejected[0].constraint, 'products_name_type_size_idx');
+
+  const { rows: rej } = await vps.query('SELECT outbox_id, table_name, op, pk, code, constraint_name, resolved_at FROM sync_rejected');
+  assert.equal(rej.length, 1);
+  assert.equal(Number(rej[0].outbox_id), Number(productChange.id));
+  assert.deepEqual([rej[0].table_name, rej[0].op, rej[0].code], ['products', 'I', '23505']);
+  assert.deepEqual(rej[0].pk, { id: productChange.row_data.id });
+  assert.equal(rej[0].resolved_at, null);
+
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal'], 'the rest of the batch applied');
+  assert.deepEqual((await vps.query('SELECT id FROM products')).rows.map((r) => r.id), [900]);
+
+  // The worker sees the same as a normal round: no "Problem" state.
+  await vps.query('TRUNCATE customers RESTART IDENTITY CASCADE');
+  const status = await syncRound();
+  assert.equal(status.state, 'ok', status.error);
+  assert.equal(status.pending, 0);
+  assert.equal((await vps.query('SELECT count(*)::int AS n FROM sync_rejected')).rows[0].n, 2);
+
+  // Once the conflict is gone on the server, a later change to that row is
+  // accepted and settles the open rejections.
+  await vps.query('DELETE FROM products WHERE id = 900');
+  const retry = await call(route()['/sync/ingest'], {
+    body: { changes: [{ id: 9999, table_name: 'products', op: 'U', row_data: productChange.row_data }] },
+    headers: withKey(),
+  });
+  assert.equal(retry.status, 200, JSON.stringify(retry.body));
+  assert.deepEqual(retry.body.rejected, []);
+  const { rows: open } = await vps.query('SELECT count(*)::int AS n FROM sync_rejected WHERE resolved_at IS NULL');
+  assert.equal(open[0].n, 0, 'resolved_at set on the matching rejections');
+  assert.equal((await vps.query("SELECT name FROM products")).rows[0].name, 'Block');
+});
+
+test('a schema problem (unknown op) still refuses the whole batch: 409, nothing applied, nothing set aside', async () => {
+  await resetProducts();
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+  const changes = [...await outbox(), { id: 1, table_name: 'customers', op: 'X', row_data: { id: 1 } }];
+  const res = await call(route()['/sync/ingest'], { body: { changes }, headers: withKey() });
+  assert.equal(res.status, 409);
+  assert.match(res.body.error, /unknown op "X"/);
+  assert.deepEqual(await customersOn(vps), []);
+  assert.equal((await vps.query('SELECT count(*)::int AS n FROM sync_rejected')).rows[0].n, 0);
+});

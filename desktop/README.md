@@ -32,18 +32,50 @@ the copy would never reach the factory.
    ```
    then `sg docker -c "docker compose up -d backend"`. From now on the web
    dashboard only views data (saves return "This server is view-only").
-3. **On the factory PC**, run the installer. The first launch asks for the sync
-   key (the `SYNC_TOKEN` value) and copies all server data, logins included.
-   Log in with the usual accounts.
+   `SYNC_TOKEN` only switches `/sync` on; nobody types it anywhere.
+3. **Create a setup code**: the Owner opens Offline Setup on the online
+   dashboard and creates a one-time setup code (e.g. `K7QM-2XPA`; works once,
+   for one hour). Without the dashboard, on the VPS:
+   `sg docker -c "docker compose exec backend node scripts/createSetupCode.js"`.
+4. **On the factory PC**, run the installer. The first launch asks for the
+   setup code, registers this PC as the **main PC** (it gets its own upload
+   key, stored in `config.json` — no key is ever copied by hand) and copies
+   all server data, logins included. Log in with the usual accounts. The copy
+   must happen within an hour of registering.
 
-The window title shows the sync state: "All changes uploaded", "Offline — N
-changes waiting", or "Sync problem" (details in the log).
+Only the registered main PC can upload. Registering another PC blocks the
+previous one at once.
+
+A status bar at the top of every page shows the sync state: "Uploaded ✓",
+"Waiting: N changes" or "Problem"/"Not uploading" — green, amber once changes
+have waited more than 5 minutes (or WhatsApp alerts are stuck), red when this
+PC is no longer the registered main PC, when the server refused changes (see
+Sync issues), or when a table can't sync. It reads `GET /status`
+(`lib/status.js` rewrites `%APPDATA%\FMS\status.json` every 15 s). The window
+title shows the same in short. Every minute the PC also sends a heartbeat to
+the VPS, so the online dashboard can show "Factory last updated X min ago"
+next to its permanent "View-only" label.
+
+## Runbooks
+
+**Main PC dies.** The Owner creates a setup code in Offline Setup → install FMS
+on the new PC → enter the code → it copies the VPS data and becomes the main
+PC; the old PC, if it ever comes back, is refused. **Changes that never left
+the old PC do not reach the VPS** — they are recoverable only from that PC's
+disk (`%APPDATA%\FMS\pgdata`) or its backups.
+
+**VPS lost, or restored from an older backup.** The mirror misses everything
+between that backup and the failure. Rebuild it from the factory: re-register
+the main PC with a setup code made on the server
+(`node scripts/createSetupCode.js`) and use "Resend everything" (T2.8 in
+`SYNC-HARDENING-PLAN.md`).
 
 ## Where things live on the factory PC
 
 `%APPDATA%\FMS\`
 - `pgdata\` — the database. **Back this folder up** (with FMS closed).
-- `config.json` — sync key, server address, local secrets.
+- `config.json` — this PC's id (`writerId`) and upload key, server address,
+  local secrets.
 - `logs\fms.log` — everything: startup, sync, alerts, updates.
 
 ## Download link and updates
@@ -79,9 +111,21 @@ To release a new version:
 
 - Triggers (`lib/syncCapture.js`) append every insert/update/delete to
   `sync_outbox` in the same transaction.
+- Each committed write also `NOTIFY`s the worker, which pushes 2 s later
+  (one batch for a burst of writes); the 15 s poll is only a fallback. On
+  quit FMS makes one last upload, at most 10 s; anything left goes on the
+  next start.
 - `lib/sync.js` sends committed changes, in order, to `POST /sync/ingest`,
   which upserts/deletes by primary key (`backend/controllers/SyncController.js`).
   Re-sending a batch is harmless.
+- A change the VPS can't take (e.g. a duplicate product) doesn't stall the
+  rest: the VPS sets it aside (`sync_rejected`), this PC moves it from the
+  outbox to `sync_quarantine`, and the window title counts it. The Owner sees
+  it under **Sync issues** in the app and presses Retry once the cause is
+  fixed; that re-sends the row as it is now.
 - WhatsApp alerts go to a local relay (`lib/alertRelay.js`) that queues them
   and forwards to n8n when online; alerts held up more than 10 minutes are
-  marked "Delayed", ones older than 48 h are dropped.
+  marked "Delayed". Ones still unsent after 48 h are not sent but moved,
+  intact, to `whatsapp_dead` (kept 30 days). The relay's state — `ok`,
+  `no_target`, `n8n_rejecting` (with n8n's reply), `offline` — is logged on
+  every change and shown in the status.

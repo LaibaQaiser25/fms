@@ -9,8 +9,13 @@
 // idempotent, and it attaches the trigger to any table a new migration added.
 const { Client } = require('pg');
 
-// Tables that are local bookkeeping, not business data.
-const EXCLUDED_TABLES = ['pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox'];
+// Tables that are local bookkeeping, not business data. Includes every
+// VPS-only table (SYNC-HARDENING-PLAN.md §4): migrations create them here too,
+// empty, and they must never be captured or touched by the snapshot import.
+const EXCLUDED_TABLES = [
+  'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox', 'whatsapp_dead', 'sync_quarantine',
+  'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat',
+];
 
 const SETUP_SQL = `
 CREATE TABLE IF NOT EXISTS public.sync_outbox (
@@ -34,6 +39,23 @@ CREATE TABLE IF NOT EXISTS public.sync_state (
 );
 INSERT INTO public.sync_state (id) VALUES (1) ON CONFLICT DO NOTHING;
 
+-- Changes the VPS refused (T1.3/T1.4: a unique/check/not-null violation or a
+-- value that doesn't fit there). Taken out of sync_outbox so the rest keeps
+-- flowing; the Owner can retry one from the Sync issues page, which re-sends
+-- the row as it is now (backend/services/syncQuarantine.js).
+CREATE TABLE IF NOT EXISTS public.sync_quarantine (
+  id              bigserial PRIMARY KEY,
+  outbox_id       bigint,
+  table_name      text NOT NULL,
+  op              char(1) NOT NULL,
+  row_data        jsonb NOT NULL,
+  code            text,
+  constraint_name text,
+  detail          text,
+  detected_at     timestamptz NOT NULL DEFAULT now(),
+  resolved_at     timestamptz
+);
+
 -- TG_ARGV = the table's primary key column names.
 CREATE OR REPLACE FUNCTION public.fms_sync_capture() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -52,8 +74,12 @@ BEGIN
     SELECT jsonb_object_agg(k, new_row -> k) INTO new_pk FROM unnest(TG_ARGV) AS k;
   END IF;
 
+  -- Wakes lib/sync.js so the change goes up within seconds (T1.9). Delivered
+  -- only on commit, and identical notifications in one transaction collapse
+  -- into one.
   IF TG_OP = 'DELETE' THEN
     INSERT INTO public.sync_outbox (table_name, op, row_data) VALUES (TG_TABLE_NAME, 'D', old_pk);
+    PERFORM pg_notify('fms_sync_outbox', '');
     RETURN OLD;
   END IF;
 
@@ -69,6 +95,7 @@ BEGIN
 
   INSERT INTO public.sync_outbox (table_name, op, row_data)
   VALUES (TG_TABLE_NAME, CASE TG_OP WHEN 'INSERT' THEN 'I' ELSE 'U' END, new_row);
+  PERFORM pg_notify('fms_sync_outbox', '');
   RETURN NEW;
 END
 $$;
@@ -123,6 +150,8 @@ async function installSyncCapture({ databaseUrl, log }) {
 
     await client.query('COMMIT');
     log(`sync: change capture on ${tables.length} tables`);
+    // For the status bar (D12: a warning there, not a startup failure).
+    return { tablesWithoutPk: noPk.map((r) => r.relname) };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;

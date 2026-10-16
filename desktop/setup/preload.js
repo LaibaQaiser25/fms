@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('fmsSetup', {
   defaults: () => ipcRenderer.invoke('setup:defaults'),
-  importFromServer: (serverUrl, token) => ipcRenderer.invoke('setup:import', { serverUrl, token }),
+  importFromServer: (serverUrl, code) => ipcRenderer.invoke('setup:import', { serverUrl, code }),
   startEmpty: () => ipcRenderer.invoke('setup:empty'),
   onProgress: (fn) => ipcRenderer.on('setup:progress', (_e, msg) => fn(msg)),
 });

@@ -1,5 +1,6 @@
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
+import SyncStatusBar from './SyncStatusBar';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect, createContext } from 'react';
 import * as salesApi from '../api/salesApi';
@@ -169,6 +170,7 @@ export default function Layout() {
           onClickCapture={blockGuestActions}
           onSubmitCapture={blockGuestFormSubmit}
         >
+          <SyncStatusBar />
           {searchResults && (
             <div className="mb-6 bg-white rounded-lg shadow p-4">
               <div className="flex justify-between items-center mb-3">

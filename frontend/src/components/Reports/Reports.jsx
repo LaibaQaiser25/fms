@@ -44,6 +44,7 @@ export default function Reports() {
   const [automationOpen, setAutomationOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [notice, setNotice] = useState('');
 
   // Feed the typed search into the query a beat later, so every keystroke
   // doesn't fire its own request (same pattern as Cashbook.jsx)
@@ -105,8 +106,11 @@ export default function Reports() {
   const handleSendWhatsApp = async () => {
     setSendingWhatsApp(true);
     setError('');
+    setNotice('');
     try {
-      await reportsApi.sendDailyReportWhatsApp();
+      // Says what really happened: queued on the factory PC, or accepted by n8n
+      const res = await reportsApi.sendDailyReportWhatsApp();
+      setNotice(res.data.message);
     } catch (err) {
       console.error('Error sending daily report to WhatsApp:', err);
       setError(err.response?.data?.error || 'Failed to send report to WhatsApp');
@@ -166,6 +170,7 @@ export default function Reports() {
         </div>
 
         {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+        {notice && <p className="text-sm text-gray-700 mb-4">{notice}</p>}
 
         {loading ? (
           <SkeletonTable rows={6} columns={5} />

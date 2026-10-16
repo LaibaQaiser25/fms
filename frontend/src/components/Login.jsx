@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, AlertCircle, ShieldCheck, UserCog, Eye, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { AUTH_BASE_URL } from '../config';
+import { AUTH_BASE_URL, IS_DESKTOP } from '../config';
 import { alpha, orangeText, ground, ink, serifNavy, btnNavy, btnOrange, serif, sans } from '../homeTheme';
 import { Tag, Title, PillButton } from './Public/ui';
 import { fieldClass, fieldStyle, labelClass, labelStyle } from './Public/styles';
@@ -15,6 +15,20 @@ const ROLES = [
 
 const Spinner = ({ size }) => <Loader2 size={size} className="animate-spin" />;
 
+// Factory app only: the setup name and logo set in Offline Setup on the online
+// dashboard (the factory backend serves them at /branding).
+function useFactoryBranding() {
+  const [branding, setBranding] = useState(null);
+  useEffect(() => {
+    if (!IS_DESKTOP) return;
+    fetch(`${AUTH_BASE_URL}/branding`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setBranding)
+      .catch(() => {});
+  }, []);
+  return branding;
+}
+
 // The login card, in the public site's look. With `onClose` it is a modal over a
 // dimmed page; without it (the standalone /login page) it sits on whatever the
 // page puts behind it and has no close button.
@@ -25,6 +39,7 @@ export default function Login({ isOpen, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth();
+  const branding = useFactoryBranding();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -109,11 +124,14 @@ export default function Login({ isOpen, onClose }) {
           style={{ border: `1px solid ${alpha(serifNavy, 0.12)}` }}>
           {/* Header */}
           <div className="relative px-8 pt-6 pb-5" style={{ background: ground, borderBottom: `1px solid ${alpha(serifNavy, 0.12)}` }}>
+            {branding?.logo && (
+              <img src={branding.logo} alt="" className="mb-3 h-16 w-16 object-contain" />
+            )}
             <Tag className="mb-3 text-[0.7rem]">Staff Login</Tag>
             <Title size="2.4rem">Welcome Back</Title>
             <p className="mt-2 text-[0.95rem] font-medium uppercase"
               style={{ fontFamily: serif, color: serifNavy, letterSpacing: '0.2em' }}>
-              Bin-Zahid &amp; Partners
+              {branding?.name || <>Bin-Zahid &amp; Partners</>}
             </p>
             {/* No close button on the standalone /login page (no onClose) */}
             {onClose && (

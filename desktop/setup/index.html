@@ -31,9 +31,9 @@
   <p>This copies all current data from the server once. After that, this computer is where data is entered, and every change is uploaded to the server automatically whenever there is internet.</p>
 
   <form id="form">
-    <label for="token">Sync key</label>
-    <input id="token" type="password" autocomplete="off" required>
-    <div class="hint">The SYNC_TOKEN value from the server's settings.</div>
+    <label for="code">One-time setup code</label>
+    <input id="code" autocomplete="off" spellcheck="false" placeholder="e.g. K7QM-2XPA" required>
+    <div class="hint">On the online dashboard, the Owner opens Offline Setup and creates a setup code. It works once, for one hour. This computer becomes the main PC; a PC set up before it stops uploading.</div>
 
     <label for="server">Server address</label>
     <input id="server" type="url" required>
@@ -52,14 +52,14 @@
   const status = (msg, isError = false) => { $('status').textContent = msg; $('status').className = isError ? 'error' : ''; };
   const busy = (on) => { $('go').disabled = on; $('empty').disabled = on; };
 
-  window.fmsSetup.defaults().then((d) => { $('server').value = d.serverUrl; $('token').focus(); });
+  window.fmsSetup.defaults().then((d) => { $('server').value = d.serverUrl; $('code').focus(); });
   window.fmsSetup.onProgress((msg) => status(msg));
 
   $('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     busy(true);
     status('Connecting…');
-    const result = await window.fmsSetup.importFromServer($('server').value.trim(), $('token').value.trim());
+    const result = await window.fmsSetup.importFromServer($('server').value.trim(), $('code').value.trim());
     if (!result.ok) { status(result.error, true); busy(false); }
   });
 

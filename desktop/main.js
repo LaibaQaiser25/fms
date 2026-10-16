@@ -19,8 +19,9 @@ const { APP_PORT, ALERT_PORT } = require('./lib/ports');
 const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./lib/database');
 const { installSyncCapture } = require('./lib/syncCapture');
 const { SyncWorker } = require('./lib/sync');
-const { downloadSnapshot, importSnapshot } = require('./lib/snapshot');
+const { registerWriter, downloadSnapshot, importSnapshot } = require('./lib/snapshot');
 const { AlertRelay } = require('./lib/alertRelay');
+const { StatusReporter } = require('./lib/status');
 
 const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
 
@@ -54,8 +55,8 @@ function loadConfig() {
   let changed = false;
   if (!cfg.pgPassword) { cfg.pgPassword = crypto.randomBytes(24).toString('hex'); changed = true; }
   if (!cfg.jwtSecret) { cfg.jwtSecret = crypto.randomBytes(32).toString('hex'); changed = true; }
-  // syncToken must equal SYNC_TOKEN in the VPS's backend/.env; until it's
-  // set, changes still pile up in sync_outbox and go out once it is.
+  // writerId + uploadKey come from registering with a setup code (runSetup);
+  // without them, changes still pile up in sync_outbox, never uploaded.
   if (!cfg.syncServerUrl) { cfg.syncServerUrl = DEFAULT_SYNC_SERVER; changed = true; }
   // Shared only between the backend and the local alert relay.
   if (!cfg.relaySecret) { cfg.relaySecret = crypto.randomBytes(24).toString('hex'); changed = true; }
@@ -67,9 +68,31 @@ function saveConfig(cfg) {
   fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify(cfg, null, 2));
 }
 
-// First run only: a modal asking for the sync key, which then copies the
-// server's data into the local database (lib/snapshot.js). Resolves
-// 'imported', 'empty' (testing: no server) or 'cancelled' (window closed).
+// The status bar on every terminal (T1.5) reads this through the backend's
+// GET /status (lib/status.js keeps it current and sends the heartbeat).
+const statusFile = path.join(userData, 'status.json');
+
+// Setup name and logo from Offline Setup on the online dashboard (T1.2): the
+// window title uses the name, and the login screen reads both through the
+// backend's GET /branding, which serves this file.
+const brandingFile = path.join(userData, 'branding.json');
+let appName = 'FMS';
+function applySetup(cfg, setup) {
+  if (setup !== undefined && JSON.stringify(setup) !== JSON.stringify(cfg.setup)) {
+    cfg.setup = setup;
+    saveConfig(cfg);
+    log(`config: setup name ${setup?.name ? `"${setup.name}"` : 'not set'}, ${setup?.logo ? 'own logo' : 'default logo'}`);
+  }
+  appName = cfg.setup?.name || 'FMS';
+  fs.writeFileSync(brandingFile, JSON.stringify({ name: cfg.setup?.name || null, logo: cfg.setup?.logo || null }));
+  refreshTitle();
+}
+
+// First run only: a modal asking for the Owner's one-time setup code. This PC
+// registers as the main PC (its own upload key, never typed by anyone), then
+// copies the server's data into the local database (lib/snapshot.js).
+// Resolves 'imported', 'empty' (testing: no server) or 'cancelled'.
+// "Start empty" never registers, so such a PC never uploads.
 function runSetup({ cfg, databaseUrl }) {
   const CHANNELS = ['setup:defaults', 'setup:import', 'setup:empty'];
   return new Promise((resolve) => {
@@ -97,14 +120,39 @@ function runSetup({ cfg, databaseUrl }) {
     });
 
     ipcMain.handle('setup:defaults', () => ({ serverUrl: cfg.syncServerUrl }));
-    ipcMain.handle('setup:import', async (_e, { serverUrl, token }) => {
+    ipcMain.handle('setup:import', async (_e, { serverUrl, code }) => {
       const progress = (msg) => { if (!win.isDestroyed()) win.webContents.send('setup:progress', msg); };
+      const download = () => downloadSnapshot({ serverUrl, uploadKey: cfg.uploadKey });
       try {
-        progress('Downloading data from the server…');
-        const snapshot = await downloadSnapshot({ serverUrl, token });
+        let snapshot = null;
+        // An earlier attempt may have registered and then failed to download;
+        // its code is used up, so try that key first.
+        if (cfg.uploadKey && cfg.syncServerUrl === serverUrl) {
+          progress('Downloading data from the server…');
+          try {
+            snapshot = await download();
+          } catch (err) {
+            if (!err.notRegistered) throw err;
+            delete cfg.uploadKey;
+            delete cfg.writerId;
+            saveConfig(cfg);
+          }
+        }
+        if (!snapshot) {
+          progress('Registering this computer as the main PC…');
+          const writerId = crypto.randomUUID();
+          const { uploadKey, setup } = await registerWriter({ serverUrl, code, writerId });
+          // Saved straight away: the code is now used up.
+          Object.assign(cfg, { syncServerUrl: serverUrl, writerId, uploadKey });
+          saveConfig(cfg);
+          applySetup(cfg, setup);
+          log(`setup: registered as main PC ${writerId}`);
+          progress('Downloading data from the server…');
+          snapshot = await download();
+        }
         progress('Saving data on this computer…');
         await importSnapshot({ databaseUrl, snapshot, log });
-        Object.assign(cfg, { syncServerUrl: serverUrl, syncToken: token, setupDone: true });
+        cfg.setupDone = true;
         saveConfig(cfg);
         finish('imported');
         return { ok: true };
@@ -151,13 +199,16 @@ let backend = null;
 let mainWindow = null;
 let syncWorker = null;
 let alertRelay = null;
+let statusReporter = null;
+let lastSync = null;          // SyncWorker's last report, or { state: 'not_registered' }
+let tablesWithoutPk = [];
 let updateReady = null; // version string once an update has downloaded
 let quitting = false;
 
 // The window title doubles as the sync status line.
 let syncStatusText = '';
 function refreshTitle() {
-  const parts = ['FMS', syncStatusText, updateReady && `Update ${updateReady} will install when FMS is closed`].filter(Boolean);
+  const parts = [appName, syncStatusText, updateReady && `Update ${updateReady} will install when FMS is closed`].filter(Boolean);
   if (mainWindow) mainWindow.setTitle(parts.join('  —  '));
 }
 
@@ -167,16 +218,18 @@ function refreshTitle() {
 async function refreshServerConfig(cfg) {
   try {
     const res = await fetch(`${cfg.syncServerUrl.replace(/\/$/, '')}/sync/config`, {
-      headers: { 'X-Sync-Token': cfg.syncToken },
+      headers: { 'X-Upload-Key': cfg.uploadKey },
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) throw new Error(`server replied ${res.status}`);
-    const { whatsapp } = await res.json();
-    if (JSON.stringify(whatsapp) !== JSON.stringify(cfg.whatsapp)) {
+    const { whatsapp, reason, setup } = await res.json();
+    if (JSON.stringify(whatsapp) !== JSON.stringify(cfg.whatsapp) || (reason || null) !== (cfg.whatsappReason || null)) {
       cfg.whatsapp = whatsapp;
+      cfg.whatsappReason = whatsapp ? null : reason || null;
       saveConfig(cfg);
-      log(`config: WhatsApp alerts ${whatsapp ? 'enabled' : 'not configured on the server'}`);
+      log(`config: WhatsApp alerts ${whatsapp ? 'enabled' : `not configured on the server (${reason || 'no reason given'})`}`);
     }
+    applySetup(cfg, setup);
   } catch (err) {
     log(`config: could not refresh from server (${err.cause?.code || err.message})`);
   }
@@ -232,10 +285,17 @@ function ago(date) {
   return `${Math.round(hours / 24)} days ago`;
 }
 
-function describeSync({ state, pending, lastSyncedAt }) {
+function describeSync({ state, pending, quarantined, lastSyncedAt }) {
   const waiting = pending === 1 ? '1 change waiting' : `${pending} changes waiting`;
+  // Changes the server refused (T1.4); the Owner retries them on the Sync issues page.
+  const setAside = quarantined ? `  —  ${quarantined} change${quarantined === 1 ? '' : 's'} refused by the server (see Sync issues)` : '';
+  return describeSyncState({ state, pending, lastSyncedAt, waiting }) + setAside;
+}
+
+function describeSyncState({ state, pending, lastSyncedAt, waiting }) {
   if (state === 'ok') return pending ? `Uploading ${waiting}` : `All changes uploaded (last upload ${ago(lastSyncedAt)})`;
   if (state === 'offline') return `Offline — ${waiting}, will upload when internet is back`;
+  if (state === 'blocked_not_writer') return `NOT UPLOADING: this PC is no longer the registered main PC — ${waiting}`;
   return `Sync problem — ${waiting} (see log)`;
 }
 
@@ -253,6 +313,12 @@ function startBackend({ databaseUrl, jwtSecret, relaySecret }) {
       JWT_SECRET: jwtSecret,
       FRONTEND_URL: APP_ORIGIN,
       FMS_STATIC_DIR: FRONTEND_DIR,
+      // Setup name + logo for the login screen (GET /branding)
+      FMS_BRANDING_FILE: brandingFile,
+      // Sync status for the status bar (GET /status)
+      FMS_STATUS_FILE: statusFile,
+      // Factory-only routes, e.g. retrying changes the server refused (/api/sync-quarantine)
+      FMS_FACTORY: '1',
       TZ: 'Asia/Karachi',
       // WhatsApp alerts go to the local relay, which queues them offline.
       N8N_WEBHOOK_URL: `http://127.0.0.1:${ALERT_PORT}/alert`,
@@ -304,6 +370,7 @@ function createWindow() {
 async function boot() {
   createWindow();
   const cfg = loadConfig();
+  applySetup(cfg);
 
   for (const port of [APP_PORT, ALERT_PORT]) {
     if (!(await portIsFree(port))) throw new Error(`Port ${port} is already in use by another program.`);
@@ -316,7 +383,7 @@ async function boot() {
   });
   await prepareSchema({ databaseUrl, backendDir: BACKEND_DIR, log });
   // Before ensureOwner, so even the very first account reaches the VPS.
-  await installSyncCapture({ databaseUrl, log });
+  ({ tablesWithoutPk } = await installSyncCapture({ databaseUrl, log }));
 
   if (!cfg.setupDone) {
     const result = await runSetup({ cfg, databaseUrl });
@@ -330,6 +397,9 @@ async function boot() {
     databaseUrl,
     relaySecret: cfg.relaySecret,
     getTarget: () => cfg.whatsapp || null,
+    // The server's reason for no target (T1.7), or why we don't know one yet
+    getNoTargetReason: () => cfg.whatsappReason
+      || (cfg.uploadKey ? 'no WhatsApp settings received from the server yet' : 'this PC is not registered with the server'),
     log,
   });
   await alertRelay.start();
@@ -339,22 +409,40 @@ async function boot() {
   if (mainWindow) await mainWindow.loadURL(`${APP_ORIGIN}/login`);
   setupAutoUpdate();
 
-  if (cfg.syncToken) {
+  if (cfg.uploadKey) {
     syncWorker = new SyncWorker({
       databaseUrl,
       serverUrl: cfg.syncServerUrl,
-      token: cfg.syncToken,
+      uploadKey: cfg.uploadKey,
       log,
-      onStatus: (status) => { syncStatusText = describeSync(status); refreshTitle(); },
+      onStatus: (status) => {
+        lastSync = status;
+        syncStatusText = describeSync(status);
+        refreshTitle();
+        statusReporter?.refresh();
+      },
     });
     syncWorker.start();
     refreshServerConfig(cfg);
     setInterval(() => refreshServerConfig(cfg), 3600_000);
   } else {
+    lastSync = { state: 'not_registered' };
     syncStatusText = 'Upload to server not set up';
     refreshTitle();
-    log('sync: no syncToken in config.json, changes are kept locally');
+    log('sync: this PC is not registered (no uploadKey in config.json), changes are kept locally');
   }
+  statusReporter = new StatusReporter({
+    databaseUrl,
+    statusFile,
+    getSync: () => lastSync,
+    relay: alertRelay,
+    tablesWithoutPk,
+    upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
+    log,
+    // Replaced by another PC while idle: stop the worker as if an upload had been refused.
+    onNotWriter: (message) => syncWorker?.markNotWriter(message),
+  });
+  statusReporter.start();
 
   if (owner) {
     const { response } = await dialog.showMessageBox(mainWindow, {
@@ -392,7 +480,13 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   (async () => {
     try {
-      if (syncWorker) await syncWorker.stop();
+      // One last upload, at most 10 s, so a sale made just before closing
+      // usually reaches the server now rather than on the next start.
+      if (syncWorker) {
+        await syncWorker.finalUpload(10_000).catch((err) => log(`sync: final upload failed: ${err.message}`));
+        await syncWorker.stop();
+      }
+      if (statusReporter) await statusReporter.stop();
       if (backend) backend.kill();
       if (alertRelay) await alertRelay.stop();
       await stopPostgres({ dataDir: pgDataDir, log });

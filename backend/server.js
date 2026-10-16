@@ -26,6 +26,7 @@ const analyticsRoutes = require('./routes/analytics');
 const usersRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const syncRoutes = require('./routes/sync');
+const offlineSetupRoutes = require('./routes/offlineSetup');
 const authMiddleware = require('./middleware/authMiddleware');
 const requireOwner = require('./middleware/requireOwner');
 const readOnlyMode = require('./middleware/readOnlyMode');
@@ -70,7 +71,7 @@ app.use(cors({
 }));
 app.use(compression());
 
-// Factory desktop app -> VPS sync (SYNC_TOKEN auth, not JWT). Mounted before
+// Factory desktop app -> VPS sync (setup code / upload key, not JWT). Mounted before
 // the global JSON parser because it needs a larger body limit.
 app.use('/sync', syncRoutes);
 
@@ -87,14 +88,14 @@ app.use(readOnlyMode);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ===== TEMP: auto-deployment test route — DELETE AFTER VERIFYING DEPLOY =====
-app.get('/testautodeployment', (req, res) => {
-  res.json({ message: 'Auto deployment works!' });
-});
-// ===== END TEMP ROUTE =====
-
 // Auth routes
 app.use('/auth', authRoutes);
+
+// Factory PC only (desktop/main.js sets these files): GET /status for the
+// status bar, GET /branding for the login screen. Public, like /auth/login.
+if (process.env.FMS_STATUS_FILE || process.env.FMS_BRANDING_FILE) {
+  app.use(require('./routes/factoryLocal'));
+}
 
 // Every /api/* route requires a valid JWT from here on
 app.use('/api', authMiddleware);
@@ -133,6 +134,27 @@ app.use('/api/analytics', requireOwner, analyticsRoutes);
 
 // Owner-only — user management (create users, edit others' username/email/password, change own password)
 app.use('/api/users', requireOwner, usersRoutes);
+
+// Owner-only — Offline Setup: registering the main factory PC (setup codes)
+app.use('/api/offline-setup', requireOwner, offlineSetupRoutes);
+
+// Owner-only, factory PC only (desktop/main.js sets FMS_FACTORY): changes the
+// online server refused, and retrying them. sync_quarantine exists only there.
+if (process.env.FMS_FACTORY === '1') {
+  app.use('/api/sync-quarantine', requireOwner, require('./routes/syncQuarantine'));
+  app.use('/api/whatsapp-test', requireOwner, require('./routes/whatsappTest'));
+}
+
+// Any role, online server only: "Factory last updated X min ago" (T1.5)
+if (process.env.SYNC_TOKEN) {
+  app.use('/api/sync-status', require('./routes/syncStatus'));
+}
+
+// Sync on with alerts off is a valid setup, but almost never the intended one:
+// the factory then queues every WhatsApp alert and never sends it (T1.7).
+if (process.env.SYNC_TOKEN && !process.env.N8N_PUBLIC_WEBHOOK_URL) {
+  console.warn('⚠️⚠️⚠️  N8N_PUBLIC_WEBHOOK_URL is not set: the factory app will queue WhatsApp alerts and NOT send them. Set it in backend/.env to turn alerts on.');
+}
 
 // Scheduled reports write rows, so in read-only mode only the factory app runs
 // them (their results reach this server through /sync like everything else).

@@ -1,5 +1,8 @@
 # FMS Sync Hardening — Final Plan (agent-executable)
 
+> **Remaining live checks, in order:** `GO-LIVE-CHECKLIST.md` (deploy, release 1.0.2, first
+> factory install).
+>
 > **This is the single, final plan.** It merges the original sync hardening plan, the code review
 > (R1–R5) and the owner's Offline Setup requirements (agreed 13–16 Oct 2026) into one ordered list
 > of tasks. Every open option has been decided (§2). The review's corrections are built into the
@@ -185,19 +188,19 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 
 | ID | Task | Deps | Status | Notes / evidence |
 |---|---|---|---|---|
-| T0.1 | Read-only mode off until go-live | — | NOT STARTED | ops |
-| T0.2 | VPS nightly backup + restore drill | — | NOT STARTED | |
-| T0.3 | Cleanup bundle | — | NOT STARTED | |
-| T1.0 | Automated sync checks | — | NOT STARTED | |
-| T1.1 | One-PC lock + one-time setup code | T1.0 | NOT STARTED | |
-| T1.2 | Offline Setup page, form, read-only exception | T1.1 | NOT STARTED | |
-| T1.3 | Bad-row quarantine — server | — | NOT STARTED | |
-| T1.4 | Bad-row quarantine — factory + retry | T1.3 | NOT STARTED | |
-| T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | NOT STARTED | |
-| T1.6 | WhatsApp relay state + `whatsapp_dead` | — | NOT STARTED | |
-| T1.7 | Config `reason` + startup warning | T1.6 | NOT STARTED | |
-| T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | NOT STARTED | |
-| T1.9 | Faster upload + final upload on quit | T1.4 | NOT STARTED | |
+| T0.1 | Read-only mode off until go-live | — | CODE DONE, CHECKS FAILING | ops; off since 16 Oct 11:35; checks 1, 3 ✅, check 2 (dashboard save) pending |
+| T0.2 | VPS nightly backup + restore drill | — | CODE DONE, CHECKS FAILING | production backup + drill ✅, cron ✅; copy to the owner's PC pending |
+| T0.3 | Cleanup bundle | — | CODE DONE, CHECKS FAILING | check 2 ✅ (local); check 1 needs the deploy |
+| T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
+| T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | 8/8 `npm test` (4 new); observed checks need deploy + a factory install |
+| T1.2 | Offline Setup page, form, read-only exception | T1.1 | CODE DONE, CHECKS FAILING | checks 1–5 seen on a local harness + headless Chrome; VPS deploy + check 6 (Windows install) pending |
+| T1.3 | Bad-row quarantine — server | — | CODE DONE, CHECKS FAILING | 11/11 `npm test`; checks 1–5 seen on a local harness; VPS deploy pending |
+| T1.4 | Bad-row quarantine — factory + retry | T1.3 | CODE DONE, CHECKS FAILING | 13/13 `npm test`; Sync issues page + Retry seen in headless Chrome; Windows install pending |
+| T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | CODE DONE, CHECKS FAILING | 15/15 `npm test`; checks 1–4 seen end to end on a local harness; VPS + Windows pending |
+| T1.6 | WhatsApp relay state + `whatsapp_dead` | — | CODE DONE, CHECKS FAILING | checks 1–4 seen on the real relay + fake n8n; factory install pending |
+| T1.7 | Config `reason` + startup warning | T1.6 | CODE DONE, CHECKS FAILING | checks 1–2 by `npm test`; check 3 (startup log) needs the deploy |
+| T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | CODE DONE, CHECKS FAILING | outcomes 1–2 seen with a fake n8n; 3 needs a real message to the owner's WhatsApp |
+| T1.9 | Faster upload + final upload on quit | T1.4 | CODE DONE, CHECKS FAILING | 18/18 `npm test` (2.0 s to the server; 5 writes → 1 push; quit cap); real app quit needs Windows |
 | T1.10 | Release 1.0.2 + first factory install | T0.2, T1.0–T1.9 | NOT STARTED | go-live |
 | T2.1 | VPS send-only report scheduler | T1.10 | NOT STARTED | |
 | T2.2 | Factory `DISABLE_CRON` | T2.1 | NOT STARTED | |
@@ -219,7 +222,8 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 
 ### T0.1 — Read-only mode off until go-live (D5)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — done on 16 Oct 2026; check 2 (a save on the dashboard)
+needs the Owner
 
 **Do:** on the VPS, set `READ_ONLY_MODE=false` in `~/fms/backend/.env`, then
 `sg docker -c "docker compose up -d backend"`. Effects: data can be entered on the dashboard
@@ -233,11 +237,23 @@ itself up as a writer. T1.10 switches it back on.
 
 **Gate:** all three observed.
 
+**Evidence (16 Oct 2026, 11:35 CEST, run by Claude on the VPS):** `backend/.env` copied to
+`backend/.env.bak-2026-10-16`, `READ_ONLY_MODE=false`, `docker compose up -d backend` → Started.
+- Check 1 ✅ — `docker compose logs backend`: `✅ Cron jobs started`, no `🔒 READ_ONLY_MODE`;
+  `fms-backend-1 Up`.
+- Check 2 ⏳ — needs a real save by the Owner. Supporting (writes nothing): unauthenticated
+  `POST /api/customers` → `401 {"error":"No token provided"}`, i.e. it reaches auth instead of the
+  `403 This server is view-only`.
+- Check 3 ✅ — `curl -H "X-Sync-Token: …" $API/sync/snapshot` → `409 {"error":"Turn on
+  READ_ONLY_MODE=true on the server (and restart it) before copying data to the factory"}`.
+
 ---
 
 ### T0.2 — VPS nightly backup + restore drill
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — production backup, drill and cron done on 16 Oct 2026;
+still open: a dump on the owner's PC (check 4), and the Owner accepting check 3 from the
+throwaway run (or running it on production)
 
 **Do:** `deploy/backup-db.sh`:
 - dumps `fms_db` from the compose `db` container, which already has `pg_dump`:
@@ -261,11 +277,36 @@ dumps to the owner's PC weekly (D15):
 
 **Gate:** drill completes with matching counts.
 
+**Evidence (16 Oct 2026)** — run against a throwaway compose project (`postgres:16-alpine`,
+`fms_app` / `fms_db`, tables `products` 500 rows, `sales` 37, `"Odd Name"` 1), not production:
+- Backup ✅ — `backup OK: fms_db-2026-10-16.dump (8.0K)`, exit 0. With 60 older dumps seeded,
+  20 remain: the 14 newest + Sundays back to 23 Aug (8 Sundays in all).
+- Drill ✅ — all three tables restored with matching counts, `drill OK: ... 3 tables, all row
+  counts match fms_db`; the `fms_drill_*` database is gone afterwards.
+- Drill mismatch ✅ — one row inserted after the dump → `< public.sales 38 / > public.sales 37`,
+  `drill FAILED: row counts ... differ`, exit 1.
+- Check 3 ✅ — `db` stopped → `service "db" is not running`, `backup FAILED: pg_dump failed`,
+  exit 1, no `.partial` and no dump file left.
+
+**Evidence — production (16 Oct 2026, run by Claude on the VPS; the script from the
+`sync-hardening` worktree, whose compose file names the same project `fms`):**
+- Check 1 ✅ — `2026-10-16 11:31:56 +0200 backup OK: fms_db-2026-10-16.dump (120K)`, exit 0;
+  `~/fms-backups/fms_db-2026-10-16.dump` (119 613 bytes) and `backup.log`.
+- Check 2 ✅ — `drill OK: fms_db-2026-10-16.dump restored, 33 tables, all row counts match fms_db`
+  (customers 3, sales 6, invoices 7, users 3, reports 942, …); `fms_drill_*` gone afterwards.
+- Check 3 — not repeated on production (stops the live database); observed on the throwaway run
+  above.
+- Check 4 — cron ✅: `30 2 * * * f=$HOME/fms/deploy/backup-db.sh; [ -f "$f" ] ||
+  f=$HOME/fms/.claude/worktrees/sync-hardening/deploy/backup-db.sh; bash "$f" >/dev/null 2>&1`
+  (the worktree copy until this branch is deployed; simplify to `bash ~/fms/deploy/backup-db.sh`
+  after B in `GO-LIVE-CHECKLIST.md`). Dry run in a cron-like environment (`env -i … /bin/sh`) → exit
+  0, `backup OK`. ⏳ the `scp` to the owner's PC.
+
 ---
 
 ### T0.3 — Cleanup bundle
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — check 1 unverified: needs this branch merged and deployed to the VPS
 
 **Do:**
 1. **Restore `deploy/.env.n8n.example`** with placeholder values for exactly the keys
@@ -283,6 +324,14 @@ dumps to the owner's PC weekly (D15):
 
 **Gate:** both observed.
 
+**Evidence (16 Oct 2026):**
+- Check 2 ✅ — `setup.sh` step 1 run against copies of the example files: unfilled
+  `deploy/.env.n8n` → `ERROR: deploy/.env.n8n still has placeholders` (exit 1); filled →
+  `env files OK` (exit 0). The example has exactly `META_PHONE_NUMBER_ID META_WHATSAPP_TOKEN
+  N8N_WEBHOOK_SECRET WEBHOOK_URL WHATSAPP_TO_NUMBER`.
+- Check 1 ⏳ — route removed in code; `curl -i https://api.ittefaqbuilder.com/testautodeployment` →
+  404 still to be observed after deploy.
+
 ---
 
 ## 7. Phase 1 — before the first factory install
@@ -292,10 +341,12 @@ Order within the phase: deploy the VPS side of every task first, then release in
 
 ### T1.0 — Automated sync checks
 
-**Status:** NOT STARTED
+**Status:** DONE
 
 **Do:** `desktop/test/sync.test.js`, run with `npm test` in `desktop/` (add
-`"test": "node --test test/"` to `desktop/package.json` scripts; no new dependency, rule 3).
+`"test": "node --test \"test/*.test.js\""` to `desktop/package.json` scripts; no new dependency,
+rule 3). *A bare `node --test test/` fails on Node 22+, which reads the argument as a file glob, so
+the script names the files by glob; it needs Node 21 or later.*
 - Each run starts a **throwaway** embedded Postgres in a temp folder (the same `embedded-postgres`
   package the app uses, via `lib/database.js`), loads the schema and migrations, installs change
   capture, and deletes the folder afterwards. Run it with the FMS app closed: it uses the same
@@ -320,11 +371,29 @@ Order within the phase: deploy the VPS side of every task first, then release in
 
 **Gate:** all three observed.
 
+**Evidence (16 Oct 2026, Node 26.7.0, Linux):**
+1. `npm test` → `tests 4 · pass 4 · fail 0` (≈5 s):
+   `✔ a factory change lands in sync_outbox: insert, update, delete, key change` ·
+   `✔ applying the same upload twice gives the same result (idempotent upsert)` ·
+   `✔ the worker uploads the outbox, and a delete removes the row on the server` ·
+   `✔ the factory refuses to replace its data while changes are still waiting`.
+2. Delete branch in `ingest` commented out → only the delete check fails
+   (`actual: ['Ali','Bilal'], expected: ['Bilal']`). `ON CONFLICT … DO UPDATE` removed → only the
+   idempotent-upsert check fails. Both restored; `git diff` on `SyncController.js` empty.
+3. After each run, no `fms-sync-test-*` folder is left in the temp directory and port 48621 is
+   free.
+
+Notes: the harness runs one embedded Postgres with two databases (`fms_db` = factory with
+capture, `vps_db` = server) and routes `SyncWorker`'s `fetch` to `SyncController`. Backend
+modules resolve from `desktop/node_modules` (`NODE_PATH`), like the staged copy in the app.
+
 ---
 
 ### T1.1 — One-PC lock + one-time setup code (D6)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 verified by `npm test` against throwaway
+databases, not yet on the running VPS (needs this branch deployed); check 6's status text needs
+a factory install (Windows)
 **Deps:** T1.0
 
 **Migrations 022 and 023 (VPS tables, register per §4):**
@@ -395,11 +464,49 @@ CREATE TABLE IF NOT EXISTS setup_code (
 
 **Gate:** checks 1–6 observed; 4 proves nothing was written.
 
+**Implementation notes:**
+- Upload key header: `X-Upload-Key`. `SYNC_TOKEN` stays, but only as the switch that turns `/sync`
+  on (the factory's own backend leaves it unset, so `/sync/*` still 404s there, F5); its value is
+  no longer a credential.
+- Codes and keys are stored as SHA-256 hashes (`backend/services/syncWriter.js`). Creating a code
+  expires any older unused one, so at most one code is valid at a time.
+- Codes are created by `POST /api/offline-setup/setup-code` (Owner only; T1.2 adds the page and the
+  read-only exception) or `node scripts/createSetupCode.js` on the VPS (for T2.8 and before T1.2).
+- `requireSyncWriter` checks the key before `/ingest`, `/config`, `/snapshot`; ingest checks it
+  again as its first statement in the transaction
+  (`UPDATE sync_writer SET last_ingest_at = now() WHERE upload_key_hash = $1`), which also locks
+  the row, so a registration can't slip in between check and commit.
+- Snapshot outside the hour → `403 SnapshotWindowClosed`. The factory setup reuses a saved key if
+  an earlier attempt registered but failed to download (the code is used up by then).
+- Runbooks added to `desktop/README.md`; the `/downloads` install guide now asks for the setup code.
+
+**Evidence (16 Oct 2026):**
+- `npm test` in `desktop/` → `tests 8 / pass 8 / fail 0`. New checks:
+  - *setup code stored only as a hash, works once, only while unexpired* — checks 1, 2, 3 (wrong,
+    used, expired code → 401; a newer code cancels an older unused one);
+  - *an upload without the registered key is refused and applies nothing* — check 4: no key, a
+    wrong key, an empty key → `403 WriterNotRegistered`; `customers` on the server stays `[]`,
+    `last_ingest_at` stays NULL; the right key → 200 and `last_ingest_at` set;
+  - *the snapshot needs read-only mode and a registration less than an hour old* — check 5:
+    `READ_ONLY_MODE=false` → 409; wrong key → 403; registered 61 min ago → `403
+    SnapshotWindowClosed`; `sync_writer`, `setup_code`, `pgmigrations` absent from the snapshot;
+  - *registering a second PC blocks the first* — check 6 (worker side): state
+    `blocked_not_writer`, worker stopped, the change stays in the outbox, the new PC uploads.
+- Sabotage: dropping ingest's in-transaction key check → only the check-4 test fails; disabling
+  the hour window → only the check-5 test fails. Both restored.
+- Check 3, rate limit: `routes/sync.js` alone in a throwaway Express app (no `server.js`), 12 wrong
+  codes → `500 ×10` (that harness had no database) then `429 429`, body
+  `Too many attempts, please try again in 15 minutes`.
+- ⏳ On the VPS after deploy: checks 1–5 with `curl -i` + `psql` (code from
+  `scripts/createSetupCode.js`). ⏳ On a factory install: check 6's window title.
+
 ---
 
 ### T1.2 — Offline Setup page, form, read-only exception
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 observed against the real routes and middleware
+on a throwaway database, not yet on the VPS (needs deploy + the Vercel frontend); check 6 needs a
+fresh factory install (Windows)
 **Deps:** T1.1
 
 **Migration 024 (VPS table, register per §4):**
@@ -477,11 +584,50 @@ still returns "This server is view-only".
 
 **Gate:** checks 1–6 observed.
 
+**Implementation notes:**
+- Routes (`backend/routes/offlineSetup.js`, `requireOwner`): `GET /api/offline-setup` (main PC,
+  name, logo as a data URL, extra-PC address), `PUT /settings`, `PUT /logo` (the image is the raw
+  body), `DELETE /logo` (default), `POST /setup-code` (T1.1). They 404 where `SYNC_TOKEN` is unset,
+  i.e. inside the factory app. `readOnlyMode` lets `/api/offline-setup/*` through.
+- Logo: type from the first bytes (PNG/JPG signature), 1 MB cap (413 from the body parser, 400
+  from the service), `sharp` → 256 × 256 PNG with transparent padding, stored in
+  `offline_setup.logo`; `sharp` added to both `package.json` files (rule 9), loaded lazily.
+- Factory: `/sync/register` and `/sync/config` return `setup: { name, logo }`; `main.js` keeps it
+  in `config.json`, writes `branding.json`, uses the name as the window title, and the backend
+  serves it at `GET /branding` (only when `FMS_BRANDING_FILE` is set) for the login screen.
+- Frontend: `VITE_FMS_DESKTOP=1` in the desktop build (`stage.js` env only; `SKIP` untouched)
+  hides the page and its route inside the factory app. "Online" = an upload in the last 2 min,
+  until T1.5's heartbeat.
+
+**Evidence (16 Oct 2026)** — the real `readOnlyMode`, `authMiddleware`, `requireOwner`,
+`routes/offlineSetup`, `routes/customers`, `routes/sync` mounted in `server.js`'s order in a
+throwaway Express app (not `server.js`) on a throwaway embedded Postgres, `READ_ONLY_MODE=true`:
+- Check 1 ✅ — Owner, no main PC: `{"mainPc":null,...}` and the page shows the setup form
+  (headless Chrome screenshot). After `/sync/register` + one ingest: `mainPc` set, page shows the
+  overview (🟢 Online, last upload "just now", set-up time, name/logo editor, extra-PC address,
+  installer link, "Replace main PC…").
+- Check 2 ✅ — Manager and Guest: `GET` and `POST /setup-code` → `403 {"error":"Owner access
+  required"}`; in the browser both land on `/dashboard`, no "Offline Setup" in the sidebar.
+- Check 3 ✅ — Main PC: name/logo, code, installer steps; Extra PC: no download,
+  `http://fms-host:48620`, warning to set up the main PC first; with a main PC registered the
+  replace confirmation must be ticked before a code can be created.
+- Check 4 ✅ — a text file named `.png` → `400 The logo must be a PNG or JPG image.`; a 4.3 MB JPG
+  → `413 The logo must be 1 MB or smaller.`; an 800 × 400 PNG is stored as `png 256x256`.
+- Check 5 ✅ — with read-only on, Owner `PUT /settings`, `PUT /logo`, `POST /setup-code` succeed;
+  `POST /api/customers` → `403 This server is view-only...`.
+- `npm test` → `tests 9 / pass 9` (new: register and `/sync/config` carry the name and a 256 × 256
+  PNG logo; GIF and > 1 MB refused; `offline_setup` absent from the snapshot).
+- ⏳ Check 6: name in the title bar and name + logo on the login screen of a freshly installed
+  main PC.
+
 ---
 
 ### T1.3 — Bad-row quarantine — server
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 observed with `curl` + `psql` against the real
+`/sync` routes on a throwaway database and by `npm test`; not yet on the VPS (needs deploy).
+Until T1.4, the factory still deletes a rejected change from its outbox without quarantining it
+(the VPS keeps it in `sync_rejected`) — T1.10 depends on T1.4, so no install sees this
 
 **Problem (F15):** one bad row (typically a 23505 on a unique constraint) stalls all sync.
 
@@ -555,11 +701,39 @@ res.json({ applied: accepted.length, accepted, rejected });
 
 **Gate:** checks 2–5 observed.
 
+**Implementation notes:** `validateChange` / `applyChange` / `pkOf` split out of `ingest`; all
+schema checks run before any change is applied. A failing change is rolled back to its savepoint;
+class 22/23 → `sync_rejected` + `rejected[]`, anything else → the whole batch rolls back (500,
+retried). The response is `{ applied, accepted, rejected }`. Rejections are resolved by an
+accepted change with the same table + primary key (only looked up for tables that have open
+rejections; partial index `sync_rejected_open_idx`). `sync_rejected` registered in
+`PROTECTED_TABLES`, `VPS_ONLY_TABLES`, `EXCLUDED_TABLES`.
+
+**Evidence (16 Oct 2026)** — the real `routes/sync.js` (and the rest, in `server.js` order) in a
+throwaway Express app on a throwaway embedded Postgres; registered with a setup code first:
+- Check 1 — `products` row `900|Block|stock|6in` on the server; factory batch: customer 1,
+  the same product as id 1, customer 2.
+- Check 2 ✅ — `HTTP/1.1 200 OK`, `{"applied":2,"accepted":[101,103],"rejected":[{"id":102,
+  "table_name":"products","op":"I","code":"23505","constraint":"products_name_type_size_idx",...}]}`.
+  In `npm test` the factory's `SyncWorker` round over the same scenario reports `state: 'ok'`,
+  `pending: 0` (not "Problem").
+- Check 3 ✅ — `sync_rejected`: exactly one row, `products | I | 23505 |
+  products_name_type_size_idx | Key (name, type, COALESCE(size, ''))=(Block, stock, 6in) already
+  exists.`
+- Check 4 ✅ — `customers` on the server: `1 Ali`, `2 Bilal`; `products`: only `900 Block`.
+- Check 5 ✅ — a batch with op `"Z"` → `HTTP/1.1 409 Conflict {"error":"unknown op \"Z\""}`;
+  `sync_rejected` count 1 before and after; the valid change in the same batch was not applied.
+- `npm test` → `tests 11 / pass 11` (new: the 23505 scenario incl. resolving on a later accepted
+  change; the 409 batch). Sabotage: treating every row error as fatal → only the 23505 test fails.
+- ⏳ The same on the VPS after deploy.
+
 ---
 
 ### T1.4 — Bad-row quarantine — factory + retry (D11)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 2–6 verified by `npm test` (the real `SyncWorker`
+against `SyncController`, throwaway databases) and the Retry page in headless Chrome; not yet on a
+factory install with the deployed VPS (check 4's restart is simulated by a new worker)
 **Deps:** T1.3
 
 **Do:**
@@ -599,11 +773,45 @@ CREATE TABLE IF NOT EXISTS public.sync_quarantine (
 
 **Gate:** checks 2–6 observed.
 
+**Implementation notes:**
+- `SyncWorker.settle()` does step 2 in one transaction; `push()` now returns the reply. A reply
+  without `accepted`/`rejected` counts as all accepted; a reply that settles nothing ends the
+  round instead of looping. `sync_quarantine` and `sync_rejected` added to `EXCLUDED_TABLES`.
+- Retry: `backend/services/syncQuarantine.js` + `routes/syncQuarantine.js` at
+  `/api/sync-quarantine` (Owner), mounted only when `FMS_FACTORY=1` (set by `desktop/main.js`;
+  T3.1's `host.js` must set it too). Retry settles every open entry for the same row. Page
+  **Sync issues** (factory build only, Owner): what, item, plain-language reason, Retry.
+- Status (step 4): `SyncWorker` reports `quarantined`; the window title adds "N changes refused by
+  the server (see Sync issues)". T1.5 moves it into the status bar.
+
+**Evidence (16 Oct 2026):**
+- `npm test` → `tests 13 / pass 13`. New:
+  - *a refused change is quarantined on the factory, leaves the outbox, and is not re-sent* —
+    checks 1–5: `sync_quarantine` one row (`outbox_id` = the product's outbox id, `products | I |
+    23505 | products_name_type_size_idx`); the outbox no longer holds it; a new worker
+    ("restart") sends nothing more (`sync_rejected` stays at 1); an ordinary customer insert
+    drains, `quarantined` stays 1.
+  - *Retry re-sends the row as it is now and settles both sides* — check 6: conflicting product
+    deleted on the server → Retry → `{ op: 'U' }`, one outbox row carrying the later edit;
+    the next round applies it, `quarantined: 0`, no open `sync_rejected` rows; a second Retry →
+    nothing. A row deleted at the factory before Retry → `{ op: 'D' }`.
+- Sabotage: skipping the quarantine insert → both new tests fail; restored.
+- UI, factory-mode harness (change capture on, one quarantined product) + desktop Vite build in
+  headless Chrome: Owner sees **Sync issues** in the sidebar (no Offline Setup), the row "New ·
+  products | Block (#1) | Already exists on the online server (duplicate)", presses Retry → "Block
+  (#1) will be uploaded again with the next sync", list empty; DB: `sync_outbox` `products | U |
+  Block`, the quarantine entry resolved. Manager: redirected to `/dashboard`, API → `403 Owner
+  access required`. A repeated retry → `404`.
+- ⏳ On a factory install against the deployed VPS: the duplicate-product scenario end to end,
+  including a real app restart.
+
 ---
 
 ### T1.5 — Sync status on both versions + heartbeat
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 observed end to end with the real worker,
+status reporter and routes on throwaway databases (time shifted for the 5-min / 30-min
+thresholds); not yet on a factory install against the deployed VPS
 **Deps:** T1.1, T1.4 (quarantine count), T1.6 (relay state)
 
 **Migration 026 (VPS table, register per §4):**
@@ -648,11 +856,60 @@ CREATE TABLE IF NOT EXISTS sync_heartbeat (
 
 **Gate:** checks 1–4 observed.
 
+**Implementation notes:**
+- `desktop/lib/status.js`: `collectStatus()` (the shape above plus `error`, `relayError`,
+  `generatedAt`, `level`, `problems[]`) and `StatusReporter` (plain Node, for T3.1 too): rewrites
+  `status.json` every 15 s and on every sync report, heartbeat every 60 s, none once blocked.
+  `installSyncCapture` now returns `tablesWithoutPk`.
+- Levels: red = `blocked_not_writer`, `not_registered`, `error`, open quarantine, a table without
+  a primary key; amber = outbox older than 5 min, or WhatsApp alerts queued behind a relay
+  problem (T1.6); else green. The bar turns red if `status.json` is older than 90 s.
+- Factory backend: `GET /status` and `GET /branding` moved to `routes/factoryLocal.js` (public,
+  only when `desktop/main.js` sets the files). VPS: `POST /sync/heartbeat` (upload key),
+  `GET /api/sync-status` (any role, `routes/syncStatus.js`, `services/factoryStatus.js`), migration
+  026 registered in all four places. Offline Setup's 🟢/🔴 now uses the heartbeat too.
+- Registering a new PC clears `sync_heartbeat` (found during check 2: otherwise the online bar
+  would report the replaced PC's last heartbeat).
+- A heartbeat refused with `403 WriterNotRegistered` calls `SyncWorker.markNotWriter()` (via
+  `StatusReporter`'s `onNotWriter`), so a replaced PC turns red within a minute even when it has
+  nothing to upload; before, it found out only on its next upload. Once blocked, the worker
+  reports nothing but `blocked_not_writer`.
+- `frontend/src/components/SyncStatusBar.jsx` at the top of `<main>` in `Layout`; factory build
+  polls `GET /status` every 10 s, online every 60 s with the "View-only" label.
+
+**Evidence (16 Oct 2026)** — one script: throwaway embedded Postgres with a factory and a server
+database; "server" = real `routes/sync.js` + `routes/syncStatus.js`; "factory" = real `SyncWorker`,
+`StatusReporter` (refresh 2 s, heartbeat 3 s for the run) and `routes/factoryLocal.js`; both
+dashboards via Vite (desktop and online builds) in headless Chrome:
+- Check 1 ✅ — `curl` factory `/status` → `state, error, lastSyncedAt, outboxCount,
+  oldestOutboxAge, quarantineCount, relayState, relayError, whatsappQueued, oldestWhatsappAge,
+  tablesWithoutPk, generatedAt, level, problems, ageSec` (relay fields `null` in this run, which had
+  no relay; with one they carry T1.6's `status()`, covered in `npm test`).
+- Check 2 ✅ — healthy: `level green`, bar "● Uploaded ✓ Last upload just now". Server stopped, a
+  sale, outbox aged to 379 s → `state offline, level amber`, bar "Waiting: 1 change … No internet
+  — changes are waiting". Server back, a second PC registered → `state blocked_not_writer, level
+  red`, bar "Not uploading … This PC is no longer the registered main PC — nothing is uploaded".
+- Check 3 ✅ — `SELECT received_at, outbox_count, sync_state FROM sync_heartbeat` three times
+  3.5 s apart: `10:42:46 | 1 | ok`, `10:42:49 | 0 | ok`, `10:42:52 | 0 | ok` (every 60 s in the
+  app).
+- Check 4 ✅ — factory worker and reporter stopped; heartbeat 5 min old → `/api/sync-status`
+  `level amber`, bar "VIEW-ONLY Factory last updated 5 min ago"; 45 min → `level red`, "VIEW-ONLY
+  Factory offline — last updated 45 min ago" (timestamps shifted, not waited out).
+- Follow-up (16 Oct 2026): `npm test` → `tests 19 / pass 19`, new *an idle PC that was replaced
+  finds out from its heartbeat: worker stops, status red* (state `blocked_not_writer`, level red,
+  `status.json` updated). Sabotage: not calling `onNotWriter` → only that test fails.
+- `npm test` → `tests 15 / pass 15`. New: heartbeat needs the key and drives green/amber/red, a new
+  registration starts with no heartbeat; `collectStatus` green → amber (6-min backlog) → red
+  (blocked / quarantine / table without key), amber for stuck WhatsApp alerts.
+- ⏳ On a factory install against the deployed VPS, with real minutes.
+
 ---
 
 ### T1.6 — WhatsApp relay state + `whatsapp_dead`
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 observed on the real `AlertRelay` (throwaway
+database, fake n8n), not on a factory install with the VPS config changed; the 5-minute repeat of
+the no-target error and "still present after 10 min" were not waited out
 
 **Problem (F6):** relay failures are visible only in `fms.log`.
 
@@ -679,11 +936,41 @@ CREATE TABLE IF NOT EXISTS sync_heartbeat (
 **Gate:** all four observed; no code path deletes a `whatsapp_outbox` row without first inserting
 into `whatsapp_dead`.
 
+**Implementation notes:** `relay.status()` → `{ relayState, relayError, whatsappQueued,
+oldestWhatsappAge, whatsappDead }` for T1.5. State changes are logged once (`ERROR alerts: ...`
+for anything but `ok`). Expiry runs every round, with or without a target. Cloudflare's
+502/503/504/530 count as `offline`, any other non-2xx as `n8n_rejecting`. `whatsapp_dead` is in
+`EXCLUDED_TABLES`. `expireAfterMs` is a constructor option (default 48 h) so check 4 needs no
+code edit.
+
+**Evidence (16 Oct 2026)** — script driving the real `AlertRelay` (its HTTP endpoint on
+`ALERT_PORT`), throwaway embedded Postgres, a fake n8n on 127.0.0.1:
+- Check 1 ✅ — no target, a sale alert queued → `ERROR alerts: WhatsApp sending ok -> no_target:
+  no WhatsApp target from the server (N8N_PUBLIC_WEBHOOK_URL)` and `ERROR alerts: no WhatsApp
+  target configured on the server; ...`; status `relayState: "no_target"`, `whatsappQueued: 1`;
+  the row is still in `whatsapp_outbox` after three rounds.
+- Check 2 ✅ — target answering `403` → `ERROR alerts: WhatsApp sending no_target -> n8n_rejecting:
+  n8n replied 403: {"error":{"message":"(#131030) Recipient phone number not in allowed
+  list",...}}`; the same text in `status().relayError`; row still queued. Unreachable target →
+  `offline`, row still queued.
+- Check 3 ✅ — target answering 200 → `alerts: WhatsApp sending offline -> ok`, `alerts: sent 1
+  WhatsApp alert`; `whatsapp_outbox` empty; n8n received `["New sale #41: Rs 52,000"]`.
+- Check 4 ✅ — `expireAfterMs = 30 s`, no target: after 35 s → `ERROR alerts: 1 WhatsApp alert(s)
+  were never sent in time and moved to whatsapp_dead`; `whatsapp_outbox` empty, `whatsapp_dead`
+  `[{"id":"1","message":"Low stock: Cement (12 bags left)","last_error":"no WhatsApp target ..."}]`.
+- Gate ✅ — `grep` finds two deletes from `whatsapp_outbox`, both in `alertRelay.js`: the expiry,
+  which inserts into `whatsapp_dead` in the same statement (`WITH expired AS (DELETE ... RETURNING)
+  INSERT INTO whatsapp_dead`), and the removal of an alert n8n has just accepted with a 2xx (sent,
+  not lost). No other code path deletes or truncates it.
+- ⏳ On a factory install: unset `N8N_PUBLIC_WEBHOOK_URL` on the VPS, wait out 5 and 10 min.
+
 ---
 
 ### T1.7 — Config `reason` + startup warning
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–2 verified through the real `/sync/config`
+route chain in `npm test`; check 3 is a line in `server.js`'s startup, not run here (§0.3: no
+second `server.js`) — observe it in `docker compose logs backend` after deploy
 **Deps:** T1.6
 
 **Do:**
@@ -701,11 +988,24 @@ into `whatsapp_dead`.
 
 **Gate:** all three observed.
 
+**Implementation notes:** the factory keeps the reason as `cfg.whatsappReason` and the relay
+uses it as its `no_target` error (`getNoTargetReason`), so the status bar and T1.8's test button
+show "N8N_PUBLIC_WEBHOOK_URL unset" rather than a guess. Before the first `/sync/config` the
+relay says "no WhatsApp settings received from the server yet" (or "this PC is not registered").
+
+**Evidence (16 Oct 2026):**
+- Checks 1–2 ✅ — `npm test` (`tests 16 / pass 16`): unset → `{"whatsapp":null,"reason":
+  "N8N_PUBLIC_WEBHOOK_URL unset",...}`; set → `whatsapp.url` populated, no `reason` key.
+- ⏳ Check 3 — after deploy, with the variable unset: `⚠️⚠️⚠️  N8N_PUBLIC_WEBHOOK_URL is not set:
+  ...` once in the backend log, process still up. (The VPS has it set today, §1.)
+
 ---
 
 ### T1.8 — Test WhatsApp button + honest report button
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — outcomes 1 and 2 observed with the real relay and routes
+against a fake n8n; outcome 3 (a message actually arriving on the owner's WhatsApp through the
+live n8n and Meta) has to be done by the owner on a factory install
 **Deps:** T1.6, T1.7
 
 **Do:**
@@ -722,11 +1022,47 @@ into `whatsapp_dead`.
 
 **Gate:** all three outcomes observed and recorded.
 
+**Implementation notes:**
+- Relay `POST /test` (same secret as `/alert`): one message straight to n8n, never queued,
+  returns `{ ok, result: sent|no_target|rejected|offline, status, detail }` (`detail` = the
+  server's reason, or n8n's reply, first 500 chars) and updates the relay state the status bar
+  shows. Backend `POST /api/whatsapp-test` (Owner, factory only: `FMS_FACTORY=1`) builds a test
+  message and calls it. UI: a "WhatsApp alerts" card on the factory's **Sync issues** page
+  (sending state, queue size, **Send test WhatsApp**, result).
+- `sendWhatsApp` still never throws, but now resolves `{ ok, queued }` / `{ ok: false, error }`.
+  "Send Today's Report" returns 200 "queued on this PC…" on the factory, 200 "handed to WhatsApp
+  (n8n accepted it)" on a server that talks to n8n directly, 502 "The report was not sent: …" on
+  failure; the Reports page now shows that message (it showed nothing on success before).
+- n8n's webhook is in "last node" mode without "continue on fail", so when the Meta call fails
+  n8n answers `500 {"message":"Error in workflow"}`: the button shows that, not Meta's own text.
+  The Meta detail is in the n8n execution log. Showing it in FMS would need an error branch in
+  the n8n workflow — not in this task.
+
+**Evidence (16 Oct 2026)** — the real `AlertRelay`, `routes/whatsappTest.js`,
+`routes/reports.js`, `routes/factoryLocal.js` + `StatusReporter` on a throwaway database; a fake
+n8n; the page in headless Chrome (desktop build):
+- Outcome 1 ✅ — server reason `N8N_PUBLIC_WEBHOOK_URL unset` → `{"ok":false,"result":"no_target",
+  "detail":"N8N_PUBLIC_WEBHOOK_URL unset"}`; card: "Sending: Not set up on the online server
+  (N8N_PUBLIC_WEBHOOK_URL unset)", result "Not sent. N8N_PUBLIC_WEBHOOK_URL unset".
+- Outcome 2 ✅ — n8n failing the Meta call → `{"ok":false,"result":"rejected","status":500,
+  "detail":"{\"message\":\"Error in workflow\"}"}`; wrong webhook secret → `403 Authorization data
+  is wrong!`; card: "Sending: Refused by WhatsApp (n8n replied 403: Authorization data is wrong!)",
+  result "Not sent. Authorization data is wrong!".
+- Outcome 3 (simulated) — n8n 200 → `{"ok":true,"result":"sent",...,"detail":"{\"status\":\"sent\",
+  \"whatsappMessageId\":\"wamid...\"}"}`; card "Sending: Working", "Sent — check the owner's
+  WhatsApp."
+- Report button ✅ — via the relay → `200 {"success":true,"queued":true,"message":"Today's report is
+  queued on this PC…"}`; relay unreachable → `502 {"error":"The report was not sent: fetch failed"}`.
+- `npm test` → `tests 16 / pass 16` (no sync behaviour changed).
+- ⏳ Outcome 3 for real, on a factory install, by the owner.
+
 ---
 
 ### T1.9 — Faster upload + final upload on quit
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 verified on the real `SyncWorker` +
+change-capture trigger + `SyncController` in `npm test`; not yet by quitting the real app on a
+factory install against the deployed VPS
 **Deps:** T1.4
 
 **Do:**
@@ -744,6 +1080,31 @@ into `whatsapp_dead`.
    the app → it drains.
 
 **Gate:** all four observed.
+
+**Implementation notes:**
+- `fms_sync_capture()` does `PERFORM pg_notify('fms_sync_outbox', '')` after each outbox insert:
+  delivered only on commit, identical notifications in one transaction collapse.
+- `SyncWorker` keeps one `LISTEN fms_sync_outbox` connection (reconnects after 5 s; the 15 s idle
+  poll covers meanwhile). A notification starts a 2 s timer (`PUSH_DELAY_MS`); further ones in that
+  window are ignored, then `kick()`. A kick during a running round queues one more round right
+  after it, so nothing waits for the idle poll.
+- `finalUpload(timeoutMs)`: stops scheduling, waits for a running round, runs one more, and an
+  `AbortController` cuts the request in flight at the cap (`push()` uses
+  `AbortSignal.any([timeout, abort])`). Skipped when this PC is blocked. `main.js` `before-quit`
+  calls `finalUpload(10_000)` then `stop()`.
+
+**Evidence (16 Oct 2026)** — `npm test` → `tests 18 / pass 18`:
+- Check 1 ✅ — worker started and idle, one insert → on the server after **2038 ms** (idle poll
+  15 s).
+- Check 2 ✅ — five inserts in a row → the log shows exactly `["sync: pushed 5 change(s)"]`.
+- Check 3 ✅ — insert, then `finalUpload(10000)` straight away → 0 left, the row is on the server.
+- Check 4 ✅ — server never answering: `finalUpload(1000)` returns after ~1 s with 1 change left,
+  state `offline`, the row still in `sync_outbox`; a fresh worker round with the server back
+  drains it.
+- Sabotage: trigger without `pg_notify` → only the check 1/2 test fails (the change waits for
+  the 15 s poll); restored.
+- ⏳ On a factory install: sale + immediate quit with the network up and down, using the real
+  Electron `before-quit`.
 
 ---
 

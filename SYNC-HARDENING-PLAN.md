@@ -1,5 +1,8 @@
 # FMS Sync Hardening — Final Plan (agent-executable)
 
+> **Remaining live checks, in order:** `GO-LIVE-CHECKLIST.md` (deploy, release 1.0.2, first
+> factory install).
+>
 > **This is the single, final plan.** It merges the original sync hardening plan, the code review
 > (R1–R5) and the owner's Offline Setup requirements (agreed 13–16 Oct 2026) into one ordered list
 > of tasks. Every open option has been decided (§2). The review's corrections are built into the

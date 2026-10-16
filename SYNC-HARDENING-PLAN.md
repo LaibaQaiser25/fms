@@ -265,7 +265,7 @@ dumps to the owner's PC weekly (D15):
 
 ### T0.3 — Cleanup bundle
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — check 1 unverified: needs this branch merged and deployed to the VPS
 
 **Do:**
 1. **Restore `deploy/.env.n8n.example`** with placeholder values for exactly the keys
@@ -300,10 +300,12 @@ Order within the phase: deploy the VPS side of every task first, then release in
 
 ### T1.0 — Automated sync checks
 
-**Status:** NOT STARTED
+**Status:** DONE
 
 **Do:** `desktop/test/sync.test.js`, run with `npm test` in `desktop/` (add
-`"test": "node --test test/"` to `desktop/package.json` scripts; no new dependency, rule 3).
+`"test": "node --test \"test/*.test.js\""` to `desktop/package.json` scripts; no new dependency,
+rule 3). *A bare `node --test test/` fails on Node 22+, which reads the argument as a file glob, so
+the script names the files by glob; it needs Node 21 or later.*
 - Each run starts a **throwaway** embedded Postgres in a temp folder (the same `embedded-postgres`
   package the app uses, via `lib/database.js`), loads the schema and migrations, installs change
   capture, and deletes the folder afterwards. Run it with the FMS app closed: it uses the same
@@ -327,6 +329,22 @@ Order within the phase: deploy the VPS side of every task first, then release in
 3. After the run, no throwaway database folder is left behind.
 
 **Gate:** all three observed.
+
+**Evidence (16 Oct 2026, Node 26.7.0, Linux):**
+1. `npm test` → `tests 4 · pass 4 · fail 0` (≈5 s):
+   `✔ a factory change lands in sync_outbox: insert, update, delete, key change` ·
+   `✔ applying the same upload twice gives the same result (idempotent upsert)` ·
+   `✔ the worker uploads the outbox, and a delete removes the row on the server` ·
+   `✔ the factory refuses to replace its data while changes are still waiting`.
+2. Delete branch in `ingest` commented out → only the delete check fails
+   (`actual: ['Ali','Bilal'], expected: ['Bilal']`). `ON CONFLICT … DO UPDATE` removed → only the
+   idempotent-upsert check fails. Both restored; `git diff` on `SyncController.js` empty.
+3. After each run, no `fms-sync-test-*` folder is left in the temp directory and port 48621 is
+   free.
+
+Notes: the harness runs one embedded Postgres with two databases (`fms_db` = factory with
+capture, `vps_db` = server) and routes `SyncWorker`'s `fetch` to `SyncController`. Backend
+modules resolve from `desktop/node_modules` (`NODE_PATH`), like the staged copy in the app.
 
 ---
 

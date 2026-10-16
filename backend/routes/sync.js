@@ -39,6 +39,9 @@ router.post('/ingest', SyncController.ingest);
 // Settings for the factory app (WhatsApp webhook), fetched at startup + hourly
 router.get('/config', SyncController.getConfig);
 
+// "Still alive, N changes waiting" from the main PC, every minute (T1.5)
+router.post('/heartbeat', SyncController.heartbeat);
+
 // This server -> factory desktop app, once, on its first run (desktop/lib/snapshot.js)
 router.get('/snapshot', SyncController.snapshot);
 

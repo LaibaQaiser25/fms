@@ -14,7 +14,7 @@ const { Client } = require('pg');
 // empty, and they must never be captured or touched by the snapshot import.
 const EXCLUDED_TABLES = [
   'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox', 'whatsapp_dead', 'sync_quarantine',
-  'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected',
+  'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat',
 ];
 
 const SETUP_SQL = `
@@ -145,6 +145,8 @@ async function installSyncCapture({ databaseUrl, log }) {
 
     await client.query('COMMIT');
     log(`sync: change capture on ${tables.length} tables`);
+    // For the status bar (D12: a warning there, not a startup failure).
+    return { tablesWithoutPk: noPk.map((r) => r.relname) };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;

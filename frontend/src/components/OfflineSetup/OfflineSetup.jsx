@@ -271,14 +271,14 @@ function Overview({ data, onBranding, onError, onSetUp }) {
         <Card title="Main PC">
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-gray-700">
             <dt className="font-medium">Status</dt>
-            <dd>{mainPc.online ? '🟢 Online' : '🔴 No upload in the last 2 minutes'}</dd>
+            <dd>{mainPc.online ? '🟢 Online' : `🔴 Not heard from since ${mainPc.lastSeenAt ? ago(mainPc.lastSeenAt) : 'it was set up'}`}</dd>
             <dt className="font-medium">Last upload</dt>
             <dd>{mainPc.lastUploadAt ? `${ago(mainPc.lastUploadAt)} (${formatWhen(mainPc.lastUploadAt)})` : 'none yet'}</dd>
             <dt className="font-medium">Set up</dt>
             <dd>{formatWhen(mainPc.registeredAt)}</dd>
           </dl>
           <p className="text-sm text-gray-500 mt-3">
-            The main PC uploads whenever something changes, so a quiet PC can show 🔴 while it is fine.
+            The main PC checks in every minute while FMS is running and it has internet.
           </p>
         </Card>
 

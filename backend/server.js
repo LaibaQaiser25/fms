@@ -91,21 +91,10 @@ app.use(express.urlencoded({ extended: true }));
 // Auth routes
 app.use('/auth', authRoutes);
 
-// Factory PC only (desktop/main.js sets FMS_BRANDING_FILE): the setup name
-// and logo from Offline Setup, for the login screen. Public, like /auth/login.
-if (process.env.FMS_BRANDING_FILE) {
-  const fs = require('fs');
-  app.get('/branding', (req, res) => {
-    fs.readFile(process.env.FMS_BRANDING_FILE, 'utf8', (err, text) => {
-      if (err) return res.json({ name: null, logo: null });
-      try {
-        const { name = null, logo = null } = JSON.parse(text);
-        res.json({ name, logo });
-      } catch {
-        res.json({ name: null, logo: null });
-      }
-    });
-  });
+// Factory PC only (desktop/main.js sets these files): GET /status for the
+// status bar, GET /branding for the login screen. Public, like /auth/login.
+if (process.env.FMS_STATUS_FILE || process.env.FMS_BRANDING_FILE) {
+  app.use(require('./routes/factoryLocal'));
 }
 
 // Every /api/* route requires a valid JWT from here on
@@ -153,6 +142,11 @@ app.use('/api/offline-setup', requireOwner, offlineSetupRoutes);
 // online server refused, and retrying them. sync_quarantine exists only there.
 if (process.env.FMS_FACTORY === '1') {
   app.use('/api/sync-quarantine', requireOwner, require('./routes/syncQuarantine'));
+}
+
+// Any role, online server only: "Factory last updated X min ago" (T1.5)
+if (process.env.SYNC_TOKEN) {
+  app.use('/api/sync-status', require('./routes/syncStatus'));
 }
 
 // Scheduled reports write rows, so in read-only mode only the factory app runs

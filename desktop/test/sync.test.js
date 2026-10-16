@@ -85,6 +85,7 @@ const route = () => ({
   '/sync/ingest': [requireSyncWriter, SyncController.ingest],
   '/sync/snapshot': [requireSyncWriter, SyncController.snapshot],
   '/sync/config': [requireSyncWriter, SyncController.getConfig],
+  '/sync/heartbeat': [requireSyncWriter, SyncController.heartbeat],
 });
 const withKey = (key = uploadKey) => ({ 'X-Upload-Key': key });
 
@@ -569,5 +570,86 @@ test('Retry re-sends the row as it is now and settles both sides; a row deleted 
     assert.deepEqual((await outbox()).map((c) => [c.op, c.row_data]), [['D', { id: pipe.row_data.id }]]);
   } finally {
     await factoryPool.end();
+  }
+});
+
+// ---- T1.5: status on both sides + heartbeat ----
+
+test('the heartbeat needs the registered key and drives the online green / amber / red', async () => {
+  const { getFactoryStatus } = require(path.join(BACKEND_DIR, 'services', 'factoryStatus'));
+  const beat = { sync_state: 'ok', outbox_count: 3, oldest_outbox_age_sec: 42, quarantine_count: 1, whatsapp_state: 'no_target', whatsapp_oldest_age_sec: 7 };
+
+  const refused = await call(route()['/sync/heartbeat'], { body: beat, headers: withKey('0'.repeat(64)) });
+  assert.equal(refused.status, 403);
+
+  const ok = await call(route()['/sync/heartbeat'], { body: beat, headers: withKey() });
+  assert.equal(ok.status, 200);
+  const { rows: [hb] } = await vps.query('SELECT outbox_count, oldest_outbox_age_sec, quarantine_count, whatsapp_state, sync_state FROM sync_heartbeat');
+  assert.deepEqual(hb, { outbox_count: 3, oldest_outbox_age_sec: 42, quarantine_count: 1, whatsapp_state: 'no_target', sync_state: 'ok' });
+
+  let st = await getFactoryStatus(vpsPool);
+  assert.equal(st.level, 'green');
+  assert.equal(st.heartbeat.outboxCount, 3);
+
+  // Factory switched off: nothing heard for 5 min, then 45 min.
+  await vps.query("UPDATE sync_writer SET last_ingest_at = NULL");
+  await vps.query("UPDATE sync_heartbeat SET received_at = now() - interval '5 minutes'");
+  st = await getFactoryStatus(vpsPool);
+  assert.equal(st.level, 'amber');
+  await vps.query("UPDATE sync_heartbeat SET received_at = now() - interval '45 minutes'");
+  st = await getFactoryStatus(vpsPool);
+  assert.equal(st.level, 'red');
+  // An upload counts as being heard from, too.
+  await vps.query('UPDATE sync_writer SET last_ingest_at = now()');
+  assert.equal((await getFactoryStatus(vpsPool)).level, 'green');
+
+  // A newly registered PC starts with a clean slate, not the old PC's heartbeat.
+  uploadKey = await registerPC();
+  st = await getFactoryStatus(vpsPool);
+  assert.equal(st.heartbeat, null);
+  assert.equal(st.lastSeenAt, null);
+  assert.equal(st.level, 'red', 'not heard from yet');
+});
+
+test('factory status: green when uploaded, amber after 5 min of backlog, red when blocked, refused or a table has no key', async () => {
+  const { Pool } = require('pg');
+  const { collectStatus } = require('../lib/status');
+  const pool = new Pool({ connectionString: factoryUrl, max: 1 });
+  const fakeRelay = (relayState, whatsappQueued) => ({
+    status: async () => ({ relayState, relayError: null, whatsappQueued, oldestWhatsappAge: 0 }),
+  });
+  try {
+    await resetProducts();
+    let s = await collectStatus({ pool, sync: { state: 'ok' }, relay: fakeRelay('ok', 0) });
+    for (const k of ['state', 'lastSyncedAt', 'outboxCount', 'oldestOutboxAge', 'quarantineCount', 'relayState', 'whatsappQueued', 'oldestWhatsappAge', 'tablesWithoutPk']) {
+      assert.ok(k in s, `status has ${k}`);
+    }
+    assert.equal(s.level, 'green');
+
+    await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+    s = await collectStatus({ pool, sync: { state: 'ok' }, relay: null });
+    assert.equal(s.outboxCount, 1);
+    assert.equal(s.level, 'green', 'a fresh backlog is still green');
+    await factory.query("UPDATE sync_outbox SET created_at = now() - interval '6 minutes'");
+    s = await collectStatus({ pool, sync: { state: 'offline' }, relay: null });
+    assert.equal(s.level, 'amber');
+    assert.ok(s.oldestOutboxAge >= 360);
+
+    s = await collectStatus({ pool, sync: { state: 'blocked_not_writer' }, relay: null });
+    assert.equal(s.level, 'red');
+    s = await collectStatus({ pool, sync: { state: 'ok' }, relay: null, tablesWithoutPk: ['notes'] });
+    assert.equal(s.level, 'red');
+    assert.match(s.problems.join(' '), /notes/);
+
+    await factory.query("INSERT INTO sync_quarantine (table_name, op, row_data, code) VALUES ('products', 'I', '{}', '23505')");
+    s = await collectStatus({ pool, sync: { state: 'ok' }, relay: null });
+    assert.equal(s.quarantineCount, 1);
+    assert.equal(s.level, 'red');
+
+    await resetProducts();
+    s = await collectStatus({ pool, sync: { state: 'ok' }, relay: fakeRelay('n8n_rejecting', 2) });
+    assert.equal(s.level, 'amber', 'WhatsApp alerts stuck: amber');
+  } finally {
+    await pool.end();
   }
 });

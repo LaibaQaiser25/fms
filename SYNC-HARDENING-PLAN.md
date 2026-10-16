@@ -193,7 +193,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.2 | Offline Setup page, form, read-only exception | T1.1 | CODE DONE, CHECKS FAILING | checks 1–5 seen on a local harness + headless Chrome; VPS deploy + check 6 (Windows install) pending |
 | T1.3 | Bad-row quarantine — server | — | CODE DONE, CHECKS FAILING | 11/11 `npm test`; checks 1–5 seen on a local harness; VPS deploy pending |
 | T1.4 | Bad-row quarantine — factory + retry | T1.3 | CODE DONE, CHECKS FAILING | 13/13 `npm test`; Sync issues page + Retry seen in headless Chrome; Windows install pending |
-| T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | NOT STARTED | |
+| T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | CODE DONE, CHECKS FAILING | 15/15 `npm test`; checks 1–4 seen end to end on a local harness; VPS + Windows pending |
 | T1.6 | WhatsApp relay state + `whatsapp_dead` | — | CODE DONE, CHECKS FAILING | checks 1–4 seen on the real relay + fake n8n; factory install pending |
 | T1.7 | Config `reason` + startup warning | T1.6 | NOT STARTED | |
 | T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | NOT STARTED | |
@@ -783,7 +783,9 @@ CREATE TABLE IF NOT EXISTS public.sync_quarantine (
 
 ### T1.5 — Sync status on both versions + heartbeat
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 observed end to end with the real worker,
+status reporter and routes on throwaway databases (time shifted for the 5-min / 30-min
+thresholds); not yet on a factory install against the deployed VPS
 **Deps:** T1.1, T1.4 (quarantine count), T1.6 (relay state)
 
 **Migration 026 (VPS table, register per §4):**
@@ -827,6 +829,46 @@ CREATE TABLE IF NOT EXISTS sync_heartbeat (
 4. Stop the factory → the online bar turns amber, then red.
 
 **Gate:** checks 1–4 observed.
+
+**Implementation notes:**
+- `desktop/lib/status.js`: `collectStatus()` (the shape above plus `error`, `relayError`,
+  `generatedAt`, `level`, `problems[]`) and `StatusReporter` (plain Node, for T3.1 too): rewrites
+  `status.json` every 15 s and on every sync report, heartbeat every 60 s, none once blocked.
+  `installSyncCapture` now returns `tablesWithoutPk`.
+- Levels: red = `blocked_not_writer`, `not_registered`, `error`, open quarantine, a table without
+  a primary key; amber = outbox older than 5 min, or WhatsApp alerts queued behind a relay
+  problem (T1.6); else green. The bar turns red if `status.json` is older than 90 s.
+- Factory backend: `GET /status` and `GET /branding` moved to `routes/factoryLocal.js` (public,
+  only when `desktop/main.js` sets the files). VPS: `POST /sync/heartbeat` (upload key),
+  `GET /api/sync-status` (any role, `routes/syncStatus.js`, `services/factoryStatus.js`), migration
+  026 registered in all four places. Offline Setup's 🟢/🔴 now uses the heartbeat too.
+- Registering a new PC clears `sync_heartbeat` (found during check 2: otherwise the online bar
+  would report the replaced PC's last heartbeat).
+- `frontend/src/components/SyncStatusBar.jsx` at the top of `<main>` in `Layout`; factory build
+  polls `GET /status` every 10 s, online every 60 s with the "View-only" label.
+
+**Evidence (16 Oct 2026)** — one script: throwaway embedded Postgres with a factory and a server
+database; "server" = real `routes/sync.js` + `routes/syncStatus.js`; "factory" = real `SyncWorker`,
+`StatusReporter` (refresh 2 s, heartbeat 3 s for the run) and `routes/factoryLocal.js`; both
+dashboards via Vite (desktop and online builds) in headless Chrome:
+- Check 1 ✅ — `curl` factory `/status` → `state, error, lastSyncedAt, outboxCount,
+  oldestOutboxAge, quarantineCount, relayState, relayError, whatsappQueued, oldestWhatsappAge,
+  tablesWithoutPk, generatedAt, level, problems, ageSec` (relay fields `null` in this run, which had
+  no relay; with one they carry T1.6's `status()`, covered in `npm test`).
+- Check 2 ✅ — healthy: `level green`, bar "● Uploaded ✓ Last upload just now". Server stopped, a
+  sale, outbox aged to 379 s → `state offline, level amber`, bar "Waiting: 1 change … No internet
+  — changes are waiting". Server back, a second PC registered → `state blocked_not_writer, level
+  red`, bar "Not uploading … This PC is no longer the registered main PC — nothing is uploaded".
+- Check 3 ✅ — `SELECT received_at, outbox_count, sync_state FROM sync_heartbeat` three times
+  3.5 s apart: `10:42:46 | 1 | ok`, `10:42:49 | 0 | ok`, `10:42:52 | 0 | ok` (every 60 s in the
+  app).
+- Check 4 ✅ — factory worker and reporter stopped; heartbeat 5 min old → `/api/sync-status`
+  `level amber`, bar "VIEW-ONLY Factory last updated 5 min ago"; 45 min → `level red`, "VIEW-ONLY
+  Factory offline — last updated 45 min ago" (timestamps shifted, not waited out).
+- `npm test` → `tests 15 / pass 15`. New: heartbeat needs the key and drives green/amber/red, a new
+  registration starts with no heartbeat; `collectStatus` green → amber (6-min backlog) → red
+  (blocked / quarantine / table without key), amber for stuck WhatsApp alerts.
+- ⏳ On a factory install against the deployed VPS, with real minutes.
 
 ---
 

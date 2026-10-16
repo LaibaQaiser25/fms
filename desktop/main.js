@@ -21,6 +21,7 @@ const { installSyncCapture } = require('./lib/syncCapture');
 const { SyncWorker } = require('./lib/sync');
 const { registerWriter, downloadSnapshot, importSnapshot } = require('./lib/snapshot');
 const { AlertRelay } = require('./lib/alertRelay');
+const { StatusReporter } = require('./lib/status');
 
 const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
 
@@ -66,6 +67,10 @@ function loadConfig() {
 function saveConfig(cfg) {
   fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify(cfg, null, 2));
 }
+
+// The status bar on every terminal (T1.5) reads this through the backend's
+// GET /status (lib/status.js keeps it current and sends the heartbeat).
+const statusFile = path.join(userData, 'status.json');
 
 // Setup name and logo from Offline Setup on the online dashboard (T1.2): the
 // window title uses the name, and the login screen reads both through the
@@ -194,6 +199,9 @@ let backend = null;
 let mainWindow = null;
 let syncWorker = null;
 let alertRelay = null;
+let statusReporter = null;
+let lastSync = null;          // SyncWorker's last report, or { state: 'not_registered' }
+let tablesWithoutPk = [];
 let updateReady = null; // version string once an update has downloaded
 let quitting = false;
 
@@ -306,6 +314,8 @@ function startBackend({ databaseUrl, jwtSecret, relaySecret }) {
       FMS_STATIC_DIR: FRONTEND_DIR,
       // Setup name + logo for the login screen (GET /branding)
       FMS_BRANDING_FILE: brandingFile,
+      // Sync status for the status bar (GET /status)
+      FMS_STATUS_FILE: statusFile,
       // Factory-only routes, e.g. retrying changes the server refused (/api/sync-quarantine)
       FMS_FACTORY: '1',
       TZ: 'Asia/Karachi',
@@ -372,7 +382,7 @@ async function boot() {
   });
   await prepareSchema({ databaseUrl, backendDir: BACKEND_DIR, log });
   // Before ensureOwner, so even the very first account reaches the VPS.
-  await installSyncCapture({ databaseUrl, log });
+  ({ tablesWithoutPk } = await installSyncCapture({ databaseUrl, log }));
 
   if (!cfg.setupDone) {
     const result = await runSetup({ cfg, databaseUrl });
@@ -401,16 +411,32 @@ async function boot() {
       serverUrl: cfg.syncServerUrl,
       uploadKey: cfg.uploadKey,
       log,
-      onStatus: (status) => { syncStatusText = describeSync(status); refreshTitle(); },
+      onStatus: (status) => {
+        lastSync = status;
+        syncStatusText = describeSync(status);
+        refreshTitle();
+        statusReporter?.refresh();
+      },
     });
     syncWorker.start();
     refreshServerConfig(cfg);
     setInterval(() => refreshServerConfig(cfg), 3600_000);
   } else {
+    lastSync = { state: 'not_registered' };
     syncStatusText = 'Upload to server not set up';
     refreshTitle();
     log('sync: this PC is not registered (no uploadKey in config.json), changes are kept locally');
   }
+  statusReporter = new StatusReporter({
+    databaseUrl,
+    statusFile,
+    getSync: () => lastSync,
+    relay: alertRelay,
+    tablesWithoutPk,
+    upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
+    log,
+  });
+  statusReporter.start();
 
   if (owner) {
     const { response } = await dialog.showMessageBox(mainWindow, {
@@ -449,6 +475,7 @@ app.on('before-quit', (event) => {
   (async () => {
     try {
       if (syncWorker) await syncWorker.stop();
+      if (statusReporter) await statusReporter.stop();
       if (backend) backend.kill();
       if (alertRelay) await alertRelay.stop();
       await stopPostgres({ dataDir: pgDataDir, log });

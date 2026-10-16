@@ -46,9 +46,15 @@ the copy would never reach the factory.
 Only the registered main PC can upload. Registering another PC blocks the
 previous one at once.
 
-The window title shows the sync state: "All changes uploaded", "Offline — N
-changes waiting", "Sync problem" (details in the log), or "NOT UPLOADING: this
-PC is no longer the registered main PC".
+A status bar at the top of every page shows the sync state: "Uploaded ✓",
+"Waiting: N changes" or "Problem"/"Not uploading" — green, amber once changes
+have waited more than 5 minutes (or WhatsApp alerts are stuck), red when this
+PC is no longer the registered main PC, when the server refused changes (see
+Sync issues), or when a table can't sync. It reads `GET /status`
+(`lib/status.js` rewrites `%APPDATA%\FMS\status.json` every 15 s). The window
+title shows the same in short. Every minute the PC also sends a heartbeat to
+the VPS, so the online dashboard can show "Factory last updated X min ago"
+next to its permanent "View-only" label.
 
 ## Runbooks
 

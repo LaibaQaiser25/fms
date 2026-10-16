@@ -15,9 +15,9 @@ class NotWriter extends Error {}
 
 // Tables ingest refuses to write: the factory never sends these, and must not
 // be able to. Every VPS-only table is here too (SYNC-HARDENING-PLAN.md §4).
-const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected']);
+const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat']);
 // Server bookkeeping that is never copied to a factory by the snapshot.
-const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected']);
+const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat']);
 
 // The snapshot hands out every business table (password hashes included), so
 // only the PC that registered within the last hour may take it.
@@ -141,6 +141,8 @@ class SyncController {
           WHERE id = 1`,
         [writerId, hashUploadKey(uploadKey)]
       );
+      // The last heartbeat described the previous PC.
+      await client.query('DELETE FROM sync_heartbeat');
       await client.query('COMMIT');
       console.log(`🔑 Sync: main PC ${writerId} registered${prev?.writer_id ? `, replacing ${prev.writer_id}` : ''}`);
       const { name, logo } = await getSetup();
@@ -152,6 +154,25 @@ class SyncController {
     } finally {
       client.release();
     }
+  }
+
+  // Every minute from the registered main PC (desktop/main.js): it is alive,
+  // and how far behind it is. Counts only; never business data.
+  static async heartbeat(req, res) {
+    const b = req.body || {};
+    const int = (v) => (Number.isInteger(v) && v >= 0 ? v : null);
+    const text = (v) => (typeof v === 'string' ? v.slice(0, 40) : null);
+    await pool.query(
+      `INSERT INTO sync_heartbeat (id, received_at, outbox_count, oldest_outbox_age_sec, quarantine_count,
+                                   whatsapp_state, whatsapp_oldest_age_sec, sync_state)
+       VALUES (1, now(), $1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET
+         received_at = now(), outbox_count = $1, oldest_outbox_age_sec = $2, quarantine_count = $3,
+         whatsapp_state = $4, whatsapp_oldest_age_sec = $5, sync_state = $6`,
+      [int(b.outbox_count), int(b.oldest_outbox_age_sec), int(b.quarantine_count),
+       text(b.whatsapp_state), int(b.whatsapp_oldest_age_sec), text(b.sync_state)]
+    );
+    res.json({ ok: true });
   }
 
   // One-time copy of every business table, for the factory app's first run

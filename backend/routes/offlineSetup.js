@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
 const { createSetupCode } = require('../services/syncWriter');
+const { getFactoryStatus, GREEN_UNDER_MS } = require('../services/factoryStatus');
 const {
   SetupInputError, MAX_LOGO_BYTES, getSetup, setSetupName, setLogo, clearLogo,
 } = require('../services/offlineSetup');
@@ -13,9 +14,6 @@ const {
 
 // The address extra factory PCs open in a browser (T3.3).
 const EXTRA_PC_ADDRESS = process.env.FACTORY_LAN_ADDRESS || 'http://fms-host:48620';
-// A main PC that uploaded this recently counts as online. Until the heartbeat
-// (T1.5), an idle PC uploads nothing, so it can look offline while it isn't.
-const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 
 // Only on the online server: the factory PC's own backend has no SYNC_TOKEN,
 // and setting up PCs from there makes no sense.
@@ -28,18 +26,20 @@ router.use((req, res, next) => {
 
 // Everything the page shows: the form when mainPc is null, else the overview.
 router.get('/', async (req, res) => {
-  const [{ rows: [writer] }, setup] = await Promise.all([
-    pool.query('SELECT writer_id, registered_at, last_ingest_at FROM sync_writer WHERE id = 1'),
+  const [{ rows: [writer] }, setup, factory] = await Promise.all([
+    pool.query('SELECT writer_id, registered_at FROM sync_writer WHERE id = 1'),
     getSetup(),
+    getFactoryStatus(),
   ]);
-  const lastUpload = writer?.last_ingest_at || null;
   res.json({
     mainPc: writer?.writer_id
       ? {
           writerId: writer.writer_id,
           registeredAt: writer.registered_at,
-          lastUploadAt: lastUpload,
-          online: !!lastUpload && Date.now() - new Date(lastUpload).getTime() < ONLINE_WINDOW_MS,
+          lastUploadAt: factory.lastUploadAt,
+          lastSeenAt: factory.lastSeenAt,
+          // Heard from (heartbeat every minute, or an upload) in the last 2 minutes
+          online: !!factory.lastSeenAt && Date.now() - new Date(factory.lastSeenAt).getTime() < GREEN_UNDER_MS,
         }
       : null,
     setupName: setup.name,

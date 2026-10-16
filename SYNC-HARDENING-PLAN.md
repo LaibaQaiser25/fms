@@ -187,8 +187,8 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 |---|---|---|---|---|
 | T0.1 | Read-only mode off until go-live | — | NOT STARTED | ops |
 | T0.2 | VPS nightly backup + restore drill | — | NOT STARTED | |
-| T0.3 | Cleanup bundle | — | NOT STARTED | |
-| T1.0 | Automated sync checks | — | NOT STARTED | |
+| T0.3 | Cleanup bundle | — | CODE DONE, CHECKS FAILING | check 2 ✅ (local); check 1 needs the deploy |
+| T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
 | T1.1 | One-PC lock + one-time setup code | T1.0 | NOT STARTED | |
 | T1.2 | Offline Setup page, form, read-only exception | T1.1 | NOT STARTED | |
 | T1.3 | Bad-row quarantine — server | — | NOT STARTED | |
@@ -282,6 +282,14 @@ dumps to the owner's PC weekly (D15):
 2. A fresh `deploy/setup.sh` run gets past step 1 (env-file validation).
 
 **Gate:** both observed.
+
+**Evidence (16 Oct 2026):**
+- Check 2 ✅ — `setup.sh` step 1 run against copies of the example files: unfilled
+  `deploy/.env.n8n` → `ERROR: deploy/.env.n8n still has placeholders` (exit 1); filled →
+  `env files OK` (exit 0). The example has exactly `META_PHONE_NUMBER_ID META_WHATSAPP_TOKEN
+  N8N_WEBHOOK_SECRET WEBHOOK_URL WHATSAPP_TO_NUMBER`.
+- Check 1 ⏳ — route removed in code; `curl -i https://api.ittefaqbuilder.com/testautodeployment` →
+  404 still to be observed after deploy.
 
 ---
 

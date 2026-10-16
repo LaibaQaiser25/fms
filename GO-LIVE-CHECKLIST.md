@@ -64,6 +64,8 @@ Usage: `vpsql <<< "SELECT now();"`
 - [ ] **B3** 🖥 `sg docker -c "docker compose exec -T backend node -e \"require('sharp'); console.log('sharp ok')\""`
       → `sharp ok` (the logo resizer loads in the Alpine image).
 - [ ] **B4 · T0.3-1** 🖥 `curl -s -o /dev/null -w "%{http_code}\n" $API/testautodeployment` → `404`. ✍️
+- [ ] **B4b** 🖥 the nightly backup now exists at `~/fms/deploy/backup-db.sh`: simplify the crontab
+      line added in A4 to `30 2 * * * bash ~/fms/deploy/backup-db.sh` (`crontab -e`).
 - [ ] **B5** 🖥 `sg docker -c "docker compose logs --tail=80 backend"` → no `⚠️⚠️⚠️ N8N_PUBLIC_WEBHOOK_URL`
       warning (it is set), no crash loop; `docker compose ps backend` → `Up`.
 

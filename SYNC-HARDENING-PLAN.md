@@ -188,8 +188,8 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 
 | ID | Task | Deps | Status | Notes / evidence |
 |---|---|---|---|---|
-| T0.1 | Read-only mode off until go-live | — | NOT STARTED | ops |
-| T0.2 | VPS nightly backup + restore drill | — | CODE DONE, CHECKS FAILING | script tested on a throwaway DB; production run + crontab not yet done |
+| T0.1 | Read-only mode off until go-live | — | CODE DONE, CHECKS FAILING | ops; off since 16 Oct 11:35; checks 1, 3 ✅, check 2 (dashboard save) pending |
+| T0.2 | VPS nightly backup + restore drill | — | CODE DONE, CHECKS FAILING | production backup + drill ✅, cron ✅; copy to the owner's PC pending |
 | T0.3 | Cleanup bundle | — | CODE DONE, CHECKS FAILING | check 2 ✅ (local); check 1 needs the deploy |
 | T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
 | T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | 8/8 `npm test` (4 new); observed checks need deploy + a factory install |
@@ -222,7 +222,8 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 
 ### T0.1 — Read-only mode off until go-live (D5)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — done on 16 Oct 2026; check 2 (a save on the dashboard)
+needs the Owner
 
 **Do:** on the VPS, set `READ_ONLY_MODE=false` in `~/fms/backend/.env`, then
 `sg docker -c "docker compose up -d backend"`. Effects: data can be entered on the dashboard
@@ -236,12 +237,23 @@ itself up as a writer. T1.10 switches it back on.
 
 **Gate:** all three observed.
 
+**Evidence (16 Oct 2026, 11:35 CEST, run by Claude on the VPS):** `backend/.env` copied to
+`backend/.env.bak-2026-10-16`, `READ_ONLY_MODE=false`, `docker compose up -d backend` → Started.
+- Check 1 ✅ — `docker compose logs backend`: `✅ Cron jobs started`, no `🔒 READ_ONLY_MODE`;
+  `fms-backend-1 Up`.
+- Check 2 ⏳ — needs a real save by the Owner. Supporting (writes nothing): unauthenticated
+  `POST /api/customers` → `401 {"error":"No token provided"}`, i.e. it reaches auth instead of the
+  `403 This server is view-only`.
+- Check 3 ✅ — `curl -H "X-Sync-Token: …" $API/sync/snapshot` → `409 {"error":"Turn on
+  READ_ONLY_MODE=true on the server (and restart it) before copying data to the factory"}`.
+
 ---
 
 ### T0.2 — VPS nightly backup + restore drill
 
-**Status:** CODE DONE, CHECKS FAILING — checks 1, 2, 4 unverified on production: running the
-script against the live `fms_db` and adding the crontab line need the owner's go-ahead
+**Status:** CODE DONE, CHECKS FAILING — production backup, drill and cron done on 16 Oct 2026;
+still open: a dump on the owner's PC (check 4), and the Owner accepting check 3 from the
+throwaway run (or running it on production)
 
 **Do:** `deploy/backup-db.sh`:
 - dumps `fms_db` from the compose `db` container, which already has `pg_dump`:
@@ -275,9 +287,20 @@ dumps to the owner's PC weekly (D15):
   `drill FAILED: row counts ... differ`, exit 1.
 - Check 3 ✅ — `db` stopped → `service "db" is not running`, `backup FAILED: pg_dump failed`,
   exit 1, no `.partial` and no dump file left.
-- ⏳ Production: `bash deploy/backup-db.sh`, `bash deploy/backup-db.sh --drill`,
-  add `30 2 * * * bash ~/fms/deploy/backup-db.sh` to `crontab -e`, first weekly `scp` to the
-  owner's PC.
+
+**Evidence — production (16 Oct 2026, run by Claude on the VPS; the script from the
+`sync-hardening` worktree, whose compose file names the same project `fms`):**
+- Check 1 ✅ — `2026-10-16 11:31:56 +0200 backup OK: fms_db-2026-10-16.dump (120K)`, exit 0;
+  `~/fms-backups/fms_db-2026-10-16.dump` (119 613 bytes) and `backup.log`.
+- Check 2 ✅ — `drill OK: fms_db-2026-10-16.dump restored, 33 tables, all row counts match fms_db`
+  (customers 3, sales 6, invoices 7, users 3, reports 942, …); `fms_drill_*` gone afterwards.
+- Check 3 — not repeated on production (stops the live database); observed on the throwaway run
+  above.
+- Check 4 — cron ✅: `30 2 * * * f=$HOME/fms/deploy/backup-db.sh; [ -f "$f" ] ||
+  f=$HOME/fms/.claude/worktrees/sync-hardening/deploy/backup-db.sh; bash "$f" >/dev/null 2>&1`
+  (the worktree copy until this branch is deployed; simplify to `bash ~/fms/deploy/backup-db.sh`
+  after B in `GO-LIVE-CHECKLIST.md`). Dry run in a cron-like environment (`env -i … /bin/sh`) → exit
+  0, `backup OK`. ⏳ the `scp` to the owner's PC.
 
 ---
 

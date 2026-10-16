@@ -24,6 +24,7 @@ const Cashbook = lazy(() => import('./components/Cashbook'));
 const Reports = lazy(() => import('./components/Reports/Reports.jsx'));
 const Privacy = lazy(() => import('./components/Privacy/Privacy.jsx'));
 const OfflineSetup = lazy(() => import('./components/OfflineSetup/OfflineSetup.jsx'));
+const SyncIssues = lazy(() => import('./components/SyncIssues/SyncIssues.jsx'));
 
 // Public Pages
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -111,6 +112,8 @@ function App() {
                 <Route path="/privacy" element={lazyRoute(Privacy, <PageLoadingFallback />)} />
                 {/* Online dashboard only — never inside the factory app */}
                 {!IS_DESKTOP && <Route path="/offline-setup" element={lazyRoute(OfflineSetup, <PageLoadingFallback />)} />}
+                {/* Factory app only — changes the online server refused */}
+                {IS_DESKTOP && <Route path="/sync-issues" element={lazyRoute(SyncIssues, <PageLoadingFallback />)} />}
               </Route>
             </Route>
           </Route>

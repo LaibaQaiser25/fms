@@ -69,11 +69,11 @@ class SyncWorker {
         );
         if (rows.length === 0) break;
 
-        await this.push(rows);
-        await this.pool.query('DELETE FROM sync_outbox WHERE id = ANY ($1::bigint[])', [rows.map((r) => r.id)]);
-        await this.pool.query('UPDATE sync_state SET last_synced_at = now() WHERE id = 1');
-        this.log(`sync: pushed ${rows.length} change(s)`);
-        if (rows.length < BATCH_SIZE) break;
+        const reply = await this.push(rows);
+        const done = await this.settle(rows, reply);
+        // Nothing settled (a reply that names none of the ids): stop rather
+        // than send the same batch again in a tight loop.
+        if (done === 0 || rows.length < BATCH_SIZE) break;
       }
       this.lastError = null;
       await this.report('ok');
@@ -96,6 +96,43 @@ class SyncWorker {
       this.lastError = { message: err.message, offline };
       await this.report(offline ? 'offline' : 'error').catch(() => {});
       return RETRY_INTERVAL_MS;
+    }
+  }
+
+  // After a 2xx: in one local transaction, quarantine the changes the VPS set
+  // aside (sync_quarantine), drop accepted + rejected from the outbox, and
+  // note the time. Returns how many outbox rows were settled.
+  async settle(rows, reply) {
+    const sentIds = rows.map((r) => String(r.id));
+    // A reply without the lists (a server from before T1.3) accepted everything.
+    const accepted = Array.isArray(reply?.accepted) ? reply.accepted.map(String) : sentIds;
+    const rejected = Array.isArray(reply?.rejected) ? reply.rejected : [];
+    const byId = new Map(rows.map((r) => [String(r.id), r]));
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const r of rejected) {
+        const change = byId.get(String(r.id));
+        if (!change) continue;
+        await client.query(
+          `INSERT INTO sync_quarantine (outbox_id, table_name, op, row_data, code, constraint_name, detail)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [change.id, change.table_name, change.op, change.row_data, r.code || null, r.constraint || null, r.detail || null]
+        );
+        this.log(`sync: the server refused ${change.op} ${change.table_name} (outbox ${change.id}): ${r.code} ${r.constraint || ''} ${r.detail || ''} — set aside, see Sync issues`);
+      }
+      const settled = [...new Set([...accepted, ...rejected.map((r) => String(r.id))])].filter((id) => byId.has(id));
+      await client.query('DELETE FROM sync_outbox WHERE id = ANY ($1::bigint[])', [settled]);
+      await client.query('UPDATE sync_state SET last_synced_at = now() WHERE id = 1');
+      await client.query('COMMIT');
+      this.log(`sync: pushed ${settled.length} change(s)${rejected.length ? `, ${rejected.length} set aside` : ''}`);
+      return settled.length;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
   }
 
@@ -124,16 +161,19 @@ class SyncWorker {
       e.notWriter = res.status === 403 && body.code === 'WriterNotRegistered';
       throw e;
     }
+    try { return await res.json(); } catch { return null; }
   }
 
   async report(state) {
     const { rows } = await this.pool.query(
       `SELECT (SELECT count(*)::int FROM sync_outbox) AS pending,
+              (SELECT count(*)::int FROM sync_quarantine WHERE resolved_at IS NULL) AS quarantined,
               (SELECT last_synced_at FROM sync_state WHERE id = 1) AS last_synced_at`
     );
     this.onStatus({
       state,
       pending: rows[0].pending,
+      quarantined: rows[0].quarantined,
       lastSyncedAt: rows[0].last_synced_at,
       error: this.lastError?.message || null,
     });

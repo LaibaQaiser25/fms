@@ -276,8 +276,14 @@ function ago(date) {
   return `${Math.round(hours / 24)} days ago`;
 }
 
-function describeSync({ state, pending, lastSyncedAt }) {
+function describeSync({ state, pending, quarantined, lastSyncedAt }) {
   const waiting = pending === 1 ? '1 change waiting' : `${pending} changes waiting`;
+  // Changes the server refused (T1.4); the Owner retries them on the Sync issues page.
+  const setAside = quarantined ? `  —  ${quarantined} change${quarantined === 1 ? '' : 's'} refused by the server (see Sync issues)` : '';
+  return describeSyncState({ state, pending, lastSyncedAt, waiting }) + setAside;
+}
+
+function describeSyncState({ state, pending, lastSyncedAt, waiting }) {
   if (state === 'ok') return pending ? `Uploading ${waiting}` : `All changes uploaded (last upload ${ago(lastSyncedAt)})`;
   if (state === 'offline') return `Offline — ${waiting}, will upload when internet is back`;
   if (state === 'blocked_not_writer') return `NOT UPLOADING: this PC is no longer the registered main PC — ${waiting}`;
@@ -300,6 +306,8 @@ function startBackend({ databaseUrl, jwtSecret, relaySecret }) {
       FMS_STATIC_DIR: FRONTEND_DIR,
       // Setup name + logo for the login screen (GET /branding)
       FMS_BRANDING_FILE: brandingFile,
+      // Factory-only routes, e.g. retrying changes the server refused (/api/sync-quarantine)
+      FMS_FACTORY: '1',
       TZ: 'Asia/Karachi',
       // WhatsApp alerts go to the local relay, which queues them offline.
       N8N_WEBHOOK_URL: `http://127.0.0.1:${ALERT_PORT}/alert`,

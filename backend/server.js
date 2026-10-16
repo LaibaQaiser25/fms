@@ -149,6 +149,12 @@ app.use('/api/users', requireOwner, usersRoutes);
 // Owner-only — Offline Setup: registering the main factory PC (setup codes)
 app.use('/api/offline-setup', requireOwner, offlineSetupRoutes);
 
+// Owner-only, factory PC only (desktop/main.js sets FMS_FACTORY): changes the
+// online server refused, and retrying them. sync_quarantine exists only there.
+if (process.env.FMS_FACTORY === '1') {
+  app.use('/api/sync-quarantine', requireOwner, require('./routes/syncQuarantine'));
+}
+
 // Scheduled reports write rows, so in read-only mode only the factory app runs
 // them (their results reach this server through /sync like everything else).
 if (process.env.READ_ONLY_MODE === 'true') {

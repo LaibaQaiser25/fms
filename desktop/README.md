@@ -108,6 +108,11 @@ To release a new version:
 - `lib/sync.js` sends committed changes, in order, to `POST /sync/ingest`,
   which upserts/deletes by primary key (`backend/controllers/SyncController.js`).
   Re-sending a batch is harmless.
+- A change the VPS can't take (e.g. a duplicate product) doesn't stall the
+  rest: the VPS sets it aside (`sync_rejected`), this PC moves it from the
+  outbox to `sync_quarantine`, and the window title counts it. The Owner sees
+  it under **Sync issues** in the app and presses Retry once the cause is
+  fixed; that re-sends the row as it is now.
 - WhatsApp alerts go to a local relay (`lib/alertRelay.js`) that queues them
   and forwards to n8n when online; alerts held up more than 10 minutes are
   marked "Delayed", ones older than 48 h are dropped.

@@ -13,8 +13,8 @@ const { Client } = require('pg');
 // VPS-only table (SYNC-HARDENING-PLAN.md §4): migrations create them here too,
 // empty, and they must never be captured or touched by the snapshot import.
 const EXCLUDED_TABLES = [
-  'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox',
-  'sync_writer', 'setup_code', 'offline_setup',
+  'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox', 'sync_quarantine',
+  'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected',
 ];
 
 const SETUP_SQL = `
@@ -38,6 +38,23 @@ CREATE TABLE IF NOT EXISTS public.sync_state (
   last_synced_at timestamptz
 );
 INSERT INTO public.sync_state (id) VALUES (1) ON CONFLICT DO NOTHING;
+
+-- Changes the VPS refused (T1.3/T1.4: a unique/check/not-null violation or a
+-- value that doesn't fit there). Taken out of sync_outbox so the rest keeps
+-- flowing; the Owner can retry one from the Sync issues page, which re-sends
+-- the row as it is now (backend/services/syncQuarantine.js).
+CREATE TABLE IF NOT EXISTS public.sync_quarantine (
+  id              bigserial PRIMARY KEY,
+  outbox_id       bigint,
+  table_name      text NOT NULL,
+  op              char(1) NOT NULL,
+  row_data        jsonb NOT NULL,
+  code            text,
+  constraint_name text,
+  detail          text,
+  detected_at     timestamptz NOT NULL DEFAULT now(),
+  resolved_at     timestamptz
+);
 
 -- TG_ARGV = the table's primary key column names.
 CREATE OR REPLACE FUNCTION public.fms_sync_capture() RETURNS trigger

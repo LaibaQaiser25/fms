@@ -16,6 +16,7 @@ import {
   Users,
   Lock,
   MonitorCog,
+  CloudAlert,
   ChevronDown,
   X,
 } from 'lucide-react';
@@ -412,6 +413,16 @@ export default function Sidebar({ collapsed = false, mobileOpen = false, onClose
               {!effectiveCollapsed && 'Offline Setup'}
             </NavLink>
             <Tooltip label="Offline Setup" />
+          </div>
+        )}
+        {/* Factory app only: changes the online server refused (retry them here) */}
+        {isOwner && IS_DESKTOP && (
+          <div className="relative group">
+            <NavLink to="/sync-issues" className={link} style={navStyle}>
+              <CloudAlert size={19} strokeWidth={2} className="shrink-0" />
+              {!effectiveCollapsed && 'Sync issues'}
+            </NavLink>
+            <Tooltip label="Sync issues" />
           </div>
         )}
       </nav>

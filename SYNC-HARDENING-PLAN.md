@@ -192,7 +192,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | 8/8 `npm test` (4 new); observed checks need deploy + a factory install |
 | T1.2 | Offline Setup page, form, read-only exception | T1.1 | CODE DONE, CHECKS FAILING | checks 1–5 seen on a local harness + headless Chrome; VPS deploy + check 6 (Windows install) pending |
 | T1.3 | Bad-row quarantine — server | — | CODE DONE, CHECKS FAILING | 11/11 `npm test`; checks 1–5 seen on a local harness; VPS deploy pending |
-| T1.4 | Bad-row quarantine — factory + retry | T1.3 | NOT STARTED | |
+| T1.4 | Bad-row quarantine — factory + retry | T1.3 | CODE DONE, CHECKS FAILING | 13/13 `npm test`; Sync issues page + Retry seen in headless Chrome; Windows install pending |
 | T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | NOT STARTED | |
 | T1.6 | WhatsApp relay state + `whatsapp_dead` | — | NOT STARTED | |
 | T1.7 | Config `reason` + startup warning | T1.6 | NOT STARTED | |
@@ -705,7 +705,9 @@ throwaway Express app on a throwaway embedded Postgres; registered with a setup 
 
 ### T1.4 — Bad-row quarantine — factory + retry (D11)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 2–6 verified by `npm test` (the real `SyncWorker`
+against `SyncController`, throwaway databases) and the Retry page in headless Chrome; not yet on a
+factory install with the deployed VPS (check 4's restart is simulated by a new worker)
 **Deps:** T1.3
 
 **Do:**
@@ -744,6 +746,38 @@ CREATE TABLE IF NOT EXISTS public.sync_quarantine (
    applies it; `sync_quarantine.resolved_at` and the VPS `sync_rejected.resolved_at` are set.
 
 **Gate:** checks 2–6 observed.
+
+**Implementation notes:**
+- `SyncWorker.settle()` does step 2 in one transaction; `push()` now returns the reply. A reply
+  without `accepted`/`rejected` counts as all accepted; a reply that settles nothing ends the
+  round instead of looping. `sync_quarantine` and `sync_rejected` added to `EXCLUDED_TABLES`.
+- Retry: `backend/services/syncQuarantine.js` + `routes/syncQuarantine.js` at
+  `/api/sync-quarantine` (Owner), mounted only when `FMS_FACTORY=1` (set by `desktop/main.js`;
+  T3.1's `host.js` must set it too). Retry settles every open entry for the same row. Page
+  **Sync issues** (factory build only, Owner): what, item, plain-language reason, Retry.
+- Status (step 4): `SyncWorker` reports `quarantined`; the window title adds "N changes refused by
+  the server (see Sync issues)". T1.5 moves it into the status bar.
+
+**Evidence (16 Oct 2026):**
+- `npm test` → `tests 13 / pass 13`. New:
+  - *a refused change is quarantined on the factory, leaves the outbox, and is not re-sent* —
+    checks 1–5: `sync_quarantine` one row (`outbox_id` = the product's outbox id, `products | I |
+    23505 | products_name_type_size_idx`); the outbox no longer holds it; a new worker
+    ("restart") sends nothing more (`sync_rejected` stays at 1); an ordinary customer insert
+    drains, `quarantined` stays 1.
+  - *Retry re-sends the row as it is now and settles both sides* — check 6: conflicting product
+    deleted on the server → Retry → `{ op: 'U' }`, one outbox row carrying the later edit;
+    the next round applies it, `quarantined: 0`, no open `sync_rejected` rows; a second Retry →
+    nothing. A row deleted at the factory before Retry → `{ op: 'D' }`.
+- Sabotage: skipping the quarantine insert → both new tests fail; restored.
+- UI, factory-mode harness (change capture on, one quarantined product) + desktop Vite build in
+  headless Chrome: Owner sees **Sync issues** in the sidebar (no Offline Setup), the row "New ·
+  products | Block (#1) | Already exists on the online server (duplicate)", presses Retry → "Block
+  (#1) will be uploaded again with the next sync", list empty; DB: `sync_outbox` `products | U |
+  Block`, the quarantine entry resolved. Manager: redirected to `/dashboard`, API → `403 Owner
+  access required`. A repeated retry → `404`.
+- ⏳ On a factory install against the deployed VPS: the duplicate-product scenario end to end,
+  including a real app restart.
 
 ---
 

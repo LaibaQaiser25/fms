@@ -425,6 +425,7 @@ test('register and /sync/config hand the setup name and logo to the main PC', as
 async function resetProducts() {
   for (const db of [factory, vps]) await db.query('TRUNCATE products RESTART IDENTITY CASCADE');
   await factory.query('DELETE FROM sync_outbox');
+  await factory.query('TRUNCATE sync_quarantine');
   await vps.query('TRUNCATE sync_rejected');
 }
 
@@ -487,4 +488,86 @@ test('a schema problem (unknown op) still refuses the whole batch: 409, nothing 
   assert.match(res.body.error, /unknown op "X"/);
   assert.deepEqual(await customersOn(vps), []);
   assert.equal((await vps.query('SELECT count(*)::int AS n FROM sync_rejected')).rows[0].n, 0);
+});
+
+// ---- T1.4: the factory quarantines refused changes; the Owner retries ----
+
+test('a refused change is quarantined on the factory, leaves the outbox, and is not re-sent', async () => {
+  await resetProducts();
+  await vps.query("INSERT INTO products (id, name, type, size) VALUES (900, 'Block', 'stock', '6in')");
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+  await factory.query("INSERT INTO products (name, type, size) VALUES ('Block', 'stock', '6in')");
+  const productChange = (await outbox()).find((c) => c.table_name === 'products');
+
+  let status = await syncRound();
+  assert.equal(status.state, 'ok', status.error);
+  assert.equal(status.pending, 0, 'outbox drained');
+  assert.equal(status.quarantined, 1);
+
+  const { rows: q } = await factory.query('SELECT outbox_id, table_name, op, code, constraint_name, resolved_at FROM sync_quarantine');
+  assert.equal(q.length, 1);
+  assert.equal(String(q[0].outbox_id), String(productChange.id));
+  assert.deepEqual([q[0].table_name, q[0].op, q[0].code, q[0].constraint_name], ['products', 'I', '23505', 'products_name_type_size_idx']);
+  assert.deepEqual((await outbox()).filter((c) => c.id === productChange.id), [], 'gone from the outbox');
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali']);
+
+  // "Restart": a new worker sends nothing again.
+  status = await syncRound();
+  assert.equal(status.pending, 0);
+  assert.equal((await vps.query('SELECT count(*)::int AS n FROM sync_rejected')).rows[0].n, 1, 'not re-sent');
+
+  // An ordinary change: drains, quarantine count unchanged.
+  await factory.query("INSERT INTO customers (name) VALUES ('Bilal')");
+  status = await syncRound();
+  assert.equal(status.state, 'ok');
+  assert.equal(status.pending, 0);
+  assert.equal(status.quarantined, 1);
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal']);
+});
+
+test('Retry re-sends the row as it is now and settles both sides; a row deleted since is retried as a delete', async () => {
+  const { Pool } = require('pg');
+  const factoryPool = new Pool({ connectionString: factoryUrl, max: 2 });
+  const quarantine = require(path.join(BACKEND_DIR, 'services', 'syncQuarantine'));
+  try {
+    await resetProducts();
+    await vps.query("INSERT INTO products (id, name, type, size) VALUES (900, 'Block', 'stock', '6in')");
+    await factory.query("INSERT INTO products (name, type, size) VALUES ('Block', 'stock', '6in')");
+    await syncRound();
+    // The factory row changes after it was refused; retry must send this version.
+    await factory.query("UPDATE products SET description = 'edited later' WHERE name = 'Block'");
+    await syncRound(); // the update is refused too (same duplicate)
+    const open = await quarantine.listOpen(factoryPool);
+    assert.equal(open.length, 2);
+
+    // The Owner has the conflicting product removed online, then presses Retry.
+    await vps.query('DELETE FROM products WHERE id = 900');
+    assert.deepEqual(await quarantine.retry(open[0].id, factoryPool), { op: 'U' });
+    assert.equal((await quarantine.listOpen(factoryPool)).length, 0, 'every entry for that row is settled');
+    assert.equal(await quarantine.retry(open[0].id, factoryPool), null, 'a second retry does nothing');
+    const queued = await outbox();
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].op, 'U');
+    assert.equal(queued[0].row_data.description, 'edited later', 'the row as it is now');
+
+    const status = await syncRound();
+    assert.equal(status.state, 'ok', status.error);
+    assert.equal(status.quarantined, 0);
+    const { rows: online } = await vps.query('SELECT id, name, description FROM products');
+    assert.deepEqual(online, [{ id: queued[0].row_data.id, name: 'Block', description: 'edited later' }]);
+    const { rows: [rej] } = await vps.query('SELECT count(*)::int AS n FROM sync_rejected WHERE resolved_at IS NULL');
+    assert.equal(rej.n, 0, 'sync_rejected.resolved_at set on the server');
+
+    // Refused, then deleted at the factory before the retry -> retried as a delete.
+    await vps.query("INSERT INTO products (id, name, type, size) VALUES (901, 'Pipe', 'stock', '12in')");
+    await factory.query("INSERT INTO products (name, type, size) VALUES ('Pipe', 'stock', '12in')");
+    await syncRound();
+    const [pipe] = await quarantine.listOpen(factoryPool);
+    await factory.query("DELETE FROM products WHERE name = 'Pipe'");
+    await syncRound();
+    assert.deepEqual(await quarantine.retry(pipe.id, factoryPool), { op: 'D' });
+    assert.deepEqual((await outbox()).map((c) => [c.op, c.row_data]), [['D', { id: pipe.row_data.id }]]);
+  } finally {
+    await factoryPool.end();
+  }
 });

@@ -1,5 +1,8 @@
 # Go-live checklist — deploy `sync-hardening`, release 1.0.2, first factory install
 
+Shared, tickable version (progress and pasted evidence saved for everyone with access):
+https://claude.ai/artifact/QnPzFqsNNtCuWDrYrpMDWT
+
 Companion to `SYNC-HARDENING-PLAN.md`. It puts the remaining **live** checks of T0.1–T1.10 in the
 order they can actually be done. Each step names the plan check it settles (e.g. **T1.1-4** =
 T1.1, check 4). Paste what you see at each ✍️ into the task's *Evidence* in the plan (or hand it
@@ -161,7 +164,7 @@ Usage: `vpsql <<< "SELECT now();"`
 
 - [ ] **D1** `git pull` on `main`; in `desktop/`: `npm ci` (installs the Windows builds of
       Postgres, sharp, Electron).
-- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 18 / pass 18 / fail 0`. ✍️ paste the summary.
+- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 19 / pass 19 / fail 0`. ✍️ paste the summary.
 - [ ] **D3** Set `"version": "1.0.2"` in `desktop/package.json`, commit + push
       ("Release 1.0.2"), then `npm run dist` → `dist/FMS-Setup-1.0.2.exe`, `.blockmap`, `latest.yml`.
 - [ ] **D4** Upload (PowerShell, in `desktop/`), `latest.yml` last:

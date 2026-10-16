@@ -115,4 +115,7 @@ To release a new version:
   fixed; that re-sends the row as it is now.
 - WhatsApp alerts go to a local relay (`lib/alertRelay.js`) that queues them
   and forwards to n8n when online; alerts held up more than 10 minutes are
-  marked "Delayed", ones older than 48 h are dropped.
+  marked "Delayed". Ones still unsent after 48 h are not sent but moved,
+  intact, to `whatsapp_dead` (kept 30 days). The relay's state — `ok`,
+  `no_target`, `n8n_rejecting` (with n8n's reply), `offline` — is logged on
+  every change and shown in the status.

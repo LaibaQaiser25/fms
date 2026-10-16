@@ -194,7 +194,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.3 | Bad-row quarantine — server | — | CODE DONE, CHECKS FAILING | 11/11 `npm test`; checks 1–5 seen on a local harness; VPS deploy pending |
 | T1.4 | Bad-row quarantine — factory + retry | T1.3 | CODE DONE, CHECKS FAILING | 13/13 `npm test`; Sync issues page + Retry seen in headless Chrome; Windows install pending |
 | T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | NOT STARTED | |
-| T1.6 | WhatsApp relay state + `whatsapp_dead` | — | NOT STARTED | |
+| T1.6 | WhatsApp relay state + `whatsapp_dead` | — | CODE DONE, CHECKS FAILING | checks 1–4 seen on the real relay + fake n8n; factory install pending |
 | T1.7 | Config `reason` + startup warning | T1.6 | NOT STARTED | |
 | T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | NOT STARTED | |
 | T1.9 | Faster upload + final upload on quit | T1.4 | NOT STARTED | |
@@ -832,7 +832,9 @@ CREATE TABLE IF NOT EXISTS sync_heartbeat (
 
 ### T1.6 — WhatsApp relay state + `whatsapp_dead`
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 observed on the real `AlertRelay` (throwaway
+database, fake n8n), not on a factory install with the VPS config changed; the 5-minute repeat of
+the no-target error and "still present after 10 min" were not waited out
 
 **Problem (F6):** relay failures are visible only in `fms.log`.
 
@@ -858,6 +860,34 @@ CREATE TABLE IF NOT EXISTS sync_heartbeat (
 
 **Gate:** all four observed; no code path deletes a `whatsapp_outbox` row without first inserting
 into `whatsapp_dead`.
+
+**Implementation notes:** `relay.status()` → `{ relayState, relayError, whatsappQueued,
+oldestWhatsappAge, whatsappDead }` for T1.5. State changes are logged once (`ERROR alerts: ...`
+for anything but `ok`). Expiry runs every round, with or without a target. Cloudflare's
+502/503/504/530 count as `offline`, any other non-2xx as `n8n_rejecting`. `whatsapp_dead` is in
+`EXCLUDED_TABLES`. `expireAfterMs` is a constructor option (default 48 h) so check 4 needs no
+code edit.
+
+**Evidence (16 Oct 2026)** — script driving the real `AlertRelay` (its HTTP endpoint on
+`ALERT_PORT`), throwaway embedded Postgres, a fake n8n on 127.0.0.1:
+- Check 1 ✅ — no target, a sale alert queued → `ERROR alerts: WhatsApp sending ok -> no_target:
+  no WhatsApp target from the server (N8N_PUBLIC_WEBHOOK_URL)` and `ERROR alerts: no WhatsApp
+  target configured on the server; ...`; status `relayState: "no_target"`, `whatsappQueued: 1`;
+  the row is still in `whatsapp_outbox` after three rounds.
+- Check 2 ✅ — target answering `403` → `ERROR alerts: WhatsApp sending no_target -> n8n_rejecting:
+  n8n replied 403: {"error":{"message":"(#131030) Recipient phone number not in allowed
+  list",...}}`; the same text in `status().relayError`; row still queued. Unreachable target →
+  `offline`, row still queued.
+- Check 3 ✅ — target answering 200 → `alerts: WhatsApp sending offline -> ok`, `alerts: sent 1
+  WhatsApp alert`; `whatsapp_outbox` empty; n8n received `["New sale #41: Rs 52,000"]`.
+- Check 4 ✅ — `expireAfterMs = 30 s`, no target: after 35 s → `ERROR alerts: 1 WhatsApp alert(s)
+  were never sent in time and moved to whatsapp_dead`; `whatsapp_outbox` empty, `whatsapp_dead`
+  `[{"id":"1","message":"Low stock: Cement (12 bags left)","last_error":"no WhatsApp target ..."}]`.
+- Gate ✅ — `grep` finds two deletes from `whatsapp_outbox`, both in `alertRelay.js`: the expiry,
+  which inserts into `whatsapp_dead` in the same statement (`WITH expired AS (DELETE ... RETURNING)
+  INSERT INTO whatsapp_dead`), and the removal of an alert n8n has just accepted with a 2xx (sent,
+  not lost). No other code path deletes or truncates it.
+- ⏳ On a factory install: unset `N8N_PUBLIC_WEBHOOK_URL` on the VPS, wait out 5 and 10 min.
 
 ---
 

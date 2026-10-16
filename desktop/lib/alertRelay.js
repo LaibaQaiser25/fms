@@ -2,7 +2,15 @@
 // N8N_WEBHOOK_URL at this local relay, which stores each alert in
 // whatsapp_outbox straight away and forwards it to n8n (on the VPS) whenever
 // the internet is up. Alerts held back for a while are marked as delayed;
-// very old ones are dropped rather than sending stale "low stock" news.
+// very old ones are not sent (stale "low stock" news) but moved, intact, to
+// whatsapp_dead (kept 30 days) — nothing unsent is ever just deleted.
+//
+// status() tells the factory status bar (T1.5) how sending is going:
+//   ok            — sending, or nothing to send
+//   no_target     — the server hasn't given a WhatsApp target (GET /sync/config)
+//   n8n_rejecting — n8n answered with an error (e.g. Meta refused the number);
+//                   its reply is kept in lastError
+//   offline       — n8n can't be reached
 const http = require('http');
 const crypto = require('crypto');
 const { Pool } = require('pg');
@@ -10,19 +18,54 @@ const { ALERT_PORT } = require('./ports');
 
 const SEND_INTERVAL_MS = 30_000;
 const DELAYED_AFTER_MS = 10 * 60_000;
-const DROP_AFTER_MS = 48 * 3600_000;
+const EXPIRE_AFTER_MS = 48 * 3600_000;
+const DEAD_KEPT_DAYS = 30;
+const NO_TARGET_LOG_MS = 5 * 60_000;
+// Cloudflare's "can't reach the origin" codes: n8n is unreachable, not refusing.
+const UNREACHABLE_STATUSES = [502, 503, 504, 530];
 
 class AlertRelay {
   // getTarget() -> { url, secret } | null, read on every send so config
   // refreshed from the server takes effect without a restart.
-  constructor({ databaseUrl, relaySecret, getTarget, log }) {
+  // expireAfterMs: only lowered for testing the expiry (T1.6 check 4).
+  constructor({ databaseUrl, relaySecret, getTarget, log, expireAfterMs = EXPIRE_AFTER_MS }) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 2 });
     this.relaySecret = relaySecret;
     this.getTarget = getTarget;
     this.log = log;
+    this.expireAfterMs = expireAfterMs;
     this.server = null;
     this.timer = null;
     this.sending = null;
+    this.state = 'ok';
+    this.lastError = null;       // n8n's reply (first 500 chars) or the network error
+    this.noTargetLoggedAt = 0;
+  }
+
+  setState(state, error = null) {
+    if (state !== this.state) {
+      const detail = error ? `: ${error}` : '';
+      this.log(`${state === 'ok' ? '' : 'ERROR '}alerts: WhatsApp sending ${this.state} -> ${state}${detail}`);
+    }
+    this.state = state;
+    this.lastError = error;
+  }
+
+  // For the status bar and the heartbeat (T1.5).
+  async status() {
+    const { rows: [r] } = await this.pool.query(
+      `SELECT count(*)::int AS queued,
+              COALESCE(EXTRACT(EPOCH FROM now() - min(created_at)), 0)::int AS oldest_age_sec,
+              (SELECT count(*)::int FROM whatsapp_dead) AS dead
+         FROM whatsapp_outbox`
+    );
+    return {
+      relayState: this.state,
+      relayError: this.lastError,
+      whatsappQueued: r.queued,
+      oldestWhatsappAge: r.oldest_age_sec,
+      whatsappDead: r.dead,
+    };
   }
 
   async start() {
@@ -32,6 +75,16 @@ class AlertRelay {
         id         bigserial PRIMARY KEY,
         message    text NOT NULL,
         created_at timestamptz NOT NULL DEFAULT now()
+      )`);
+    // Alerts that expired unsent, kept DEAD_KEPT_DAYS for the record.
+    // Also local only (syncCapture.EXCLUDED_TABLES).
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS public.whatsapp_dead (
+        id         bigint PRIMARY KEY,      -- its whatsapp_outbox id
+        message    text NOT NULL,
+        created_at timestamptz NOT NULL,
+        expired_at timestamptz NOT NULL DEFAULT now(),
+        last_error text                     -- why it never went, if known
       )`);
 
     this.server = http.createServer((req, res) => this.receive(req, res));
@@ -79,15 +132,41 @@ class AlertRelay {
     this.sending = this.sendQueued().finally(() => { this.sending = null; });
   }
 
-  async sendQueued() {
-    const target = this.getTarget();
-    if (!target) return; // server hasn't told us where to send yet; keep queued
-
-    const dropped = await this.pool.query(
-      `DELETE FROM whatsapp_outbox WHERE created_at < now() - $1::interval`,
-      [`${DROP_AFTER_MS / 1000} seconds`]
+  // Too old to be worth sending: moved, in one statement, to whatsapp_dead —
+  // the delete and the insert commit together or not at all.
+  async expireOld() {
+    const moved = await this.pool.query(
+      `WITH expired AS (
+         DELETE FROM whatsapp_outbox WHERE created_at < now() - $1::interval
+         RETURNING id, message, created_at
+       )
+       INSERT INTO whatsapp_dead (id, message, created_at, last_error)
+       SELECT id, message, created_at, $2 FROM expired
+       ON CONFLICT (id) DO NOTHING`,
+      [`${Math.round(this.expireAfterMs / 1000)} seconds`, this.lastError || (this.state === 'ok' ? null : this.state)]
     );
-    if (dropped.rowCount) this.log(`alerts: dropped ${dropped.rowCount} alert(s) older than 48 h`);
+    if (moved.rowCount) {
+      this.log(`ERROR alerts: ${moved.rowCount} WhatsApp alert(s) were never sent in time and moved to whatsapp_dead (state ${this.state})`);
+    }
+    await this.pool.query(`DELETE FROM whatsapp_dead WHERE expired_at < now() - interval '${DEAD_KEPT_DAYS} days'`);
+  }
+
+  async sendQueued() {
+    await this.expireOld();
+
+    const target = this.getTarget();
+    if (!target) {
+      // The server hasn't given a target yet: keep everything queued, and
+      // say so loudly but not every 30 s.
+      this.setState('no_target', 'no WhatsApp target from the server (N8N_PUBLIC_WEBHOOK_URL)');
+      if (Date.now() - this.noTargetLoggedAt >= NO_TARGET_LOG_MS) {
+        const { rows: [{ n }] } = await this.pool.query('SELECT count(*)::int AS n FROM whatsapp_outbox');
+        this.log(`ERROR alerts: no WhatsApp target configured on the server; ${n} alert(s) queued, not sent`);
+        this.noTargetLoggedAt = Date.now();
+      }
+      return;
+    }
+    this.noTargetLoggedAt = 0;
 
     const { rows } = await this.pool.query('SELECT id, message, created_at FROM whatsapp_outbox ORDER BY id LIMIT 20');
     for (const row of rows) {
@@ -95,24 +174,35 @@ class AlertRelay {
       const message = age > DELAYED_AFTER_MS
         ? `(Delayed: from ${new Date(row.created_at).toLocaleString('en-PK', { timeZone: 'Asia/Karachi', dateStyle: 'medium', timeStyle: 'short' })}, sent when the factory PC came online)\n${row.message}`
         : row.message;
+      let res;
       try {
-        const res = await fetch(target.url, {
+        res = await fetch(target.url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-FMS-Secret': target.secret },
           body: JSON.stringify({ message }),
           signal: AbortSignal.timeout(20_000),
         });
-        if (!res.ok) throw new Error(`n8n replied ${res.status}`);
       } catch (err) {
-        // Offline or n8n down: stop here, keep order, try again next round.
-        if (!this.lastFailed) this.log(`alerts: sending paused (${err.cause?.code || err.message}), will retry`);
-        this.lastFailed = true;
+        // No internet / DNS / timeout: stop here, keep order, retry next round.
+        const cause = err.cause?.code || err.cause?.errors?.[0]?.code || err.cause?.message;
+        this.setState('offline', cause || err.message);
         return;
       }
-      this.lastFailed = false;
+      if (!res.ok) {
+        // Keep it queued either way. A refusal (e.g. Meta rejecting the
+        // number) shows its reply in the status instead of only in a log.
+        const body = (await res.text().catch(() => '')).slice(0, 500);
+        const detail = `n8n replied ${res.status}${body ? `: ${body}` : ''}`;
+        this.setState(UNREACHABLE_STATUSES.includes(res.status) ? 'offline' : 'n8n_rejecting', detail);
+        return;
+      }
+      // Delivered to n8n: the only path that removes a queued alert without
+      // moving it to whatsapp_dead.
       await this.pool.query('DELETE FROM whatsapp_outbox WHERE id = $1', [row.id]);
+      this.setState('ok');
       this.log('alerts: sent 1 WhatsApp alert');
     }
+    if (rows.length === 0) this.setState('ok');
   }
 }
 

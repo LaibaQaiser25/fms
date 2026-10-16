@@ -13,7 +13,7 @@ const { Client } = require('pg');
 // VPS-only table (SYNC-HARDENING-PLAN.md §4): migrations create them here too,
 // empty, and they must never be captured or touched by the snapshot import.
 const EXCLUDED_TABLES = [
-  'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox', 'sync_quarantine',
+  'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox', 'whatsapp_dead', 'sync_quarantine',
   'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected',
 ];
 

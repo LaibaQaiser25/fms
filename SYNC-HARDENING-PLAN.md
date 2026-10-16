@@ -196,7 +196,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | CODE DONE, CHECKS FAILING | 15/15 `npm test`; checks 1–4 seen end to end on a local harness; VPS + Windows pending |
 | T1.6 | WhatsApp relay state + `whatsapp_dead` | — | CODE DONE, CHECKS FAILING | checks 1–4 seen on the real relay + fake n8n; factory install pending |
 | T1.7 | Config `reason` + startup warning | T1.6 | CODE DONE, CHECKS FAILING | checks 1–2 by `npm test`; check 3 (startup log) needs the deploy |
-| T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | NOT STARTED | |
+| T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | CODE DONE, CHECKS FAILING | outcomes 1–2 seen with a fake n8n; 3 needs a real message to the owner's WhatsApp |
 | T1.9 | Faster upload + final upload on quit | T1.4 | NOT STARTED | |
 | T1.10 | Release 1.0.2 + first factory install | T0.2, T1.0–T1.9 | NOT STARTED | go-live |
 | T2.1 | VPS send-only report scheduler | T1.10 | NOT STARTED | |
@@ -970,7 +970,9 @@ relay says "no WhatsApp settings received from the server yet" (or "this PC is n
 
 ### T1.8 — Test WhatsApp button + honest report button
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — outcomes 1 and 2 observed with the real relay and routes
+against a fake n8n; outcome 3 (a message actually arriving on the owner's WhatsApp through the
+live n8n and Meta) has to be done by the owner on a factory install
 **Deps:** T1.6, T1.7
 
 **Do:**
@@ -986,6 +988,40 @@ relay says "no WhatsApp settings received from the server yet" (or "this PC is n
 3. Everything correct → the message arrives on the owner's WhatsApp.
 
 **Gate:** all three outcomes observed and recorded.
+
+**Implementation notes:**
+- Relay `POST /test` (same secret as `/alert`): one message straight to n8n, never queued,
+  returns `{ ok, result: sent|no_target|rejected|offline, status, detail }` (`detail` = the
+  server's reason, or n8n's reply, first 500 chars) and updates the relay state the status bar
+  shows. Backend `POST /api/whatsapp-test` (Owner, factory only: `FMS_FACTORY=1`) builds a test
+  message and calls it. UI: a "WhatsApp alerts" card on the factory's **Sync issues** page
+  (sending state, queue size, **Send test WhatsApp**, result).
+- `sendWhatsApp` still never throws, but now resolves `{ ok, queued }` / `{ ok: false, error }`.
+  "Send Today's Report" returns 200 "queued on this PC…" on the factory, 200 "handed to WhatsApp
+  (n8n accepted it)" on a server that talks to n8n directly, 502 "The report was not sent: …" on
+  failure; the Reports page now shows that message (it showed nothing on success before).
+- n8n's webhook is in "last node" mode without "continue on fail", so when the Meta call fails
+  n8n answers `500 {"message":"Error in workflow"}`: the button shows that, not Meta's own text.
+  The Meta detail is in the n8n execution log. Showing it in FMS would need an error branch in
+  the n8n workflow — not in this task.
+
+**Evidence (16 Oct 2026)** — the real `AlertRelay`, `routes/whatsappTest.js`,
+`routes/reports.js`, `routes/factoryLocal.js` + `StatusReporter` on a throwaway database; a fake
+n8n; the page in headless Chrome (desktop build):
+- Outcome 1 ✅ — server reason `N8N_PUBLIC_WEBHOOK_URL unset` → `{"ok":false,"result":"no_target",
+  "detail":"N8N_PUBLIC_WEBHOOK_URL unset"}`; card: "Sending: Not set up on the online server
+  (N8N_PUBLIC_WEBHOOK_URL unset)", result "Not sent. N8N_PUBLIC_WEBHOOK_URL unset".
+- Outcome 2 ✅ — n8n failing the Meta call → `{"ok":false,"result":"rejected","status":500,
+  "detail":"{\"message\":\"Error in workflow\"}"}`; wrong webhook secret → `403 Authorization data
+  is wrong!`; card: "Sending: Refused by WhatsApp (n8n replied 403: Authorization data is wrong!)",
+  result "Not sent. Authorization data is wrong!".
+- Outcome 3 (simulated) — n8n 200 → `{"ok":true,"result":"sent",...,"detail":"{\"status\":\"sent\",
+  \"whatsappMessageId\":\"wamid...\"}"}`; card "Sending: Working", "Sent — check the owner's
+  WhatsApp."
+- Report button ✅ — via the relay → `200 {"success":true,"queued":true,"message":"Today's report is
+  queued on this PC…"}`; relay unreachable → `502 {"error":"The report was not sent: fetch failed"}`.
+- `npm test` → `tests 16 / pass 16` (no sync behaviour changed).
+- ⏳ Outcome 3 for real, on a factory install, by the owner.
 
 ---
 

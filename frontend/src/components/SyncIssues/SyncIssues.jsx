@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Card, Button, Alert } from '../shared/UIComponents';
 import { SkeletonTable } from '../shared/Skeleton';
 import * as syncQuarantineApi from '../../api/syncQuarantineApi';
+import { sendTestWhatsApp } from '../../api/whatsappTestApi';
+import { getFactoryPcStatus } from '../../api/statusApi';
 
 // Factory app only, Owner (SYNC-HARDENING-PLAN.md T1.4). Changes the online
 // server refused — usually a duplicate, e.g. a product with the same name,
@@ -25,6 +27,62 @@ function label(item) {
   const r = item.row_data || {};
   const name = r.name || r.invoice_no || r.gate_pass_no || r.username;
   return name ? `${name} (#${r.id ?? '?'})` : `#${r.id ?? JSON.stringify(r)}`;
+}
+
+const RELAY_STATES = {
+  ok: 'Working',
+  no_target: 'Not set up on the online server',
+  n8n_rejecting: 'Refused by WhatsApp',
+  offline: 'No internet — alerts wait here',
+};
+
+// WhatsApp alerts (T1.6/T1.8): how sending is going, and a test that shows
+// the real outcome instead of "sent".
+function WhatsAppCard() {
+  const [status, setStatus] = useState(null);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadStatus = () => getFactoryPcStatus().then((r) => setStatus(r.data)).catch(() => {});
+  useEffect(() => { loadStatus(); }, []);
+
+  const test = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await sendTestWhatsApp();
+      setResult(res.data);
+    } catch (err) {
+      setResult(err.response?.data || { ok: false, detail: 'The FMS server did not answer' });
+    } finally {
+      setBusy(false);
+      loadStatus();
+    }
+  };
+
+  return (
+    <Card title="WhatsApp alerts">
+      {status && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-gray-700 mb-4">
+          <dt className="font-medium">Sending</dt>
+          <dd>{RELAY_STATES[status.relayState] || status.relayState || '—'}{status.relayError ? ` (${status.relayError})` : ''}</dd>
+          <dt className="font-medium">Waiting to send</dt>
+          <dd>{status.whatsappQueued ?? 0}</dd>
+        </dl>
+      )}
+      <Button variant="primary" disabled={busy} onClick={test}>
+        {busy ? 'Sending test…' : 'Send test WhatsApp'}
+      </Button>
+      {result && (
+        <div className={`mt-4 rounded border p-3 text-sm ${result.ok ? 'border-green-300 bg-green-50 text-green-900' : 'border-red-300 bg-red-50 text-red-900'}`}>
+          <div className="font-semibold">
+            {result.ok ? 'Sent — check the owner\'s WhatsApp.' : 'Not sent.'}
+          </div>
+          {result.detail && <div className="mt-1 break-all font-mono text-xs">{result.detail}</div>}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 export default function SyncIssues() {
@@ -109,6 +167,10 @@ export default function SyncIssues() {
           </div>
         )}
       </Card>
+
+      <div className="mt-6">
+        <WhatsAppCard />
+      </div>
     </div>
   );
 }

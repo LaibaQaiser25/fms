@@ -218,8 +218,19 @@ class ReportsController {
   static async sendDailyReportWhatsApp(req, res) {
     try {
       const message = await ReportsController.buildDailyReportMessage();
-      await sendWhatsApp(message);
-      res.json({ success: true, message: 'Daily report sent to WhatsApp' });
+      const result = await sendWhatsApp(message);
+      if (!result.ok) {
+        return res.status(502).json({ error: `The report was not sent: ${result.error}` });
+      }
+      res.json({
+        success: true,
+        queued: result.queued,
+        // On the factory PC it is only queued: the relay sends it when it can
+        // (its state is in the status bar).
+        message: result.queued
+          ? "Today's report is queued on this PC and goes to WhatsApp as soon as it can be sent — the status bar shows if anything is stuck."
+          : "Today's report was handed to WhatsApp (n8n accepted it).",
+      });
     } catch (error) {
       console.error('❌ Error sending daily report to WhatsApp:', error);
       res.status(500).json({ error: error.message });

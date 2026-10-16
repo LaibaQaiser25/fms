@@ -107,7 +107,7 @@ class AlertRelay {
 
   receive(req, res) {
     const reply = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-    if (req.method !== 'POST' || req.url !== '/alert') return reply(404, { error: 'not found' });
+    if (req.method !== 'POST' || !['/alert', '/test'].includes(req.url)) return reply(404, { error: 'not found' });
 
     const given = Buffer.from(req.headers['x-fms-secret'] || '');
     const want = Buffer.from(this.relaySecret);
@@ -119,6 +119,7 @@ class AlertRelay {
       try {
         const { message } = JSON.parse(body);
         if (typeof message !== 'string' || !message) return reply(400, { error: 'message required' });
+        if (req.url === '/test') return reply(200, await this.sendTest(message));
         await this.pool.query('INSERT INTO whatsapp_outbox (message) VALUES ($1)', [message]);
         reply(200, { queued: true });
         this.flush();
@@ -127,6 +128,41 @@ class AlertRelay {
         reply(500, { error: err.message });
       }
     });
+  }
+
+  // "Send test WhatsApp" (T1.8): one message straight to n8n, never queued,
+  // and the real outcome — the server's reason when there's no target,
+  // n8n's reply (Meta's error) when it refuses.
+  async sendTest(message) {
+    const target = this.getTarget();
+    if (!target) {
+      const reason = this.getNoTargetReason() || 'no WhatsApp target from the server';
+      this.setState('no_target', reason);
+      return { ok: false, result: 'no_target', detail: reason };
+    }
+    let res;
+    try {
+      res = await fetch(target.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-FMS-Secret': target.secret },
+        body: JSON.stringify({ message }),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err) {
+      const cause = err.cause?.code || err.cause?.errors?.[0]?.code || err.cause?.message;
+      this.setState('offline', cause || err.message);
+      return { ok: false, result: 'offline', detail: `could not reach n8n (${cause || err.message})` };
+    }
+    const text = (await res.text().catch(() => '')).slice(0, 500);
+    this.log(`alerts: test message -> n8n replied ${res.status}${text ? `: ${text}` : ''}`);
+    // A test is a real send, so it updates the state the status bar shows.
+    if (!res.ok) {
+      const offline = UNREACHABLE_STATUSES.includes(res.status);
+      this.setState(offline ? 'offline' : 'n8n_rejecting', `n8n replied ${res.status}${text ? `: ${text}` : ''}`);
+      return { ok: false, result: offline ? 'offline' : 'rejected', status: res.status, detail: text || `n8n replied ${res.status}` };
+    }
+    this.setState('ok');
+    return { ok: true, result: 'sent', status: res.status, detail: text };
   }
 
   flush() {

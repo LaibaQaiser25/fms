@@ -142,6 +142,7 @@ app.use('/api/offline-setup', requireOwner, offlineSetupRoutes);
 // online server refused, and retrying them. sync_quarantine exists only there.
 if (process.env.FMS_FACTORY === '1') {
   app.use('/api/sync-quarantine', requireOwner, require('./routes/syncQuarantine'));
+  app.use('/api/whatsapp-test', requireOwner, require('./routes/whatsappTest'));
 }
 
 // Any role, online server only: "Factory last updated X min ago" (T1.5)

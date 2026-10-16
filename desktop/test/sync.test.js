@@ -1,4 +1,4 @@
-// Automated checks for factory -> VPS sync (SYNC-HARDENING-PLAN.md T1.0).
+// Automated checks for factory -> VPS sync (SYNC-HARDENING-PLAN.md T1.0, T1.1).
 // Run with `npm test` in desktop/, with the FMS app CLOSED: this starts its own
 // throwaway embedded Postgres on the app's database port (lib/ports.js).
 //
@@ -6,7 +6,8 @@
 // migrations: fms_db plays the factory (change capture installed) and vps_db
 // plays the server. The server side is backend/controllers/SyncController.js
 // called directly with a fake request/response — never a second server.js,
-// which listens on import. SyncWorker's fetch is routed to it the same way.
+// which listens on import. SyncWorker's fetch is routed to it the same way,
+// through the same middleware routes/sync.js puts in front of each route.
 const fs = require('node:fs');
 const os = require('node:os');
 const net = require('node:net');
@@ -31,6 +32,7 @@ const { importSnapshot } = require('../lib/snapshot');
 const { PG_PORT } = require('../lib/ports');
 
 const SERVER_URL = 'http://vps.test';
+const NO_KEY = 'WriterNotRegistered';
 
 let tmpDir;
 let dataDir;
@@ -39,6 +41,9 @@ let factory;        // pg Client on the factory database
 let vps;            // pg Client on the server database
 let vpsPool;        // backend/db/pool.js, used by SyncController
 let SyncController;
+let requireSyncWriter;
+let syncWriter;     // backend/services/syncWriter.js
+let uploadKey;      // the registered PC's key; a fresh PC registers before each test
 let restoreFetch;
 const logs = [];
 const log = (msg) => logs.push(msg);
@@ -51,8 +56,10 @@ function portInUse(port) {
   });
 }
 
-// Calls an Express handler with a minimal req/res; resolves { status, body }.
-function call(handler, { body, headers = {} } = {}) {
+// Calls an Express handler — or a chain of them, middleware first — with a
+// minimal req/res; resolves { status, body }.
+function call(handlers, { body, headers = {} } = {}) {
+  const chain = [handlers].flat();
   const lower = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
   const req = { body, query: {}, get: (name) => lower[name.toLowerCase()] };
   return new Promise((resolve, reject) => {
@@ -62,10 +69,34 @@ function call(handler, { body, headers = {} } = {}) {
       status(code) { this.statusCode = code; return this; },
       json(payload) { done = true; resolve({ status: this.statusCode, body: payload }); return this; },
     };
-    Promise.resolve()
-      .then(() => handler(req, res))
-      .then(() => { if (!done) reject(new Error('handler finished without responding')); }, reject);
+    (async () => {
+      for (const handler of chain) {
+        let next = false;
+        await handler(req, res, () => { next = true; });
+        if (!next) break;
+      }
+    })().then(() => { if (!done) reject(new Error('handler finished without responding')); }, reject);
   });
+}
+
+// The routes of backend/routes/sync.js, with their middleware.
+const route = () => ({
+  '/sync/register': [SyncController.register],
+  '/sync/ingest': [requireSyncWriter, SyncController.ingest],
+  '/sync/snapshot': [requireSyncWriter, SyncController.snapshot],
+  '/sync/config': [requireSyncWriter, SyncController.getConfig],
+});
+const withKey = (key = uploadKey) => ({ 'X-Upload-Key': key });
+
+// What the Owner does in Offline Setup, then what the factory app does with
+// the code. Returns the new PC's upload key.
+async function registerPC() {
+  const { code } = await syncWriter.createSetupCode(vpsPool);
+  const { status, body } = await call(route()['/sync/register'], {
+    body: { code, writer_id: crypto.randomUUID() },
+  });
+  assert.equal(status, 200, JSON.stringify(body));
+  return body.uploadKey;
 }
 
 // SyncWorker and downloadSnapshot use global fetch; send their requests to
@@ -74,11 +105,7 @@ function routeFetchToController() {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const { pathname } = new URL(url);
-    const handler = {
-      '/sync/ingest': SyncController.ingest,
-      '/sync/snapshot': SyncController.snapshot,
-      '/sync/config': SyncController.getConfig,
-    }[pathname];
+    const handler = route()[pathname];
     if (!handler) return new Response('{"error":"not found"}', { status: 404 });
     const { status, body } = await call(handler, {
       body: init.body ? JSON.parse(init.body) : undefined,
@@ -90,10 +117,10 @@ function routeFetchToController() {
 }
 
 // One SyncWorker round, as the app runs it; returns the status it reported.
-async function syncRound() {
+async function syncRound(key = uploadKey) {
   let status;
   const worker = new SyncWorker({
-    databaseUrl: factoryUrl, serverUrl: SERVER_URL, token: 'test', log, onStatus: (s) => { status = s; },
+    databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey: key, log, onStatus: (s) => { status = s; },
   });
   try {
     await worker.round();
@@ -133,6 +160,8 @@ before(async () => {
   // dotenv never overrides a variable that is already set.
   process.env.DATABASE_URL = vpsUrl;
   SyncController = require(path.join(BACKEND_DIR, 'controllers', 'SyncController'));
+  requireSyncWriter = require(path.join(BACKEND_DIR, 'middleware', 'requireSyncWriter'));
+  syncWriter = require(path.join(BACKEND_DIR, 'services', 'syncWriter'));
   vpsPool = require(path.join(BACKEND_DIR, 'db', 'pool'));
   // pool.js checks out one client on import and never releases it; keep its
   // connection error at shutdown from crashing the run.
@@ -162,6 +191,7 @@ beforeEach(async () => {
   await factory.query('TRUNCATE customers RESTART IDENTITY CASCADE');
   await factory.query('DELETE FROM sync_outbox');
   await vps.query('TRUNCATE customers RESTART IDENTITY CASCADE');
+  uploadKey = await registerPC();
 });
 
 test('a factory change lands in sync_outbox: insert, update, delete, key change', async () => {
@@ -192,12 +222,12 @@ test('applying the same upload twice gives the same result (idempotent upsert)',
   const changes = await outbox();
   const expected = await customersOn(factory);
 
-  const first = await call(SyncController.ingest, { body: { changes } });
+  const first = await call(route()['/sync/ingest'], { body: { changes }, headers: withKey() });
   assert.equal(first.status, 200, JSON.stringify(first.body));
   assert.deepEqual(await customersOn(vps), expected);
 
   // The reply got lost, so the worker sends the same batch again.
-  const second = await call(SyncController.ingest, { body: { changes } });
+  const second = await call(route()['/sync/ingest'], { body: { changes }, headers: withKey() });
   assert.equal(second.status, 200, JSON.stringify(second.body));
   assert.deepEqual(await customersOn(vps), expected);
 });
@@ -223,7 +253,7 @@ test('the factory refuses to replace its data while changes are still waiting', 
   const prevReadOnly = process.env.READ_ONLY_MODE;
   process.env.READ_ONLY_MODE = 'true';
   try {
-    const snap = await call(SyncController.snapshot);
+    const snap = await call(route()['/sync/snapshot'], { headers: withKey() });
     assert.equal(snap.status, 200, JSON.stringify(snap.body));
 
     await assert.rejects(
@@ -236,11 +266,126 @@ test('the factory refuses to replace its data while changes are still waiting', 
     // Once they are uploaded, the same import goes through.
     const status = await syncRound();
     assert.equal(status.state, 'ok', status.error);
-    const fresh = await call(SyncController.snapshot);
+    const fresh = await call(route()['/sync/snapshot'], { headers: withKey() });
     await importSnapshot({ databaseUrl: factoryUrl, snapshot: fresh.body, log });
     assert.deepEqual(await customersOn(factory), await customersOn(vps));
   } finally {
     if (prevReadOnly === undefined) delete process.env.READ_ONLY_MODE;
     else process.env.READ_ONLY_MODE = prevReadOnly;
   }
+});
+
+// ---- T1.1: one-PC lock + one-time setup code ----
+
+test('a setup code is stored only as a hash, works once, and only while unexpired', async () => {
+  const { code } = await syncWriter.createSetupCode(vpsPool);
+  assert.match(code, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  const { rows: stored } = await vps.query('SELECT code_hash, used_at FROM setup_code ORDER BY id DESC LIMIT 1');
+  assert.notEqual(stored[0].code_hash, code);
+  assert.ok(!stored[0].code_hash.includes(code.replace('-', '')), 'no plain code in the database');
+  assert.equal(stored[0].used_at, null);
+
+  const register = (c) => call(route()['/sync/register'], { body: { code: c, writer_id: crypto.randomUUID() } });
+
+  const wrong = await register('AAAA-AAAA');
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.body.code, 'BadSetupCode');
+
+  const ok = await register(code.toLowerCase().replace('-', ' ')); // typed loosely
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.match(ok.body.uploadKey, /^[0-9a-f]{64}$/);
+  const { rows: [writer] } = await vps.query('SELECT writer_id, upload_key_hash, registered_at FROM sync_writer');
+  assert.equal(writer.writer_id, ok.body.writerId);
+  assert.ok(writer.registered_at);
+  assert.notEqual(writer.upload_key_hash, ok.body.uploadKey, 'only the key hash is stored');
+
+  const again = await register(code);
+  assert.equal(again.status, 401, 'a used code is refused');
+
+  const { code: expired } = await syncWriter.createSetupCode(vpsPool);
+  await vps.query("UPDATE setup_code SET expires_at = now() - interval '1 second' WHERE used_at IS NULL");
+  assert.equal((await register(expired)).status, 401, 'an expired code is refused');
+
+  const { code: older } = await syncWriter.createSetupCode(vpsPool);
+  const { code: newer } = await syncWriter.createSetupCode(vpsPool);
+  assert.equal((await register(older)).status, 401, 'a newer code cancels an older unused one');
+  assert.equal((await register(newer)).status, 200);
+});
+
+test('an upload without the registered key is refused and applies nothing', async () => {
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+  const changes = await outbox();
+
+  for (const headers of [{}, withKey('0'.repeat(64)), withKey('')]) {
+    const res = await call(route()['/sync/ingest'], { body: { changes }, headers });
+    assert.equal(res.status, 403);
+    assert.equal(res.body.code, NO_KEY);
+  }
+  // Past the middleware too: ingest checks the key again in its transaction.
+  const direct = await call(SyncController.ingest, { body: { changes }, headers: withKey('0'.repeat(64)) });
+  assert.equal(direct.status, 403);
+  assert.equal(direct.body.code, NO_KEY);
+
+  assert.deepEqual(await customersOn(vps), [], 'nothing was written');
+  const { rows: [w] } = await vps.query('SELECT last_ingest_at FROM sync_writer');
+  assert.equal(w.last_ingest_at, null);
+
+  const ok = await call(route()['/sync/ingest'], { body: { changes }, headers: withKey() });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  const { rows: [after] } = await vps.query('SELECT last_ingest_at FROM sync_writer');
+  assert.ok(after.last_ingest_at, 'an accepted upload records last_ingest_at');
+});
+
+test('the snapshot needs read-only mode and a registration less than an hour old, and never carries VPS-only tables', async () => {
+  const prevReadOnly = process.env.READ_ONLY_MODE;
+  try {
+    process.env.READ_ONLY_MODE = 'false';
+    assert.equal((await call(route()['/sync/snapshot'], { headers: withKey() })).status, 409);
+
+    process.env.READ_ONLY_MODE = 'true';
+    assert.equal((await call(route()['/sync/snapshot'], { headers: withKey('f'.repeat(64)) })).status, 403);
+
+    const snap = await call(route()['/sync/snapshot'], { headers: withKey() });
+    assert.equal(snap.status, 200, JSON.stringify(snap.body));
+    assert.ok('customers' in snap.body.tables);
+    for (const t of ['sync_writer', 'setup_code', 'pgmigrations']) {
+      assert.ok(!(t in snap.body.tables), `${t} is not in the snapshot`);
+    }
+
+    await vps.query("UPDATE sync_writer SET registered_at = now() - interval '61 minutes'");
+    const late = await call(route()['/sync/snapshot'], { headers: withKey() });
+    assert.equal(late.status, 403);
+    assert.equal(late.body.code, 'SnapshotWindowClosed');
+  } finally {
+    if (prevReadOnly === undefined) delete process.env.READ_ONLY_MODE;
+    else process.env.READ_ONLY_MODE = prevReadOnly;
+  }
+});
+
+test('registering a second PC blocks the first: its worker stops as blocked_not_writer, changes kept', async () => {
+  const firstKey = uploadKey;
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+  assert.equal((await syncRound(firstKey)).state, 'ok');
+
+  const secondKey = await registerPC();
+
+  await factory.query("INSERT INTO customers (name) VALUES ('Bilal')");
+  let status;
+  const worker = new SyncWorker({
+    databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey: firstKey, log, onStatus: (s) => { status = s; },
+  });
+  try {
+    const next = await worker.round();
+    assert.equal(status.state, 'blocked_not_writer', 'distinct from offline');
+    assert.equal(status.pending, 1, 'the change stays in the outbox');
+    assert.equal(worker.stopped, true, 'the worker stops trying');
+    assert.equal(next, null);
+  } finally {
+    await worker.stop();
+  }
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali']);
+
+  // The new main PC uploads fine.
+  assert.equal((await syncRound(secondKey)).state, 'ok');
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal']);
 });

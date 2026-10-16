@@ -19,7 +19,7 @@ const { APP_PORT, ALERT_PORT } = require('./lib/ports');
 const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./lib/database');
 const { installSyncCapture } = require('./lib/syncCapture');
 const { SyncWorker } = require('./lib/sync');
-const { downloadSnapshot, importSnapshot } = require('./lib/snapshot');
+const { registerWriter, downloadSnapshot, importSnapshot } = require('./lib/snapshot');
 const { AlertRelay } = require('./lib/alertRelay');
 
 const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
@@ -54,8 +54,8 @@ function loadConfig() {
   let changed = false;
   if (!cfg.pgPassword) { cfg.pgPassword = crypto.randomBytes(24).toString('hex'); changed = true; }
   if (!cfg.jwtSecret) { cfg.jwtSecret = crypto.randomBytes(32).toString('hex'); changed = true; }
-  // syncToken must equal SYNC_TOKEN in the VPS's backend/.env; until it's
-  // set, changes still pile up in sync_outbox and go out once it is.
+  // writerId + uploadKey come from registering with a setup code (runSetup);
+  // without them, changes still pile up in sync_outbox, never uploaded.
   if (!cfg.syncServerUrl) { cfg.syncServerUrl = DEFAULT_SYNC_SERVER; changed = true; }
   // Shared only between the backend and the local alert relay.
   if (!cfg.relaySecret) { cfg.relaySecret = crypto.randomBytes(24).toString('hex'); changed = true; }
@@ -67,9 +67,11 @@ function saveConfig(cfg) {
   fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify(cfg, null, 2));
 }
 
-// First run only: a modal asking for the sync key, which then copies the
-// server's data into the local database (lib/snapshot.js). Resolves
-// 'imported', 'empty' (testing: no server) or 'cancelled' (window closed).
+// First run only: a modal asking for the Owner's one-time setup code. This PC
+// registers as the main PC (its own upload key, never typed by anyone), then
+// copies the server's data into the local database (lib/snapshot.js).
+// Resolves 'imported', 'empty' (testing: no server) or 'cancelled'.
+// "Start empty" never registers, so such a PC never uploads.
 function runSetup({ cfg, databaseUrl }) {
   const CHANNELS = ['setup:defaults', 'setup:import', 'setup:empty'];
   return new Promise((resolve) => {
@@ -97,14 +99,38 @@ function runSetup({ cfg, databaseUrl }) {
     });
 
     ipcMain.handle('setup:defaults', () => ({ serverUrl: cfg.syncServerUrl }));
-    ipcMain.handle('setup:import', async (_e, { serverUrl, token }) => {
+    ipcMain.handle('setup:import', async (_e, { serverUrl, code }) => {
       const progress = (msg) => { if (!win.isDestroyed()) win.webContents.send('setup:progress', msg); };
+      const download = () => downloadSnapshot({ serverUrl, uploadKey: cfg.uploadKey });
       try {
-        progress('Downloading data from the server…');
-        const snapshot = await downloadSnapshot({ serverUrl, token });
+        let snapshot = null;
+        // An earlier attempt may have registered and then failed to download;
+        // its code is used up, so try that key first.
+        if (cfg.uploadKey && cfg.syncServerUrl === serverUrl) {
+          progress('Downloading data from the server…');
+          try {
+            snapshot = await download();
+          } catch (err) {
+            if (!err.notRegistered) throw err;
+            delete cfg.uploadKey;
+            delete cfg.writerId;
+            saveConfig(cfg);
+          }
+        }
+        if (!snapshot) {
+          progress('Registering this computer as the main PC…');
+          const writerId = crypto.randomUUID();
+          const uploadKey = await registerWriter({ serverUrl, code, writerId });
+          // Saved straight away: the code is now used up.
+          Object.assign(cfg, { syncServerUrl: serverUrl, writerId, uploadKey });
+          saveConfig(cfg);
+          log(`setup: registered as main PC ${writerId}`);
+          progress('Downloading data from the server…');
+          snapshot = await download();
+        }
         progress('Saving data on this computer…');
         await importSnapshot({ databaseUrl, snapshot, log });
-        Object.assign(cfg, { syncServerUrl: serverUrl, syncToken: token, setupDone: true });
+        cfg.setupDone = true;
         saveConfig(cfg);
         finish('imported');
         return { ok: true };
@@ -167,7 +193,7 @@ function refreshTitle() {
 async function refreshServerConfig(cfg) {
   try {
     const res = await fetch(`${cfg.syncServerUrl.replace(/\/$/, '')}/sync/config`, {
-      headers: { 'X-Sync-Token': cfg.syncToken },
+      headers: { 'X-Upload-Key': cfg.uploadKey },
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) throw new Error(`server replied ${res.status}`);
@@ -236,6 +262,7 @@ function describeSync({ state, pending, lastSyncedAt }) {
   const waiting = pending === 1 ? '1 change waiting' : `${pending} changes waiting`;
   if (state === 'ok') return pending ? `Uploading ${waiting}` : `All changes uploaded (last upload ${ago(lastSyncedAt)})`;
   if (state === 'offline') return `Offline — ${waiting}, will upload when internet is back`;
+  if (state === 'blocked_not_writer') return `NOT UPLOADING: this PC is no longer the registered main PC — ${waiting}`;
   return `Sync problem — ${waiting} (see log)`;
 }
 
@@ -339,11 +366,11 @@ async function boot() {
   if (mainWindow) await mainWindow.loadURL(`${APP_ORIGIN}/login`);
   setupAutoUpdate();
 
-  if (cfg.syncToken) {
+  if (cfg.uploadKey) {
     syncWorker = new SyncWorker({
       databaseUrl,
       serverUrl: cfg.syncServerUrl,
-      token: cfg.syncToken,
+      uploadKey: cfg.uploadKey,
       log,
       onStatus: (status) => { syncStatusText = describeSync(status); refreshTitle(); },
     });
@@ -353,7 +380,7 @@ async function boot() {
   } else {
     syncStatusText = 'Upload to server not set up';
     refreshTitle();
-    log('sync: no syncToken in config.json, changes are kept locally');
+    log('sync: this PC is not registered (no uploadKey in config.json), changes are kept locally');
   }
 
   if (owner) {

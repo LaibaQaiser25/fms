@@ -7,7 +7,7 @@ const path = require('path');
 // Each release uploads three files there (see desktop/README.md):
 //   FMS-Setup-<version>.exe, FMS-Setup-<version>.exe.blockmap, latest.yml
 // electron-updater in the installed app polls latest.yml. Public on purpose:
-// the installer holds no secrets (the sync key is typed in at setup).
+// the installer holds no secrets (a one-time setup code is typed in at setup).
 const router = express.Router();
 const dir = process.env.DOWNLOADS_DIR;
 

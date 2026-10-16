@@ -189,7 +189,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T0.2 | VPS nightly backup + restore drill | — | CODE DONE, CHECKS FAILING | script tested on a throwaway DB; production run + crontab not yet done |
 | T0.3 | Cleanup bundle | — | CODE DONE, CHECKS FAILING | check 2 ✅ (local); check 1 needs the deploy |
 | T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
-| T1.1 | One-PC lock + one-time setup code | T1.0 | NOT STARTED | |
+| T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | 8/8 `npm test` (4 new); observed checks need deploy + a factory install |
 | T1.2 | Offline Setup page, form, read-only exception | T1.1 | NOT STARTED | |
 | T1.3 | Bad-row quarantine — server | — | NOT STARTED | |
 | T1.4 | Bad-row quarantine — factory + retry | T1.3 | NOT STARTED | |
@@ -365,7 +365,9 @@ modules resolve from `desktop/node_modules` (`NODE_PATH`), like the staged copy 
 
 ### T1.1 — One-PC lock + one-time setup code (D6)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 verified by `npm test` against throwaway
+databases, not yet on the running VPS (needs this branch deployed); check 6's status text needs
+a factory install (Windows)
 **Deps:** T1.0
 
 **Migrations 022 and 023 (VPS tables, register per §4):**
@@ -435,6 +437,42 @@ CREATE TABLE IF NOT EXISTS setup_code (
    shows `blocked_not_writer`, distinct from `offline`.
 
 **Gate:** checks 1–6 observed; 4 proves nothing was written.
+
+**Implementation notes:**
+- Upload key header: `X-Upload-Key`. `SYNC_TOKEN` stays, but only as the switch that turns `/sync`
+  on (the factory's own backend leaves it unset, so `/sync/*` still 404s there, F5); its value is
+  no longer a credential.
+- Codes and keys are stored as SHA-256 hashes (`backend/services/syncWriter.js`). Creating a code
+  expires any older unused one, so at most one code is valid at a time.
+- Codes are created by `POST /api/offline-setup/setup-code` (Owner only; T1.2 adds the page and the
+  read-only exception) or `node scripts/createSetupCode.js` on the VPS (for T2.8 and before T1.2).
+- `requireSyncWriter` checks the key before `/ingest`, `/config`, `/snapshot`; ingest checks it
+  again as its first statement in the transaction
+  (`UPDATE sync_writer SET last_ingest_at = now() WHERE upload_key_hash = $1`), which also locks
+  the row, so a registration can't slip in between check and commit.
+- Snapshot outside the hour → `403 SnapshotWindowClosed`. The factory setup reuses a saved key if
+  an earlier attempt registered but failed to download (the code is used up by then).
+- Runbooks added to `desktop/README.md`; the `/downloads` install guide now asks for the setup code.
+
+**Evidence (16 Oct 2026):**
+- `npm test` in `desktop/` → `tests 8 / pass 8 / fail 0`. New checks:
+  - *setup code stored only as a hash, works once, only while unexpired* — checks 1, 2, 3 (wrong,
+    used, expired code → 401; a newer code cancels an older unused one);
+  - *an upload without the registered key is refused and applies nothing* — check 4: no key, a
+    wrong key, an empty key → `403 WriterNotRegistered`; `customers` on the server stays `[]`,
+    `last_ingest_at` stays NULL; the right key → 200 and `last_ingest_at` set;
+  - *the snapshot needs read-only mode and a registration less than an hour old* — check 5:
+    `READ_ONLY_MODE=false` → 409; wrong key → 403; registered 61 min ago → `403
+    SnapshotWindowClosed`; `sync_writer`, `setup_code`, `pgmigrations` absent from the snapshot;
+  - *registering a second PC blocks the first* — check 6 (worker side): state
+    `blocked_not_writer`, worker stopped, the change stays in the outbox, the new PC uploads.
+- Sabotage: dropping ingest's in-transaction key check → only the check-4 test fails; disabling
+  the hour window → only the check-5 test fails. Both restored.
+- Check 3, rate limit: `routes/sync.js` alone in a throwaway Express app (no `server.js`), 12 wrong
+  codes → `500 ×10` (that harness had no database) then `429 429`, body
+  `Too many attempts, please try again in 15 minutes`.
+- ⏳ On the VPS after deploy: checks 1–5 with `curl -i` + `psql` (code from
+  `scripts/createSetupCode.js`). ⏳ On a factory install: check 6's window title.
 
 ---
 

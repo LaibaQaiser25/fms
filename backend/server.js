@@ -26,6 +26,7 @@ const analyticsRoutes = require('./routes/analytics');
 const usersRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const syncRoutes = require('./routes/sync');
+const offlineSetupRoutes = require('./routes/offlineSetup');
 const authMiddleware = require('./middleware/authMiddleware');
 const requireOwner = require('./middleware/requireOwner');
 const readOnlyMode = require('./middleware/readOnlyMode');
@@ -70,7 +71,7 @@ app.use(cors({
 }));
 app.use(compression());
 
-// Factory desktop app -> VPS sync (SYNC_TOKEN auth, not JWT). Mounted before
+// Factory desktop app -> VPS sync (setup code / upload key, not JWT). Mounted before
 // the global JSON parser because it needs a larger body limit.
 app.use('/sync', syncRoutes);
 
@@ -127,6 +128,9 @@ app.use('/api/analytics', requireOwner, analyticsRoutes);
 
 // Owner-only — user management (create users, edit others' username/email/password, change own password)
 app.use('/api/users', requireOwner, usersRoutes);
+
+// Owner-only — Offline Setup: registering the main factory PC (setup codes)
+app.use('/api/offline-setup', requireOwner, offlineSetupRoutes);
 
 // Scheduled reports write rows, so in read-only mode only the factory app runs
 // them (their results reach this server through /sync like everything else).

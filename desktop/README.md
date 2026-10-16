@@ -32,18 +32,44 @@ the copy would never reach the factory.
    ```
    then `sg docker -c "docker compose up -d backend"`. From now on the web
    dashboard only views data (saves return "This server is view-only").
-3. **On the factory PC**, run the installer. The first launch asks for the sync
-   key (the `SYNC_TOKEN` value) and copies all server data, logins included.
-   Log in with the usual accounts.
+   `SYNC_TOKEN` only switches `/sync` on; nobody types it anywhere.
+3. **Create a setup code**: the Owner opens Offline Setup on the online
+   dashboard and creates a one-time setup code (e.g. `K7QM-2XPA`; works once,
+   for one hour). Without the dashboard, on the VPS:
+   `sg docker -c "docker compose exec backend node scripts/createSetupCode.js"`.
+4. **On the factory PC**, run the installer. The first launch asks for the
+   setup code, registers this PC as the **main PC** (it gets its own upload
+   key, stored in `config.json` — no key is ever copied by hand) and copies
+   all server data, logins included. Log in with the usual accounts. The copy
+   must happen within an hour of registering.
+
+Only the registered main PC can upload. Registering another PC blocks the
+previous one at once.
 
 The window title shows the sync state: "All changes uploaded", "Offline — N
-changes waiting", or "Sync problem" (details in the log).
+changes waiting", "Sync problem" (details in the log), or "NOT UPLOADING: this
+PC is no longer the registered main PC".
+
+## Runbooks
+
+**Main PC dies.** The Owner creates a setup code in Offline Setup → install FMS
+on the new PC → enter the code → it copies the VPS data and becomes the main
+PC; the old PC, if it ever comes back, is refused. **Changes that never left
+the old PC do not reach the VPS** — they are recoverable only from that PC's
+disk (`%APPDATA%\FMS\pgdata`) or its backups.
+
+**VPS lost, or restored from an older backup.** The mirror misses everything
+between that backup and the failure. Rebuild it from the factory: re-register
+the main PC with a setup code made on the server
+(`node scripts/createSetupCode.js`) and use "Resend everything" (T2.8 in
+`SYNC-HARDENING-PLAN.md`).
 
 ## Where things live on the factory PC
 
 `%APPDATA%\FMS\`
 - `pgdata\` — the database. **Back this folder up** (with FMS closed).
-- `config.json` — sync key, server address, local secrets.
+- `config.json` — this PC's id (`writerId`) and upload key, server address,
+  local secrets.
 - `logs\fms.log` — everything: startup, sync, alerts, updates.
 
 ## Download link and updates

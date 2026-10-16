@@ -1,4 +1,6 @@
+const crypto = require('crypto');
 const pool = require('../db/pool');
+const { NOT_WRITER, hashSetupCode, hashUploadKey, uploadKeyHashFrom } = require('../services/syncWriter');
 
 // Receives changes from the factory desktop app (desktop/lib/sync.js). The
 // factory is the single writer; this server just mirrors its rows.
@@ -8,9 +10,19 @@ const pool = require('../db/pool');
 // primary key — so re-sending a batch (lost reply) is harmless.
 
 class SchemaMismatch extends Error {}
+class NotWriter extends Error {}
 
-// Business tables only; the factory never sends these, and must not be able to.
-const PROTECTED_TABLES = new Set(['pgmigrations']);
+// Tables ingest refuses to write: the factory never sends these, and must not
+// be able to. Every VPS-only table is here too (SYNC-HARDENING-PLAN.md §4).
+const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code']);
+// Server bookkeeping that is never copied to a factory by the snapshot.
+const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code']);
+
+// The snapshot hands out every business table (password hashes included), so
+// only the PC that registered within the last hour may take it.
+const SNAPSHOT_WINDOW_MS = 60 * 60 * 1000;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function loadTables(client) {
   const { rows } = await client.query(
@@ -42,14 +54,71 @@ class SyncController {
       whatsapp: url ? { url, secret: process.env.N8N_WEBHOOK_SECRET || '' } : null,
     });
   }
+  // Factory app, first run: trade a one-time setup code (made in Offline
+  // Setup, services/syncWriter.js) for this PC's own upload key. The new PC
+  // replaces any previous one, whose key stops working from this moment.
+  // The key is in this response only; just its hash is kept.
+  static async register(req, res) {
+    const { code, writer_id: writerId } = req.body || {};
+    if (typeof code !== 'string' || !code.trim() || typeof writerId !== 'string' || !UUID_RE.test(writerId)) {
+      return res.status(400).json({ error: 'Body must be { code, writer_id } with writer_id a uuid' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Marks the code used in the same statement that checks it, so two
+      // PCs racing with one code can't both get through.
+      const { rowCount } = await client.query(
+        `UPDATE setup_code SET used_at = now()
+          WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now()`,
+        [hashSetupCode(code)]
+      );
+      if (rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(401).json({
+          code: 'BadSetupCode',
+          error: 'That setup code is wrong, already used, or expired. Create a new one in Offline Setup.',
+        });
+      }
+      const uploadKey = crypto.randomBytes(32).toString('hex');
+      const { rows: [prev] } = await client.query(
+        `SELECT writer_id FROM sync_writer WHERE id = 1 FOR UPDATE`
+      );
+      await client.query(
+        `UPDATE sync_writer
+            SET writer_id = $1, upload_key_hash = $2, registered_at = now(), last_ingest_at = NULL
+          WHERE id = 1`,
+        [writerId, hashUploadKey(uploadKey)]
+      );
+      await client.query('COMMIT');
+      console.log(`🔑 Sync: main PC ${writerId} registered${prev?.writer_id ? `, replacing ${prev.writer_id}` : ''}`);
+      res.json({ writerId, uploadKey });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('❌ Sync register failed:', err.message);
+      res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  }
+
   // One-time copy of every business table, for the factory app's first run
   // (desktop/lib/snapshot.js). Refused unless READ_ONLY_MODE is on: otherwise
   // someone could save here after the copy is taken, and that row would never
-  // reach the factory (and later be overwritten by factory data).
+  // reach the factory (and later be overwritten by factory data). Also refused
+  // unless the caller (already checked: the registered PC, requireSyncWriter)
+  // registered within the last hour — a later download is not a first run.
   static async snapshot(req, res) {
     if (process.env.READ_ONLY_MODE !== 'true') {
       return res.status(409).json({
         error: 'Turn on READ_ONLY_MODE=true on the server (and restart it) before copying data to the factory',
+      });
+    }
+    const registeredAt = req.syncWriter?.registeredAt;
+    if (!registeredAt || Date.now() - new Date(registeredAt).getTime() > SNAPSHOT_WINDOW_MS) {
+      return res.status(403).json({
+        code: 'SnapshotWindowClosed',
+        error: 'Copying the data is allowed only within an hour of registering this PC. Create a new setup code in Offline Setup and enter it again.',
       });
     }
     const client = await pool.connect();
@@ -58,7 +127,7 @@ class SyncController {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const tables = await loadTables(client);
       const out = {};
-      for (const name of [...tables.keys()].sort()) {
+      for (const name of [...tables.keys()].filter((n) => !VPS_ONLY_TABLES.has(n)).sort()) {
         const { rows } = await client.query(`SELECT to_jsonb(t) AS r FROM public.${client.escapeIdentifier(name)} t`);
         out[name] = rows.map((row) => row.r);
       }
@@ -87,6 +156,15 @@ class SyncController {
       // change happened; applying it again here would only cause spurious
       // ordering failures (and double cascades).
       await client.query('SET LOCAL session_replication_role = replica');
+
+      // Only the registered main PC, checked again here under the row lock:
+      // a new PC registering while this batch runs waits for it to finish,
+      // and any batch after that is refused. Nothing is applied before this.
+      const { rowCount: isWriter } = await client.query(
+        'UPDATE sync_writer SET last_ingest_at = now() WHERE id = 1 AND upload_key_hash = $1',
+        [uploadKeyHashFrom(req)]
+      );
+      if (!isWriter) throw new NotWriter();
 
       const tables = await loadTables(client);
       const q = (name) => client.escapeIdentifier(name);
@@ -144,6 +222,9 @@ class SyncController {
       res.json({ applied: changes.length });
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
+      if (err instanceof NotWriter) {
+        return res.status(403).json(NOT_WRITER);
+      }
       if (err instanceof SchemaMismatch) {
         console.error('❌ Sync rejected:', err.message);
         return res.status(409).json({ error: err.message });

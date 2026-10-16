@@ -9,8 +9,13 @@
 // idempotent, and it attaches the trigger to any table a new migration added.
 const { Client } = require('pg');
 
-// Tables that are local bookkeeping, not business data.
-const EXCLUDED_TABLES = ['pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox'];
+// Tables that are local bookkeeping, not business data. Includes every
+// VPS-only table (SYNC-HARDENING-PLAN.md §4): migrations create them here too,
+// empty, and they must never be captured or touched by the snapshot import.
+const EXCLUDED_TABLES = [
+  'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox',
+  'sync_writer', 'setup_code',
+];
 
 const SETUP_SQL = `
 CREATE TABLE IF NOT EXISTS public.sync_outbox (

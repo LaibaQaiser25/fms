@@ -7,11 +7,38 @@ const { EXCLUDED_TABLES } = require('./syncCapture');
 
 const CHUNK = 1000;
 
-async function downloadSnapshot({ serverUrl, token }) {
+// First run: trade the Owner's one-time setup code for this PC's own upload
+// key (POST /sync/register). From then on this PC is the registered main PC,
+// and any PC registered before it can no longer upload.
+async function registerWriter({ serverUrl, code, writerId }) {
+  let res;
+  try {
+    res = await fetch(`${serverUrl.replace(/\/$/, '')}/sync/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, writer_id: writerId }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (err) {
+    throw new Error(`Could not reach ${serverUrl} (${err.cause?.code || err.message}). Check the internet connection.`);
+  }
+  let body = {};
+  try { body = await res.json(); } catch { /* not JSON */ }
+  if (res.ok && body.uploadKey) return body.uploadKey;
+  if (res.status === 401) throw new Error('That setup code is wrong, already used, or expired. Create a new one in Offline Setup on the online dashboard.');
+  if (res.status === 429) throw new Error('Too many attempts. Wait 15 minutes, then try again.');
+  if (res.status === 404) throw new Error('Sync is not enabled on the server yet (SYNC_TOKEN is not set there).');
+  throw new Error(body.error || `Server replied ${res.status}`);
+}
+
+// Needs the upload key from registerWriter, within an hour of registering.
+// A 403 (not the registered PC, or the hour is up) sets err.notRegistered:
+// register again with a new setup code.
+async function downloadSnapshot({ serverUrl, uploadKey }) {
   let res;
   try {
     res = await fetch(`${serverUrl.replace(/\/$/, '')}/sync/snapshot`, {
-      headers: { 'X-Sync-Token': token },
+      headers: { 'X-Upload-Key': uploadKey },
       signal: AbortSignal.timeout(10 * 60_000),
     });
   } catch (err) {
@@ -20,9 +47,10 @@ async function downloadSnapshot({ serverUrl, token }) {
   if (!res.ok) {
     let detail = '';
     try { detail = (await res.json()).error || ''; } catch { /* not JSON */ }
-    if (res.status === 401) throw new Error('The sync key is wrong.');
     if (res.status === 404) throw new Error('Sync is not enabled on the server yet (SYNC_TOKEN is not set there).');
-    throw new Error(detail || `Server replied ${res.status}`);
+    const e = new Error(detail || `Server replied ${res.status}`);
+    e.notRegistered = res.status === 403;
+    throw e;
   }
   return res.json();
 }
@@ -105,4 +133,4 @@ async function importSnapshot({ databaseUrl, snapshot, log }) {
   }
 }
 
-module.exports = { downloadSnapshot, importSnapshot };
+module.exports = { registerWriter, downloadSnapshot, importSnapshot };

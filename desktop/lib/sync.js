@@ -13,10 +13,10 @@ const RETRY_INTERVAL_MS = 30_000;  // offline or server error
 const REQUEST_TIMEOUT_MS = 60_000;
 
 class SyncWorker {
-  constructor({ databaseUrl, serverUrl, token, log, onStatus }) {
+  constructor({ databaseUrl, serverUrl, uploadKey, log, onStatus }) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 2 });
     this.ingestUrl = `${serverUrl.replace(/\/$/, '')}/sync/ingest`;
-    this.token = token;
+    this.uploadKey = uploadKey;
     this.log = log;
     this.onStatus = onStatus;
     this.timer = null;
@@ -79,6 +79,16 @@ class SyncWorker {
       await this.report('ok');
       return IDLE_INTERVAL_MS;
     } catch (err) {
+      // Another PC was registered as the main PC (or this one never was):
+      // nothing this PC sends will be accepted again, so stop trying. Its
+      // changes stay in sync_outbox.
+      if (err.notWriter) {
+        this.stopped = true;
+        this.lastError = { message: err.message, offline: false };
+        this.log(`sync: stopped — ${err.message}`);
+        await this.report('blocked_not_writer').catch(() => {});
+        return null;
+      }
       const offline = err.offline === true;
       if (!offline || !this.lastError?.offline) {
         this.log(`sync: ${offline ? 'server unreachable' : 'failed'}: ${err.message}`);
@@ -94,7 +104,7 @@ class SyncWorker {
     try {
       res = await fetch(this.ingestUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Sync-Token': this.token },
+        headers: { 'Content-Type': 'application/json', 'X-Upload-Key': this.uploadKey },
         body: JSON.stringify({ changes }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
@@ -105,11 +115,13 @@ class SyncWorker {
       throw e;
     }
     if (!res.ok) {
-      let detail = '';
-      try { detail = (await res.json()).error || ''; } catch { /* not JSON */ }
+      let body = {};
+      try { body = await res.json(); } catch { /* not JSON */ }
+      const detail = body.error || '';
       // 502/503/504/530 = Cloudflare can't reach the VPS: treat like offline.
       const e = new Error(`server replied ${res.status}${detail ? `: ${detail}` : ''}`);
       e.offline = [502, 503, 504, 530].includes(res.status);
+      e.notWriter = res.status === 403 && body.code === 'WriterNotRegistered';
       throw e;
     }
   }

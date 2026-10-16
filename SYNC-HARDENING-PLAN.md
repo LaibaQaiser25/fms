@@ -190,7 +190,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T0.3 | Cleanup bundle | — | CODE DONE, CHECKS FAILING | check 2 ✅ (local); check 1 needs the deploy |
 | T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
 | T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | 8/8 `npm test` (4 new); observed checks need deploy + a factory install |
-| T1.2 | Offline Setup page, form, read-only exception | T1.1 | NOT STARTED | |
+| T1.2 | Offline Setup page, form, read-only exception | T1.1 | CODE DONE, CHECKS FAILING | checks 1–5 seen on a local harness + headless Chrome; VPS deploy + check 6 (Windows install) pending |
 | T1.3 | Bad-row quarantine — server | — | NOT STARTED | |
 | T1.4 | Bad-row quarantine — factory + retry | T1.3 | NOT STARTED | |
 | T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | NOT STARTED | |
@@ -478,7 +478,9 @@ CREATE TABLE IF NOT EXISTS setup_code (
 
 ### T1.2 — Offline Setup page, form, read-only exception
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 observed against the real routes and middleware
+on a throwaway database, not yet on the VPS (needs deploy + the Vercel frontend); check 6 needs a
+fresh factory install (Windows)
 **Deps:** T1.1
 
 **Migration 024 (VPS table, register per §4):**
@@ -555,6 +557,42 @@ still returns "This server is view-only".
 6. Name and logo appear on a freshly installed main PC.
 
 **Gate:** checks 1–6 observed.
+
+**Implementation notes:**
+- Routes (`backend/routes/offlineSetup.js`, `requireOwner`): `GET /api/offline-setup` (main PC,
+  name, logo as a data URL, extra-PC address), `PUT /settings`, `PUT /logo` (the image is the raw
+  body), `DELETE /logo` (default), `POST /setup-code` (T1.1). They 404 where `SYNC_TOKEN` is unset,
+  i.e. inside the factory app. `readOnlyMode` lets `/api/offline-setup/*` through.
+- Logo: type from the first bytes (PNG/JPG signature), 1 MB cap (413 from the body parser, 400
+  from the service), `sharp` → 256 × 256 PNG with transparent padding, stored in
+  `offline_setup.logo`; `sharp` added to both `package.json` files (rule 9), loaded lazily.
+- Factory: `/sync/register` and `/sync/config` return `setup: { name, logo }`; `main.js` keeps it
+  in `config.json`, writes `branding.json`, uses the name as the window title, and the backend
+  serves it at `GET /branding` (only when `FMS_BRANDING_FILE` is set) for the login screen.
+- Frontend: `VITE_FMS_DESKTOP=1` in the desktop build (`stage.js` env only; `SKIP` untouched)
+  hides the page and its route inside the factory app. "Online" = an upload in the last 2 min,
+  until T1.5's heartbeat.
+
+**Evidence (16 Oct 2026)** — the real `readOnlyMode`, `authMiddleware`, `requireOwner`,
+`routes/offlineSetup`, `routes/customers`, `routes/sync` mounted in `server.js`'s order in a
+throwaway Express app (not `server.js`) on a throwaway embedded Postgres, `READ_ONLY_MODE=true`:
+- Check 1 ✅ — Owner, no main PC: `{"mainPc":null,...}` and the page shows the setup form
+  (headless Chrome screenshot). After `/sync/register` + one ingest: `mainPc` set, page shows the
+  overview (🟢 Online, last upload "just now", set-up time, name/logo editor, extra-PC address,
+  installer link, "Replace main PC…").
+- Check 2 ✅ — Manager and Guest: `GET` and `POST /setup-code` → `403 {"error":"Owner access
+  required"}`; in the browser both land on `/dashboard`, no "Offline Setup" in the sidebar.
+- Check 3 ✅ — Main PC: name/logo, code, installer steps; Extra PC: no download,
+  `http://fms-host:48620`, warning to set up the main PC first; with a main PC registered the
+  replace confirmation must be ticked before a code can be created.
+- Check 4 ✅ — a text file named `.png` → `400 The logo must be a PNG or JPG image.`; a 4.3 MB JPG
+  → `413 The logo must be 1 MB or smaller.`; an 800 × 400 PNG is stored as `png 256x256`.
+- Check 5 ✅ — with read-only on, Owner `PUT /settings`, `PUT /logo`, `POST /setup-code` succeed;
+  `POST /api/customers` → `403 This server is view-only...`.
+- `npm test` → `tests 9 / pass 9` (new: register and `/sync/config` carry the name and a 256 × 256
+  PNG logo; GIF and > 1 MB refused; `offline_setup` absent from the snapshot).
+- ⏳ Check 6: name in the title bar and name + logo on the login screen of a freshly installed
+  main PC.
 
 ---
 

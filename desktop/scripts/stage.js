@@ -42,7 +42,7 @@ execSync(
   {
     cwd: frontendSrc,
     stdio: 'inherit',
-    env: { ...process.env, VITE_API_URL: `${origin}/api`, VITE_APP_URL: origin },
+    env: { ...process.env, VITE_API_URL: `${origin}/api`, VITE_APP_URL: origin, VITE_FMS_DESKTOP: '1' },
   }
 );
 console.log('staged frontend');

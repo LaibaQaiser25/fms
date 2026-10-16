@@ -91,6 +91,23 @@ app.use(express.urlencoded({ extended: true }));
 // Auth routes
 app.use('/auth', authRoutes);
 
+// Factory PC only (desktop/main.js sets FMS_BRANDING_FILE): the setup name
+// and logo from Offline Setup, for the login screen. Public, like /auth/login.
+if (process.env.FMS_BRANDING_FILE) {
+  const fs = require('fs');
+  app.get('/branding', (req, res) => {
+    fs.readFile(process.env.FMS_BRANDING_FILE, 'utf8', (err, text) => {
+      if (err) return res.json({ name: null, logo: null });
+      try {
+        const { name = null, logo = null } = JSON.parse(text);
+        res.json({ name, logo });
+      } catch {
+        res.json({ name: null, logo: null });
+      }
+    });
+  });
+}
+
 // Every /api/* route requires a valid JWT from here on
 app.use('/api', authMiddleware);
 

@@ -4,7 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SocketProvider } from './context/SocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import { APP_URL, SITE } from './config';
+import { APP_URL, SITE, IS_DESKTOP } from './config';
 
 import Layout from './components/Layout';
 const RoleDashboard = lazy(() => import('./components/RoleDashboard'));
@@ -23,6 +23,7 @@ const EmployeeList = lazy(() => import('./components/Employees/EmployeeList'));
 const Cashbook = lazy(() => import('./components/Cashbook'));
 const Reports = lazy(() => import('./components/Reports/Reports.jsx'));
 const Privacy = lazy(() => import('./components/Privacy/Privacy.jsx'));
+const OfflineSetup = lazy(() => import('./components/OfflineSetup/OfflineSetup.jsx'));
 
 // Public Pages
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -108,6 +109,8 @@ function App() {
                 <Route path="/cashbook" element={lazyRoute(Cashbook, <PageLoadingFallback />)} />
                 <Route path="/reports" element={lazyRoute(Reports, <PageLoadingFallback />)} />
                 <Route path="/privacy" element={lazyRoute(Privacy, <PageLoadingFallback />)} />
+                {/* Online dashboard only — never inside the factory app */}
+                {!IS_DESKTOP && <Route path="/offline-setup" element={lazyRoute(OfflineSetup, <PageLoadingFallback />)} />}
               </Route>
             </Route>
           </Route>

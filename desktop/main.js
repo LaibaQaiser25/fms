@@ -67,6 +67,22 @@ function saveConfig(cfg) {
   fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify(cfg, null, 2));
 }
 
+// Setup name and logo from Offline Setup on the online dashboard (T1.2): the
+// window title uses the name, and the login screen reads both through the
+// backend's GET /branding, which serves this file.
+const brandingFile = path.join(userData, 'branding.json');
+let appName = 'FMS';
+function applySetup(cfg, setup) {
+  if (setup !== undefined && JSON.stringify(setup) !== JSON.stringify(cfg.setup)) {
+    cfg.setup = setup;
+    saveConfig(cfg);
+    log(`config: setup name ${setup?.name ? `"${setup.name}"` : 'not set'}, ${setup?.logo ? 'own logo' : 'default logo'}`);
+  }
+  appName = cfg.setup?.name || 'FMS';
+  fs.writeFileSync(brandingFile, JSON.stringify({ name: cfg.setup?.name || null, logo: cfg.setup?.logo || null }));
+  refreshTitle();
+}
+
 // First run only: a modal asking for the Owner's one-time setup code. This PC
 // registers as the main PC (its own upload key, never typed by anyone), then
 // copies the server's data into the local database (lib/snapshot.js).
@@ -120,10 +136,11 @@ function runSetup({ cfg, databaseUrl }) {
         if (!snapshot) {
           progress('Registering this computer as the main PC…');
           const writerId = crypto.randomUUID();
-          const uploadKey = await registerWriter({ serverUrl, code, writerId });
+          const { uploadKey, setup } = await registerWriter({ serverUrl, code, writerId });
           // Saved straight away: the code is now used up.
           Object.assign(cfg, { syncServerUrl: serverUrl, writerId, uploadKey });
           saveConfig(cfg);
+          applySetup(cfg, setup);
           log(`setup: registered as main PC ${writerId}`);
           progress('Downloading data from the server…');
           snapshot = await download();
@@ -183,7 +200,7 @@ let quitting = false;
 // The window title doubles as the sync status line.
 let syncStatusText = '';
 function refreshTitle() {
-  const parts = ['FMS', syncStatusText, updateReady && `Update ${updateReady} will install when FMS is closed`].filter(Boolean);
+  const parts = [appName, syncStatusText, updateReady && `Update ${updateReady} will install when FMS is closed`].filter(Boolean);
   if (mainWindow) mainWindow.setTitle(parts.join('  —  '));
 }
 
@@ -197,12 +214,13 @@ async function refreshServerConfig(cfg) {
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) throw new Error(`server replied ${res.status}`);
-    const { whatsapp } = await res.json();
+    const { whatsapp, setup } = await res.json();
     if (JSON.stringify(whatsapp) !== JSON.stringify(cfg.whatsapp)) {
       cfg.whatsapp = whatsapp;
       saveConfig(cfg);
       log(`config: WhatsApp alerts ${whatsapp ? 'enabled' : 'not configured on the server'}`);
     }
+    applySetup(cfg, setup);
   } catch (err) {
     log(`config: could not refresh from server (${err.cause?.code || err.message})`);
   }
@@ -280,6 +298,8 @@ function startBackend({ databaseUrl, jwtSecret, relaySecret }) {
       JWT_SECRET: jwtSecret,
       FRONTEND_URL: APP_ORIGIN,
       FMS_STATIC_DIR: FRONTEND_DIR,
+      // Setup name + logo for the login screen (GET /branding)
+      FMS_BRANDING_FILE: brandingFile,
       TZ: 'Asia/Karachi',
       // WhatsApp alerts go to the local relay, which queues them offline.
       N8N_WEBHOOK_URL: `http://127.0.0.1:${ALERT_PORT}/alert`,
@@ -331,6 +351,7 @@ function createWindow() {
 async function boot() {
   createWindow();
   const cfg = loadConfig();
+  applySetup(cfg);
 
   for (const port of [APP_PORT, ALERT_PORT]) {
     if (!(await portIsFree(port))) throw new Error(`Port ${port} is already in use by another program.`);

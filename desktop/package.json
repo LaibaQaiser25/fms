@@ -30,6 +30,7 @@
     "node-cron": "^4.2.1",
     "node-pg-migrate": "^8.0.4",
     "pg": "^8.22.0",
+    "sharp": "^0.35.5",
     "ws": "^8.21.3"
   },
   "devDependencies": {

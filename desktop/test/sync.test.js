@@ -348,7 +348,7 @@ test('the snapshot needs read-only mode and a registration less than an hour old
     const snap = await call(route()['/sync/snapshot'], { headers: withKey() });
     assert.equal(snap.status, 200, JSON.stringify(snap.body));
     assert.ok('customers' in snap.body.tables);
-    for (const t of ['sync_writer', 'setup_code', 'pgmigrations']) {
+    for (const t of ['sync_writer', 'setup_code', 'offline_setup', 'pgmigrations']) {
       assert.ok(!(t in snap.body.tables), `${t} is not in the snapshot`);
     }
 
@@ -388,4 +388,34 @@ test('registering a second PC blocks the first: its worker stops as blocked_not_
   // The new main PC uploads fine.
   assert.equal((await syncRound(secondKey)).state, 'ok');
   assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal']);
+});
+
+// ---- T1.2: setup name and logo reach the main PC ----
+
+test('register and /sync/config hand the setup name and logo to the main PC', async () => {
+  const offlineSetup = require(path.join(BACKEND_DIR, 'services', 'offlineSetup'));
+  const sharp = require('sharp');
+  try {
+    await offlineSetup.setSetupName('  Bin-Zahid   Factory ', vpsPool);
+    const jpg = await sharp({ create: { width: 600, height: 300, channels: 3, background: '#c00' } }).jpeg().toBuffer();
+    await offlineSetup.setLogo(jpg, vpsPool);
+
+    const { code } = await syncWriter.createSetupCode(vpsPool);
+    const reg = await call(route()['/sync/register'], { body: { code, writer_id: crypto.randomUUID() } });
+    assert.equal(reg.status, 200, JSON.stringify(reg.body));
+    assert.equal(reg.body.setup.name, 'Bin-Zahid Factory');
+    assert.match(reg.body.setup.logo, /^data:image\/png;base64,/);
+    const logo = Buffer.from(reg.body.setup.logo.split(',')[1], 'base64');
+    const meta = await sharp(logo).metadata();
+    assert.deepEqual([meta.format, meta.width, meta.height], ['png', 256, 256], 'stored as a 256 x 256 PNG');
+
+    const cfg = await call(route()['/sync/config'], { headers: withKey(reg.body.uploadKey) });
+    assert.equal(cfg.status, 200);
+    assert.deepEqual(cfg.body.setup, reg.body.setup);
+
+    await assert.rejects(offlineSetup.setLogo(Buffer.from('GIF89a not allowed'), vpsPool), /PNG or JPG/);
+    await assert.rejects(offlineSetup.setLogo(Buffer.alloc(1024 * 1024 + 1, 0xff), vpsPool), /1 MB/);
+  } finally {
+    await vps.query('UPDATE offline_setup SET setup_name = NULL, logo = NULL');
+  }
 });

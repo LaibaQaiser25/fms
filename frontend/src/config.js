@@ -22,4 +22,8 @@ const SITE = (() => {
   return 'all';
 })();
 
-export { API_BASE_URL, AUTH_BASE_URL, APP_URL, SITE };
+// The factory desktop app's build (desktop/scripts/stage.js). Offline Setup
+// exists only on the online dashboard, never inside the factory app.
+const IS_DESKTOP = import.meta.env.VITE_FMS_DESKTOP === '1';
+
+export { API_BASE_URL, AUTH_BASE_URL, APP_URL, SITE, IS_DESKTOP };

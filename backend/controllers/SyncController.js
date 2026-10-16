@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const pool = require('../db/pool');
 const { NOT_WRITER, hashSetupCode, hashUploadKey, uploadKeyHashFrom } = require('../services/syncWriter');
+const { getSetup } = require('../services/offlineSetup');
 
 // Receives changes from the factory desktop app (desktop/lib/sync.js). The
 // factory is the single writer; this server just mirrors its rows.
@@ -14,9 +15,9 @@ class NotWriter extends Error {}
 
 // Tables ingest refuses to write: the factory never sends these, and must not
 // be able to. Every VPS-only table is here too (SYNC-HARDENING-PLAN.md §4).
-const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code']);
+const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code', 'offline_setup']);
 // Server bookkeeping that is never copied to a factory by the snapshot.
-const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code']);
+const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code', 'offline_setup']);
 
 // The snapshot hands out every business table (password hashes included), so
 // only the PC that registered within the last hour may take it.
@@ -47,11 +48,14 @@ class SyncController {
   // Settings the factory app needs but shouldn't have to be typed in there:
   // where to send WhatsApp alerts (n8n's PUBLIC webhook — the backend's own
   // N8N_WEBHOOK_URL is a Docker-internal hostname) and its shared secret.
-  // Fetched by desktop/main.js at startup and hourly.
-  static getConfig(req, res) {
+  // Fetched by desktop/main.js at startup and hourly — which is also how a
+  // new setup name or logo from Offline Setup reaches the main PC.
+  static async getConfig(req, res) {
     const url = process.env.N8N_PUBLIC_WEBHOOK_URL;
+    const { name, logo } = await getSetup();
     res.json({
       whatsapp: url ? { url, secret: process.env.N8N_WEBHOOK_SECRET || '' } : null,
+      setup: { name, logo },
     });
   }
   // Factory app, first run: trade a one-time setup code (made in Offline
@@ -92,7 +96,8 @@ class SyncController {
       );
       await client.query('COMMIT');
       console.log(`🔑 Sync: main PC ${writerId} registered${prev?.writer_id ? `, replacing ${prev.writer_id}` : ''}`);
-      res.json({ writerId, uploadKey });
+      const { name, logo } = await getSetup();
+      res.json({ writerId, uploadKey, setup: { name, logo } });
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       console.error('❌ Sync register failed:', err.message);

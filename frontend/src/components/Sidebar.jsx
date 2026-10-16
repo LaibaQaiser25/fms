@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
+import { IS_DESKTOP } from '../config';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   Receipt,
   Users,
   Lock,
+  MonitorCog,
   ChevronDown,
   X,
 } from 'lucide-react';
@@ -400,6 +402,16 @@ export default function Sidebar({ collapsed = false, mobileOpen = false, onClose
               {!effectiveCollapsed && 'Privacy'}
             </NavLink>
             <Tooltip label="Privacy" />
+          </div>
+        )}
+        {/* Online dashboard only: registering the factory PC happens here, not inside the factory app */}
+        {isOwner && !IS_DESKTOP && (
+          <div className="relative group">
+            <NavLink to="/offline-setup" className={link} style={navStyle}>
+              <MonitorCog size={19} strokeWidth={2} className="shrink-0" />
+              {!effectiveCollapsed && 'Offline Setup'}
+            </NavLink>
+            <Tooltip label="Offline Setup" />
           </div>
         )}
       </nav>

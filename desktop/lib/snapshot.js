@@ -9,7 +9,8 @@ const CHUNK = 1000;
 
 // First run: trade the Owner's one-time setup code for this PC's own upload
 // key (POST /sync/register). From then on this PC is the registered main PC,
-// and any PC registered before it can no longer upload.
+// and any PC registered before it can no longer upload. Resolves
+// { uploadKey, setup: { name, logo } } (setup name and logo from Offline Setup).
 async function registerWriter({ serverUrl, code, writerId }) {
   let res;
   try {
@@ -24,7 +25,7 @@ async function registerWriter({ serverUrl, code, writerId }) {
   }
   let body = {};
   try { body = await res.json(); } catch { /* not JSON */ }
-  if (res.ok && body.uploadKey) return body.uploadKey;
+  if (res.ok && body.uploadKey) return { uploadKey: body.uploadKey, setup: body.setup || null };
   if (res.status === 401) throw new Error('That setup code is wrong, already used, or expired. Create a new one in Offline Setup on the online dashboard.');
   if (res.status === 429) throw new Error('Too many attempts. Wait 15 minutes, then try again.');
   if (res.status === 404) throw new Error('Sync is not enabled on the server yet (SYNC_TOKEN is not set there).');

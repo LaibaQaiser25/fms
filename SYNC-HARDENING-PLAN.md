@@ -186,7 +186,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | ID | Task | Deps | Status | Notes / evidence |
 |---|---|---|---|---|
 | T0.1 | Read-only mode off until go-live | — | NOT STARTED | ops |
-| T0.2 | VPS nightly backup + restore drill | — | NOT STARTED | |
+| T0.2 | VPS nightly backup + restore drill | — | CODE DONE, CHECKS FAILING | script tested on a throwaway DB; production run + crontab not yet done |
 | T0.3 | Cleanup bundle | — | CODE DONE, CHECKS FAILING | check 2 ✅ (local); check 1 needs the deploy |
 | T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
 | T1.1 | One-PC lock + one-time setup code | T1.0 | NOT STARTED | |
@@ -237,7 +237,8 @@ itself up as a writer. T1.10 switches it back on.
 
 ### T0.2 — VPS nightly backup + restore drill
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1, 2, 4 unverified on production: running the
+script against the live `fms_db` and adding the crontab line need the owner's go-ahead
 
 **Do:** `deploy/backup-db.sh`:
 - dumps `fms_db` from the compose `db` container, which already has `pg_dump`:
@@ -260,6 +261,20 @@ dumps to the owner's PC weekly (D15):
 4. `crontab -l` shows the line; a dump exists on the owner's PC.
 
 **Gate:** drill completes with matching counts.
+
+**Evidence (16 Oct 2026)** — run against a throwaway compose project (`postgres:16-alpine`,
+`fms_app` / `fms_db`, tables `products` 500 rows, `sales` 37, `"Odd Name"` 1), not production:
+- Backup ✅ — `backup OK: fms_db-2026-10-16.dump (8.0K)`, exit 0. With 60 older dumps seeded,
+  20 remain: the 14 newest + Sundays back to 23 Aug (8 Sundays in all).
+- Drill ✅ — all three tables restored with matching counts, `drill OK: ... 3 tables, all row
+  counts match fms_db`; the `fms_drill_*` database is gone afterwards.
+- Drill mismatch ✅ — one row inserted after the dump → `< public.sales 38 / > public.sales 37`,
+  `drill FAILED: row counts ... differ`, exit 1.
+- Check 3 ✅ — `db` stopped → `service "db" is not running`, `backup FAILED: pg_dump failed`,
+  exit 1, no `.partial` and no dump file left.
+- ⏳ Production: `bash deploy/backup-db.sh`, `bash deploy/backup-db.sh --drill`,
+  add `30 2 * * * bash ~/fms/deploy/backup-db.sh` to `crontab -e`, first weekly `scp` to the
+  owner's PC.
 
 ---
 

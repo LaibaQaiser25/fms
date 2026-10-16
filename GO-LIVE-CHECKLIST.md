@@ -189,10 +189,11 @@ Usage: `vpsql <<< "SELECT now();"`
 - [ ] **E4 · T1.10 step 5** 🏭 start FMS normally (desktop shortcut) → enter code **B** →
       "copies all server data" → log in with the usual accounts. Title bar and login screen show
       the setup name and logo (**T1.2-6** ✍️). Status bar green "Uploaded ✓". Close FMS.
-- [ ] **E5 · T1.1-6 (finish)** 🏭 start the test instance again (step E3.3 command), change one
-      thing (e.g. a customer's phone) → within a few seconds the status bar is red "Not
-      uploading … This PC is no longer the registered main PC" — not "Offline". 🖥 the change is
-      **not** on the VPS. ✍️ Close it and delete `C:\fms-test` (it holds a full copy of the data).
+- [ ] **E5 · T1.1-6 (finish)** 🏭 start the test instance again (step E3.3 command) and **leave
+      it idle** → within about a minute (its first heartbeat) the status bar turns red "Not
+      uploading … This PC is no longer the registered main PC" — not "Offline" ✍️. Then change one
+      thing (e.g. a customer's phone) → still red, and 🖥 the change is **not** on the VPS ✍️.
+      Close it and delete `C:\fms-test` (it holds a full copy of the data).
 - [ ] **E6** 🏭 start FMS normally; keep it running from now on.
 - [ ] **E7 · T1.10-2** 🏭 make a real sale → 🖥 `vpsql <<< "SELECT id, created_at FROM sales ORDER BY id DESC LIMIT 1;"`
       shows it within ~3 s; factory status green. ✍️

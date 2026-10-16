@@ -746,3 +746,34 @@ test('the final upload on quit sends what is waiting; with the server unreachabl
   assert.equal((await syncRound()).pending, 0);
   assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal']);
 });
+
+test('an idle PC that was replaced finds out from its heartbeat: worker stops, status red', async () => {
+  const { StatusReporter } = require('../lib/status');
+  await resetProducts();
+  const firstKey = uploadKey;
+  let lastSync = { state: 'ok' };
+  const worker = new SyncWorker({
+    databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey: firstKey, log, onStatus: (s) => { lastSync = s; },
+  });
+  const reporter = new StatusReporter({
+    databaseUrl: factoryUrl, statusFile: path.join(tmpDir, 'status.json'), getSync: () => lastSync,
+    relay: null, tablesWithoutPk: [], upload: { serverUrl: SERVER_URL, uploadKey: firstKey }, log,
+    onNotWriter: (m) => worker.markNotWriter(m),
+  });
+  try {
+    await reporter.refresh();
+    await reporter.sendHeartbeat();
+    assert.equal(lastSync.state, 'ok', 'still the main PC');
+
+    await registerPC(); // another PC takes over; this one has nothing to upload
+    await reporter.sendHeartbeat();
+    assert.equal(lastSync.state, 'blocked_not_writer');
+    assert.equal(worker.stopped, true);
+    assert.equal(reporter.last.level, 'red');
+    assert.match(reporter.last.problems[0], /no longer the registered main PC/);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(tmpDir, 'status.json'), 'utf8')).state, 'blocked_not_writer');
+  } finally {
+    await reporter.stop();
+    await worker.stop();
+  }
+});

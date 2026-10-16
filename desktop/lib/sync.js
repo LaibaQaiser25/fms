@@ -101,7 +101,7 @@ class SyncWorker {
   // including a round already under way. What doesn't make it stays in
   // sync_outbox for the next start.
   async finalUpload(timeoutMs) {
-    const blocked = this.stopped;
+    const blocked = this.blocked || this.stopped;
     this.stopped = true;
     clearTimeout(this.timer);
     clearTimeout(this.nudgeTimer);
@@ -115,6 +115,21 @@ class SyncWorker {
     const { rows: [{ n }] } = await this.pool.query('SELECT count(*)::int AS n FROM sync_outbox');
     this.log(`sync: final upload before quit — ${n === 0 ? 'everything uploaded' : `${n} change(s) left for next start`}`);
     return n;
+  }
+
+  // The server says another PC is now the registered main PC — learned from
+  // a refused upload, or from the heartbeat while this PC is idle (T1.5).
+  // Nothing this PC sends will be accepted again: stop trying, keep the
+  // outbox, and report it so the status bar turns red.
+  async markNotWriter(message) {
+    if (this.blocked) return;
+    this.blocked = true;
+    this.stopped = true;
+    clearTimeout(this.timer);
+    clearTimeout(this.nudgeTimer);
+    this.lastError = { message, offline: false };
+    this.log(`sync: stopped — ${message}`);
+    await this.report('blocked_not_writer').catch(() => {});
   }
 
   async stop() {
@@ -160,10 +175,7 @@ class SyncWorker {
       // nothing this PC sends will be accepted again, so stop trying. Its
       // changes stay in sync_outbox.
       if (err.notWriter) {
-        this.stopped = true;
-        this.lastError = { message: err.message, offline: false };
-        this.log(`sync: stopped — ${err.message}`);
-        await this.report('blocked_not_writer').catch(() => {});
+        await this.markNotWriter(err.message);
         return null;
       }
       const offline = err.offline === true;
@@ -242,6 +254,8 @@ class SyncWorker {
   }
 
   async report(state) {
+    // Once replaced, stay red even if a round that was already running ends "ok".
+    if (this.blocked) state = 'blocked_not_writer';
     const { rows } = await this.pool.query(
       `SELECT (SELECT count(*)::int FROM sync_outbox) AS pending,
               (SELECT count(*)::int FROM sync_quarantine WHERE resolved_at IS NULL) AS quarantined,

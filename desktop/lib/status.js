@@ -65,11 +65,13 @@ function levelOf(s) {
 // Electron), so a later headless host (T3.1) can run it too.
 //   getSync() -> SyncWorker's last report, or { state: 'not_registered' }
 //   upload: { serverUrl, uploadKey } or null (not registered: no heartbeat)
+//   onNotWriter(message): the heartbeat was refused because another PC is now
+//     the registered main PC — so even an idle PC finds out within a minute
 class StatusReporter {
   constructor({ databaseUrl, statusFile, getSync, relay, tablesWithoutPk, upload, log,
-    intervalMs = 15_000, heartbeatMs = 60_000 }) {
+    onNotWriter = () => {}, intervalMs = 15_000, heartbeatMs = 60_000 }) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 1 });
-    Object.assign(this, { statusFile, getSync, relay, tablesWithoutPk, upload, log, intervalMs, heartbeatMs });
+    Object.assign(this, { statusFile, getSync, relay, tablesWithoutPk, upload, log, onNotWriter, intervalMs, heartbeatMs });
     this.last = null;
     this.timers = [];
     this.heartbeatFailing = false;
@@ -123,7 +125,16 @@ class StatusReporter {
         }),
         signal: AbortSignal.timeout(20_000),
       });
-      if (!res.ok) throw new Error(`server replied ${res.status}`);
+      if (!res.ok) {
+        let body = {};
+        try { body = await res.json(); } catch { /* not JSON */ }
+        if (res.status === 403 && body.code === 'WriterNotRegistered') {
+          await this.onNotWriter(body.error || 'this PC is no longer the registered main PC');
+          await this.refresh();
+          return;
+        }
+        throw new Error(`server replied ${res.status}`);
+      }
       if (this.heartbeatFailing) this.log('heartbeat: sending again');
       this.heartbeatFailing = false;
     } catch (err) {

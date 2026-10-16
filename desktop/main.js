@@ -439,6 +439,8 @@ async function boot() {
     tablesWithoutPk,
     upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
     log,
+    // Replaced by another PC while idle: stop the worker as if an upload had been refused.
+    onNotWriter: (message) => syncWorker?.markNotWriter(message),
   });
   statusReporter.start();
 

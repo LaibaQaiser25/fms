@@ -847,6 +847,10 @@ CREATE TABLE IF NOT EXISTS sync_heartbeat (
   026 registered in all four places. Offline Setup's 🟢/🔴 now uses the heartbeat too.
 - Registering a new PC clears `sync_heartbeat` (found during check 2: otherwise the online bar
   would report the replaced PC's last heartbeat).
+- A heartbeat refused with `403 WriterNotRegistered` calls `SyncWorker.markNotWriter()` (via
+  `StatusReporter`'s `onNotWriter`), so a replaced PC turns red within a minute even when it has
+  nothing to upload; before, it found out only on its next upload. Once blocked, the worker
+  reports nothing but `blocked_not_writer`.
 - `frontend/src/components/SyncStatusBar.jsx` at the top of `<main>` in `Layout`; factory build
   polls `GET /status` every 10 s, online every 60 s with the "View-only" label.
 
@@ -868,6 +872,9 @@ dashboards via Vite (desktop and online builds) in headless Chrome:
 - Check 4 ✅ — factory worker and reporter stopped; heartbeat 5 min old → `/api/sync-status`
   `level amber`, bar "VIEW-ONLY Factory last updated 5 min ago"; 45 min → `level red`, "VIEW-ONLY
   Factory offline — last updated 45 min ago" (timestamps shifted, not waited out).
+- Follow-up (16 Oct 2026): `npm test` → `tests 19 / pass 19`, new *an idle PC that was replaced
+  finds out from its heartbeat: worker stops, status red* (state `blocked_not_writer`, level red,
+  `status.json` updated). Sabotage: not calling `onNotWriter` → only that test fails.
 - `npm test` → `tests 15 / pass 15`. New: heartbeat needs the key and drives green/amber/red, a new
   registration starts with no heartbeat; `collectStatus` green → amber (6-min backlog) → red
   (blocked / quarantine / table without key), amber for stuck WhatsApp alerts.

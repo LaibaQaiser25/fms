@@ -98,6 +98,8 @@ class GatePassController {
         }
       }
 
+      // Gaps in gate-pass numbers are accepted: nextval() is never rolled
+      // back, so a gate pass whose transaction fails still uses up its number.
       const idResult = await client.query(
         "SELECT nextval(pg_get_serial_sequence('gate_passes', 'id')) AS id"
       );

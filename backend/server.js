@@ -87,12 +87,6 @@ app.use(readOnlyMode);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ===== TEMP: auto-deployment test route — DELETE AFTER VERIFYING DEPLOY =====
-app.get('/testautodeployment', (req, res) => {
-  res.json({ message: 'Auto deployment works!' });
-});
-// ===== END TEMP ROUTE =====
-
 // Auth routes
 app.use('/auth', authRoutes);
 

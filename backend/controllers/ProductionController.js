@@ -248,6 +248,18 @@ class ProductionController {
       // added is no longer real — reverse that addition. (The frontend
       // confirms this with the user before sending the request.)
       if (status === 'cancelled' && previousStatus === 'completed' && productionItem.stock_id) {
+        // If some of that stock has been sold since, the reversal would take
+        // the quantity below zero (stock_quantity_nonneg) — refuse instead.
+        const current = await client.query(
+          'SELECT quantity FROM stock WHERE id = $1 FOR UPDATE',
+          [productionItem.stock_id]
+        );
+        if (current.rows.length > 0 && current.rows[0].quantity < productionItem.required_quantity) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({
+            error: `Can't cancel: this order added ${productionItem.required_quantity} to stock, but only ${current.rows[0].quantity} are left — the rest has already been sold.`
+          });
+        }
         const stockReversalResult = await client.query(
           'UPDATE stock SET quantity = quantity - $1 WHERE id = $2 RETURNING *',
           [productionItem.required_quantity, productionItem.stock_id]

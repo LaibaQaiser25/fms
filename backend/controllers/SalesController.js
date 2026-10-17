@@ -54,15 +54,27 @@ class SalesController {
       // Check each item independently so one short item doesn't block stock
       // decrement for items that are actually in stock
       let status = 'ready'; // Default to ready
+      // Stock left per stock_id after the earlier lines of this sale, so a
+      // sale listing the same item twice can't take it below zero.
+      const stockLeft = new Map();
       for (const item of items) {
         let needsProduction = item.from_production === true;
         if (!needsProduction && item.stock_id) {
-          const stockResult = await client.query(
-            'SELECT quantity FROM stock WHERE id = $1 FOR UPDATE',
-            [item.stock_id]
-          );
-          if (stockResult.rows.length > 0 && stockResult.rows[0].quantity < item.quantity) {
-            needsProduction = true;
+          const key = Number(item.stock_id);
+          if (!stockLeft.has(key)) {
+            const stockResult = await client.query(
+              'SELECT quantity FROM stock WHERE id = $1 FOR UPDATE',
+              [item.stock_id]
+            );
+            stockLeft.set(key, stockResult.rows.length > 0 ? stockResult.rows[0].quantity : null);
+          }
+          const left = stockLeft.get(key);
+          if (left !== null) {
+            if (left < Number(item.quantity)) {
+              needsProduction = true;
+            } else {
+              stockLeft.set(key, left - Number(item.quantity));
+            }
           }
         }
         item._needsProduction = needsProduction;

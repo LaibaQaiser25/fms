@@ -58,6 +58,7 @@ function ProductionList() {
       fetchData();
     } catch (error) {
       console.error('Error updating status:', error);
+      alert('Error: ' + (error.response?.data?.error || error.message));
     }
   };
 

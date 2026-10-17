@@ -480,6 +480,45 @@ test('a row the server rejects (23505) is set aside while the rest of the batch 
   assert.equal((await vps.query("SELECT name FROM products")).rows[0].name, 'Block');
 });
 
+// ---- T2.7: stock can't go below zero, on either side ----
+
+test('negative stock is refused locally (23514) and a negative change from sync is set aside', async () => {
+  await resetProducts();
+  await factory.query('TRUNCATE stock RESTART IDENTITY CASCADE');
+  await vps.query('TRUNCATE stock RESTART IDENTITY CASCADE');
+  await assert.rejects(
+    factory.query("INSERT INTO stock (name, unit_price, quantity) VALUES ('neg probe', 0, -1)"),
+    (err) => err.code === '23514' && err.constraint === 'stock_quantity_nonneg'
+  );
+
+  // A change made before the constraint existed (or by an old install)
+  // carrying quantity = -1: crafted, since the factory itself refuses it now.
+  await factory.query("INSERT INTO stock (name, unit_price, quantity) VALUES ('Block', 0, 5)");
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali')");
+  const sent = await outbox();
+  const stockChange = sent.find((c) => c.table_name === 'stock');
+  stockChange.row_data = { ...stockChange.row_data, quantity: -1 };
+
+  const res = await call(route()['/sync/ingest'], { body: { changes: sent }, headers: withKey() });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual(res.body.rejected.map((r) => [r.id, r.code, r.constraint]),
+    [[stockChange.id, '23514', 'stock_quantity_nonneg']]);
+  assert.equal(res.body.applied, sent.length - 1);
+  const { rows: rej } = await vps.query('SELECT table_name, op, code FROM sync_rejected');
+  assert.deepEqual(rej.map((r) => [r.table_name, r.op, r.code]), [['stock', 'I', '23514']]);
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali'], 'the rest of the batch applied');
+  assert.equal((await vps.query('SELECT count(*)::int AS n FROM stock')).rows[0].n, 0);
+
+  // Through the worker: the batch doesn't put sync into "Problem".
+  await vps.query('TRUNCATE customers RESTART IDENTITY CASCADE');
+  await vps.query('TRUNCATE sync_rejected');
+  await factory.query("UPDATE sync_outbox SET row_data = jsonb_set(row_data, '{quantity}', '-1') WHERE table_name = 'stock'");
+  const status = await syncRound();
+  assert.equal(status.state, 'ok', status.error);
+  assert.equal(status.pending, 0);
+  assert.equal((await vps.query("SELECT code FROM sync_rejected")).rows[0].code, '23514');
+});
+
 test('a schema problem (unknown op) still refuses the whole batch: 409, nothing applied, nothing set aside', async () => {
   await resetProducts();
   await factory.query("INSERT INTO customers (name) VALUES ('Ali')");

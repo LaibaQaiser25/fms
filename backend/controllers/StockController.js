@@ -46,6 +46,9 @@ exports.addStock = async (req, res) => {
     if (!product_id) {
       return res.status(400).json({ error: 'product_id is required' });
     }
+    if (Number(quantity) < 0) {
+      return res.status(400).json({ error: 'Quantity cannot be negative' });
+    }
 
     const productResult = await pool.query(
       `SELECT p.*, c.name AS category_name
@@ -77,6 +80,9 @@ exports.addStock = async (req, res) => {
 exports.updateStock = async (req, res) => {
   const { name, unit_price, quantity, category, size, extra } = req.body;
   try {
+    if (Number(quantity) < 0) {
+      return res.status(400).json({ error: 'Quantity cannot be negative' });
+    }
     // Pre-update row, to tell whether this edit newly drops it to low stock.
     const before = await pool.query(
       'SELECT quantity, minimum_stock FROM stock WHERE id = $1',

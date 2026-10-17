@@ -171,11 +171,11 @@ Consequences:
 | `offline_setup` | VPS | migration 024 (T1.2) | ✅ | ✅ | ✅ |
 | `sync_rejected` | VPS | migration 025 (T1.3) | ✅ | ✅ | ✅ |
 | `sync_heartbeat` | VPS | migration 026 (T1.5) | ✅ | ✅ | ✅ |
-| `report_dispatch_log` | VPS | migration 027 (T2.1) | ✅ | ✅ | ✅ |
+| `report_dispatch_log` | VPS | migration 028 (T2.1) | ✅ | ✅ | ✅ |
 | `whatsapp_dead` | factory | `alertRelay.js` (T1.6) | — | — | ✅ |
 | `sync_quarantine` | factory | `syncCapture.js` (T1.4) | — | — | ✅ |
 
-Migration 028 (T2.7) adds a constraint, not a table. VPS tables exist empty on the factory too
+Migration 027 (T2.7) adds a constraint, not a table. VPS tables exist empty on the factory too
 (F3); that is expected.
 
 Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
@@ -208,7 +208,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.4 | Health endpoint + n8n watchdog | T1.5 | NOT STARTED | |
 | T2.5 | Factory backups + restore drill | T1.10 | NOT STARTED | |
 | T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
-| T2.7 | Non-negative stock | T1.3 | NOT STARTED | |
+| T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; VPS deploy + factory install pending |
 | T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | NOT STARTED | |
 | T3.1 | `desktop/host.js` entry point | T1.5 | NOT STARTED | |
 | T3.2 | Service install + dedicated user + drain | T3.1 | NOT STARTED | |
@@ -1145,7 +1145,7 @@ visible on both versions; alert failures are visible; the factory is live.
 
 **Problem (F12):** reports and digests go out only if the factory PC is on at that minute.
 
-**Migration 027 (VPS table, register per §4):**
+**Migration 028 (VPS table, register per §4):**
 
 ```sql
 CREATE TABLE IF NOT EXISTS report_dispatch_log (
@@ -1281,7 +1281,8 @@ already at their safe defaults (F7) — **do not tune them off**.
 
 ### T2.7 — Non-negative stock
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 observed on a throwaway database (17 Oct 2026);
+the same on the VPS needs the deploy (migration 027), and on the factory a release with it
 **Deps:** T1.3 (so a violating row is quarantined instead of stalling sync)
 
 **Do — first fix the three paths that can push stock negative (F8):**
@@ -1291,7 +1292,7 @@ already at their safe defaults (F7) — **do not tune them off**.
 3. **A sale listing the same stock item twice:** add up the quantities per stock item before the
    `FOR UPDATE` check, keeping the `FOR UPDATE` + `needsProduction` branch (rule 7).
 
-**Then migration 028:**
+**Then migration 027 (numbered before T2.1's table, which ships later):**
 
 ```sql
 -- 1. audit (on 12 Oct 2026 the VPS had 0 rows)
@@ -1315,6 +1316,41 @@ Deploy the VPS migration first, then the factory app.
 4. The factory status does not show "Problem" for the batch.
 
 **Gate:** all four observed.
+
+**Built (17 Oct 2026):**
+- `ProductionController.updateStatus`: cancelling a completed order locks the stock row and, if
+  less than `required_quantity` is left, rolls back with `409 Can't cancel: this order added N to
+  stock, but only M are left — the rest has already been sold.` `ProductionList.jsx` now shows the
+  server's message (it only logged errors before).
+- `StockController.updateStock` and `addStock`: a negative quantity → `400 Quantity cannot be
+  negative`.
+- `SalesController.createSale`: tracks the stock left per `stock_id` across the sale's lines; a
+  line that no longer fits goes to production. `FOR UPDATE` + `needsProduction` kept (rule 7).
+- Migration **027** (`027-stock-quantity-nonneg.js`, not 028: node-pg-migrate refuses a lower
+  number after a higher one has run, and T2.1's table ships later, so T2.1 takes 028). Adds
+  `stock_quantity_nonneg` `NOT VALID`, then validates it only if no row is negative, else a
+  `WARNING` with the count. Idempotent.
+- Not changed: a purchase line with a negative quantity is not validated (none of F8's paths);
+  if it would take stock below zero it now fails on the constraint (500) instead of saving.
+
+**Evidence** — real controllers on a throwaway embedded Postgres with every migration (harness:
+fake req/res, as T1.0):
+- Migration: `stock_quantity_nonneg`, `convalidated: true`.
+- Check 1 ✅ — stock edit to `-1` → `400 {"error":"Quantity cannot be negative"}`, stock still 5;
+  add stock with `-3` → same 400. Sale with the same item twice (3 + 3, 5 in stock) → `201`,
+  sale `pending`, stock 2 (first line from stock, second to production). Completed order (+10, stock
+  2 → 12), stock then set to 4, cancel → `409 Can't cancel: this order added 10 to stock, but only
+  4 are left — the rest has already been sold.`, stock still 4, order still `completed`; with
+  12 in stock the cancel → `200`, stock 2.
+- Check 2 ✅ — `INSERT INTO stock (name,unit_price,quantity) VALUES ('neg probe',0,-1)` → `23514
+  new row for relation "stock" violates check constraint "stock_quantity_nonneg"`.
+- Checks 3–4 ✅ — `npm test` (`tests 20 / pass 20`), new test "negative stock is refused locally
+  (23514) and a negative change from sync is set aside": ingest → 200, `rejected` =
+  `[[id, '23514', 'stock_quantity_nonneg']]`, one `sync_rejected` row `stock | I | 23514`, the
+  customer in the same batch applied; through the real `SyncWorker` the round ends `state: ok`,
+  0 pending.
+- ⏳ On the VPS after the deploy: `SELECT conname, convalidated FROM pg_constraint WHERE conname =
+  'stock_quantity_nonneg'` → `t`, and check 2 there.
 
 ---
 

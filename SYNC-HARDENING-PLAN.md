@@ -189,12 +189,12 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | ID | Task | Deps | Status | Notes / evidence |
 |---|---|---|---|---|
 | T0.1 | Read-only mode off until go-live | — | CODE DONE, CHECKS FAILING | ops; off since 16 Oct 11:35; checks 1, 3 ✅, check 2 (dashboard save) pending |
-| T0.2 | VPS nightly backup + restore drill | — | CODE DONE, CHECKS FAILING | production backup + drill ✅, cron ✅; copy to the owner's PC pending |
-| T0.3 | Cleanup bundle | — | CODE DONE, CHECKS FAILING | check 2 ✅ (local); check 1 needs the deploy |
+| T0.2 | VPS nightly backup + restore drill | — | CODE DONE, CHECKS FAILING | production backup + drill ✅, cron ✅ (ran by itself 17 Oct 02:30); copy to the owner's PC pending |
+| T0.3 | Cleanup bundle | — | DONE | check 2 ✅ (local); check 1 ✅ on the VPS (17 Oct) |
 | T1.0 | Automated sync checks | — | DONE | 4/4 pass; sabotage check fails as expected (16 Oct 2026) |
-| T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | 8/8 `npm test` (4 new); observed checks need deploy + a factory install |
+| T1.1 | One-PC lock + one-time setup code | T1.0 | CODE DONE, CHECKS FAILING | checks 1–4 + 5 (409 half) ✅ on the VPS (17 Oct); 5 (403 half) at go-live E1.1; 6 needs the factory install |
 | T1.2 | Offline Setup page, form, read-only exception | T1.1 | CODE DONE, CHECKS FAILING | checks 1–5 seen on a local harness + headless Chrome; VPS deploy + check 6 (Windows install) pending |
-| T1.3 | Bad-row quarantine — server | — | CODE DONE, CHECKS FAILING | 11/11 `npm test`; checks 1–5 seen on a local harness; VPS deploy pending |
+| T1.3 | Bad-row quarantine — server | — | DONE | checks 2–5 ✅ on the VPS (17 Oct), test rows removed |
 | T1.4 | Bad-row quarantine — factory + retry | T1.3 | CODE DONE, CHECKS FAILING | 13/13 `npm test`; Sync issues page + Retry seen in headless Chrome; Windows install pending |
 | T1.5 | Sync status on both versions + heartbeat | T1.1, T1.4, T1.6 | CODE DONE, CHECKS FAILING | 15/15 `npm test`; checks 1–4 seen end to end on a local harness; VPS + Windows pending |
 | T1.6 | WhatsApp relay state + `whatsapp_dead` | — | CODE DONE, CHECKS FAILING | checks 1–4 seen on the real relay + fake n8n; factory install pending |
@@ -251,7 +251,7 @@ itself up as a writer. T1.10 switches it back on.
 
 ### T0.2 — VPS nightly backup + restore drill
 
-**Status:** CODE DONE, CHECKS FAILING — production backup, drill and cron done on 16 Oct 2026;
+**Status:** CODE DONE, CHECKS FAILING — production backup, drill and cron done on 16 Oct 2026 (the cron ran by itself on 17 Oct: `2026-10-17 02:30:03 +0200 backup OK: fms_db-2026-10-17.dump (128K)`; crontab line now `30 2 * * * bash $HOME/fms/deploy/backup-db.sh`);
 still open: a dump on the owner's PC (check 4), and the Owner accepting check 3 from the
 throwaway run (or running it on production)
 
@@ -306,7 +306,7 @@ dumps to the owner's PC weekly (D15):
 
 ### T0.3 — Cleanup bundle
 
-**Status:** CODE DONE, CHECKS FAILING — check 1 unverified: needs this branch merged and deployed to the VPS
+**Status:** DONE — both checks observed; check 1 on the VPS after the deploy (17 Oct 2026)
 
 **Do:**
 1. **Restore `deploy/.env.n8n.example`** with placeholder values for exactly the keys
@@ -329,8 +329,8 @@ dumps to the owner's PC weekly (D15):
   `deploy/.env.n8n` → `ERROR: deploy/.env.n8n still has placeholders` (exit 1); filled →
   `env files OK` (exit 0). The example has exactly `META_PHONE_NUMBER_ID META_WHATSAPP_TOKEN
   N8N_WEBHOOK_SECRET WEBHOOK_URL WHATSAPP_TO_NUMBER`.
-- Check 1 ⏳ — route removed in code; `curl -i https://api.ittefaqbuilder.com/testautodeployment` →
-  404 still to be observed after deploy.
+- Check 1 ✅ (17 Oct 2026, on the VPS after the deploy of `a3c735c`) —
+  `curl -s -o /dev/null -w "%{http_code}" https://api.ittefaqbuilder.com/testautodeployment` → `404`.
 
 ---
 
@@ -497,8 +497,21 @@ CREATE TABLE IF NOT EXISTS setup_code (
 - Check 3, rate limit: `routes/sync.js` alone in a throwaway Express app (no `server.js`), 12 wrong
   codes → `500 ×10` (that harness had no database) then `429 429`, body
   `Too many attempts, please try again in 15 minutes`.
-- ⏳ On the VPS after deploy: checks 1–5 with `curl -i` + `psql` (code from
-  `scripts/createSetupCode.js`). ⏳ On a factory install: check 6's window title.
+- **On the VPS (17 Oct 2026)** (go-live checklist C1–C5):
+  - Check 1 ✅ — `createSetupCode.js` → `Setup code: XXXX-XXXX` / `Valid once, until
+    2026-10-17T16:26:43.745Z`; `setup_code`: 64-character hash, valid 01:00:00, `used_at` empty; the
+    plain code found nowhere in the table.
+  - Check 2 ✅ — `200 {"writerId":"a637e0df-…","uploadKey":"<64 hex>","setup":{…}}`; `sync_writer`
+    `a637e0df-… | 2026-10-17 15:26:44 UTC` (a curl test PC; the real main PC replaces it at go-live).
+  - Check 3 ✅ — the used code, a made-up code, and an expired code → `401 {"code":"BadSetupCode",
+    "error":"That setup code is wrong, already used, or expired. …"}`; then 11 wrong codes →
+    `401 ×6, 429 ×5` (the 10th attempt in 15 min is the last 401), `Too many attempts, please try
+    again in 15 minutes`; `sync_writer` unchanged.
+  - Check 4 ✅ — no key and a 64-zero key → `403 {"code":"WriterNotRegistered",…}`; customer 999999
+    count 0. The old token-only snapshot call → 403 too.
+  - Check 5, 409 half ✅ — registered key, `READ_ONLY_MODE=false` → `409 Turn on READ_ONLY_MODE=true
+    …`. ⏳ 403 half: the same key after read-only is on (go-live E1.1).
+- ⏳ On a factory install: check 6 (go-live E3/E5).
 
 ---
 
@@ -624,8 +637,8 @@ throwaway Express app (not `server.js`) on a throwaway embedded Postgres, `READ_
 
 ### T1.3 — Bad-row quarantine — server
 
-**Status:** CODE DONE, CHECKS FAILING — checks 1–5 observed with `curl` + `psql` against the real
-`/sync` routes on a throwaway database and by `npm test`; not yet on the VPS (needs deploy).
+**Status:** DONE — checks 2–5 observed on the VPS on 17 Oct 2026 (go-live checklist C10–C11, test
+rows removed in C13), after the same on a throwaway database and by `npm test`.
 Until T1.4, the factory still deletes a rejected change from its outbox without quarantining it
 (the VPS keeps it in `sync_rejected`) — T1.10 depends on T1.4, so no install sees this
 
@@ -725,7 +738,19 @@ throwaway Express app on a throwaway embedded Postgres; registered with a setup 
   `sync_rejected` count 1 before and after; the valid change in the same batch was not applied.
 - `npm test` → `tests 11 / pass 11` (new: the 23505 scenario incl. resolving on a later accepted
   change; the 409 batch). Sabotage: treating every row error as fatal → only the 23505 test fails.
-- ⏳ The same on the VPS after deploy.
+- **On the VPS (17 Oct 2026)**, with a curl test PC registered by a setup code (go-live C2):
+  - Check 1 — `INSERT INTO products (id, name, type, size) VALUES (999001, 'ZZ Sync Test', 'stock',
+    'test')`; batch: customer 999901, the same product as 999002, customer 999902.
+  - Check 2 ✅ — `200 {"applied":2,"accepted":[901,903],"rejected":[{"id":902,"table_name":
+    "products","op":"I","code":"23505","constraint":"products_name_type_size_idx",...}]}`.
+  - Check 3 ✅ — `sync_rejected`: exactly one row, `products | I | 23505 |
+    products_name_type_size_idx | Key (name, type, COALESCE(size, ''::character varying))=(ZZ Sync
+    Test, stock, test) already exists.`
+  - Check 4 ✅ — customers `999901 ZZ Sync Test A`, `999902 ZZ Sync Test B`; products: only 999001.
+  - Check 5 ✅ — op `"Z"` → `409 {"error":"unknown op \"Z\""}`; `sync_rejected` 1 before and after;
+    customer 999903 absent.
+  - Cleanup: both customers deleted through ingest (`applied 2`), product 999001 deleted; `ZZ`
+    customers 0, products 0, ledger rows 0.
 
 ---
 

@@ -166,7 +166,7 @@ Usage: `vpsql <<< "SELECT now();"`
 
 - [ ] **D1** `git pull` on `main`; in `desktop/`: `npm ci` (installs the Windows builds of
       Postgres, sharp, Electron).
-- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 19 / pass 19 / fail 0`. ✍️ paste the summary.
+- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 20 / pass 20 / fail 0`. ✍️ paste the summary.
 - [ ] **D3** Set `"version": "1.0.2"` in `desktop/package.json`, commit + push
       ("Release 1.0.2"), then `npm run dist` → `dist/FMS-Setup-1.0.2.exe`, `.blockmap`, `latest.yml`.
 - [ ] **D4** Upload (PowerShell, in `desktop/`), `latest.yml` last:

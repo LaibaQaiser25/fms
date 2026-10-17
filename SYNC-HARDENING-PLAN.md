@@ -208,7 +208,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.4 | Health endpoint + n8n watchdog | T1.5 | NOT STARTED | |
 | T2.5 | Factory backups + restore drill | T1.10 | NOT STARTED | |
 | T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
-| T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; VPS deploy + factory install pending |
+| T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
 | T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | NOT STARTED | |
 | T3.1 | `desktop/host.js` entry point | T1.5 | NOT STARTED | |
 | T3.2 | Service install + dedicated user + drain | T3.1 | NOT STARTED | |
@@ -1306,8 +1306,8 @@ already at their safe defaults (F7) — **do not tune them off**.
 
 ### T2.7 — Non-negative stock
 
-**Status:** CODE DONE, CHECKS FAILING — checks 1–4 observed on a throwaway database (17 Oct 2026);
-the same on the VPS needs the deploy (migration 027), and on the factory a release with it
+**Status:** CODE DONE, CHECKS FAILING — checks 1–4 observed on a throwaway database; deployed to the
+VPS and check 2 observed there (17 Oct 2026); on the factory it ships with installer 1.0.2
 **Deps:** T1.3 (so a violating row is quarantined instead of stalling sync)
 
 **Do — first fix the three paths that can push stock negative (F8):**
@@ -1374,8 +1374,13 @@ fake req/res, as T1.0):
   `[[id, '23514', 'stock_quantity_nonneg']]`, one `sync_rejected` row `stock | I | 23514`, the
   customer in the same batch applied; through the real `SyncWorker` the round ends `state: ok`,
   0 pending.
-- ⏳ On the VPS after the deploy: `SELECT conname, convalidated FROM pg_constraint WHERE conname =
-  'stock_quantity_nonneg'` → `t`, and check 2 there.
+- **On the VPS (17 Oct 2026)**, deploy of `0b8e5c6` (Action run 39045334969, success). Before:
+  `SELECT count(*) FROM stock WHERE quantity < 0` → `0`. Backend log: `> - 027-stock-quantity-nonneg`,
+  `Migrations complete!`, `✅ Cron jobs started`. `pgmigrations` newest → `027-stock-quantity-nonneg`;
+  `pg_constraint` → `stock_quantity_nonneg | t` (validated). Check 2 inside `BEGIN … ROLLBACK` →
+  `ERROR: new row for relation "stock" violates check constraint "stock_quantity_nonneg"`.
+- ⏳ On the factory install (1.0.2): checks 1 and 4 in the real app (a sale listing one item twice;
+  cancelling a completed order whose stock was sold → the message shows).
 
 ---
 

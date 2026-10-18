@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const SyncController = require('../controllers/SyncController');
 const requireSyncWriter = require('../middleware/requireSyncWriter');
+const requireSyncToken = require('../middleware/requireSyncToken');
 
 // The factory PC itself runs this same backend without SYNC_TOKEN, so there
 // the whole /sync route 404s. Since the one-PC lock (T1.1) SYNC_TOKEN only
@@ -26,6 +27,10 @@ const registerRateLimiter = rateLimit({
 
 // Factory desktop app, first run: trade a one-time setup code for an upload key
 router.post('/register', registerRateLimiter, express.json(), SyncController.register);
+
+// The n8n watchdog (T2.4), every 10 minutes: counts and timestamps only,
+// never business data.
+router.get('/health', requireSyncToken, SyncController.health);
 
 router.use(requireSyncWriter);
 // Own body parser with a bigger limit than the global 100kb one: a batch is

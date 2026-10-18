@@ -1,0 +1,101 @@
+{
+  "name": "FMS Sync Watchdog",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "b3f1c0de-0001-4a00-9000-000000000001",
+      "name": "Every 10 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.FMS_HEALTH_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Sync-Token",
+              "value": "={{ $env.SYNC_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "b3f1c0de-0002-4a00-9000-000000000002",
+      "name": "Get sync health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decides whether to tell the owner. The rules are in the backend\n// (backend/services/syncHealth.js); this only avoids repeating itself:\n// a new set of problems is sent at once, the same set again after 6 h,\n// and one 'cleared' message when they are gone. A switched-off factory PC\n// (no recent heartbeat) is normal and changes nothing here.\nconst res = $input.first().json;\nconst state = $getWorkflowStaticData('global');\nconst REPEAT_MS = 6 * 3600 * 1000;\nconst now = Date.now();\n\nlet alerts;\nif (res.statusCode === 200 && res.body && Array.isArray(res.body.alerts)) {\n  if (!res.body.heartbeat_recent && res.body.alerts.length === 0) return [];\n  alerts = res.body.alerts;\n} else {\n  const why = res.statusCode ? `it replied ${res.statusCode}` : (res.error && (res.error.message || res.error)) || 'no reply';\n  alerts = [{ key: 'health_unreachable', message: `The online server's health check failed (${why})` }];\n}\n\nconst key = alerts.map((a) => a.key).sort().join(',');\nconst out = [];\nif (key) {\n  if (key !== state.lastKey || now - (state.lastSentAt || 0) > REPEAT_MS) {\n    out.push({ json: { message: `⚠️ FMS sync watchdog\\n${alerts.map((a) => `• ${a.message}`).join('\\n')}` } });\n    state.lastSentAt = now;\n  }\n} else if (state.lastKey) {\n  out.push({ json: { message: '✅ FMS sync watchdog: the earlier problem has cleared.' } });\n}\nstate.lastKey = key;\nreturn out;"
+      },
+      "id": "b3f1c0de-0003-4a00-9000-000000000003",
+      "name": "Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WATCHDOG_ALERT_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-FMS-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $json.message }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b3f1c0de-0004-4a00-9000-000000000004",
+      "name": "Send to owner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Every 10 minutes": {
+      "main": [[{ "node": "Get sync health", "type": "main", "index": 0 }]]
+    },
+    "Get sync health": {
+      "main": [[{ "node": "Decide", "type": "main", "index": 0 }]]
+    },
+    "Decide": {
+      "main": [[{ "node": "Send to owner", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

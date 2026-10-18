@@ -42,6 +42,7 @@ let vps;            // pg Client on the server database
 let vpsPool;        // backend/db/pool.js, used by SyncController
 let SyncController;
 let requireSyncWriter;
+let requireSyncToken;
 let syncWriter;     // backend/services/syncWriter.js
 let uploadKey;      // the registered PC's key; a fresh PC registers before each test
 let restoreFetch;
@@ -86,6 +87,7 @@ const route = () => ({
   '/sync/snapshot': [requireSyncWriter, SyncController.snapshot],
   '/sync/config': [requireSyncWriter, SyncController.getConfig],
   '/sync/heartbeat': [requireSyncWriter, SyncController.heartbeat],
+  '/sync/health': [requireSyncToken, SyncController.health],
 });
 const withKey = (key = uploadKey) => ({ 'X-Upload-Key': key });
 
@@ -162,6 +164,7 @@ before(async () => {
   process.env.DATABASE_URL = vpsUrl;
   SyncController = require(path.join(BACKEND_DIR, 'controllers', 'SyncController'));
   requireSyncWriter = require(path.join(BACKEND_DIR, 'middleware', 'requireSyncWriter'));
+  requireSyncToken = require(path.join(BACKEND_DIR, 'middleware', 'requireSyncToken'));
   syncWriter = require(path.join(BACKEND_DIR, 'services', 'syncWriter'));
   vpsPool = require(path.join(BACKEND_DIR, 'db', 'pool'));
   // pool.js checks out one client on import and never releases it; keep its
@@ -832,4 +835,77 @@ test('a change to report_schedules (text primary key) uploads instead of stallin
   assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['same batch']);
   await factory.query("UPDATE report_schedules SET last_run_at = NULL, enabled = false WHERE frequency = 'daily'");
   assert.equal((await syncRound()).state, 'ok');
+});
+
+// ---- T2.4: health endpoint for the n8n watchdog ----
+
+test('/sync/health needs SYNC_TOKEN, alerts on each problem with a recent heartbeat, and stays quiet when the PC is off', async () => {
+  const prevToken = process.env.SYNC_TOKEN;
+  process.env.SYNC_TOKEN = 'watchdog-test-token';
+  const health = async (token = 'watchdog-test-token') => call(route()['/sync/health'], { headers: { 'X-Sync-Token': token } });
+  const beat = async (fields) => {
+    const r = await call(route()['/sync/heartbeat'], {
+      body: { sync_state: 'ok', outbox_count: 0, oldest_outbox_age_sec: 0, quarantine_count: 0, whatsapp_state: 'ok', whatsapp_oldest_age_sec: 0, ...fields },
+      headers: withKey(),
+    });
+    assert.equal(r.status, 200);
+  };
+  const keys = async () => (await health()).body.alerts.map((a) => a.key);
+  try {
+    assert.equal((await health('wrong')).status, 403);
+    assert.equal((await call(route()['/sync/health'], {})).status, 403, 'no token');
+    assert.equal((await health('watchdog-test-token-and-more')).status, 403);
+
+    // Freshly registered, never heard from: no heartbeat, nothing to alert on.
+    let h = await health();
+    assert.equal(h.status, 200);
+    assert.equal(h.body.writer_registered, true);
+    assert.equal(h.body.heartbeat, null);
+    assert.equal(h.body.heartbeat_recent, false);
+    assert.deepEqual(h.body.alerts, []);
+
+    await beat({});
+    h = await health();
+    assert.equal(h.body.heartbeat_recent, true);
+    assert.equal(h.body.heartbeat.sync_state, 'ok');
+    assert.deepEqual(h.body.alerts, [], 'all fine');
+
+    // Each condition on its own (plan T2.4 step 2).
+    await beat({ outbox_count: 4, oldest_outbox_age_sec: 1801 });
+    assert.deepEqual(await keys(), ['outbox_backlog']);
+    await beat({ outbox_count: 4, oldest_outbox_age_sec: 1800 });
+    assert.deepEqual(await keys(), [], 'exactly 30 min is not yet a backlog');
+    await beat({ quarantine_count: 2 });
+    assert.deepEqual(await keys(), ['quarantine']);
+    await beat({ whatsapp_state: 'n8n_rejecting' });
+    assert.deepEqual(await keys(), ['whatsapp_state']);
+    await beat({ whatsapp_state: null });
+    assert.deepEqual(await keys(), [], 'a PC with no relay state is not a WhatsApp fault');
+    await beat({ whatsapp_oldest_age_sec: 3601 });
+    assert.deepEqual(await keys(), ['whatsapp_backlog']);
+    await beat({ sync_state: 'blocked_not_writer' });
+    assert.deepEqual(await keys(), ['not_writer']);
+    await beat({ quarantine_count: 1, whatsapp_state: 'no_target' });
+    h = await health();
+    assert.deepEqual(h.body.alerts.map((a) => a.key), ['quarantine', 'whatsapp_state']);
+    assert.match(h.body.alerts[0].message, /1 change\(s\) were refused/);
+
+    // Negative case: the PC goes off with problems still in its last
+    // heartbeat. After 20 minutes of silence, no alert.
+    await vps.query("UPDATE sync_heartbeat SET received_at = now() - interval '20 minutes'");
+    h = await health();
+    assert.equal(h.body.heartbeat_recent, false);
+    assert.deepEqual(h.body.alerts, []);
+    // A few missed heartbeats still count as on.
+    await vps.query("UPDATE sync_heartbeat SET received_at = now() - interval '4 minutes'");
+    assert.deepEqual(await keys(), ['quarantine', 'whatsapp_state']);
+
+    // Open rejections on the server side are counted.
+    await vps.query(`INSERT INTO sync_rejected (outbox_id, table_name, op, pk, row_data, code)
+                     VALUES (1, 'customers', 'I', '{"id":1}', '{"id":1}', '23505')`);
+    assert.equal((await health()).body.rejectedOpenCount, 1);
+    await vps.query('DELETE FROM sync_rejected');
+  } finally {
+    if (prevToken === undefined) delete process.env.SYNC_TOKEN; else process.env.SYNC_TOKEN = prevToken;
+  }
 });

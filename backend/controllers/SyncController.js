@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const pool = require('../db/pool');
 const { NOT_WRITER, hashSetupCode, hashUploadKey, uploadKeyHashFrom } = require('../services/syncWriter');
 const { getSetup } = require('../services/offlineSetup');
+const { getSyncHealth } = require('../services/syncHealth');
 
 // Receives changes from the factory desktop app (desktop/lib/sync.js). The
 // factory is the single writer; this server just mirrors its rows.
@@ -175,6 +176,12 @@ class SyncController {
        text(b.whatsapp_state), int(b.whatsapp_oldest_age_sec), text(b.sync_state)]
     );
     res.json({ ok: true });
+  }
+
+  // For the n8n watchdog (T2.4): last upload, open rejections, the last
+  // heartbeat, and the alerts it raises (services/syncHealth.js).
+  static async health(req, res) {
+    res.json(await getSyncHealth());
   }
 
   // One-time copy of every business table, for the factory app's first run

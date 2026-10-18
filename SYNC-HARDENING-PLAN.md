@@ -205,7 +205,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.1 | VPS send-only report scheduler | T1.10 | NOT STARTED | |
 | T2.2 | Factory `DISABLE_CRON` | T2.1 | NOT STARTED | |
 | T2.3 | Report freshness label + history view | T2.1, T1.5 | NOT STARTED | |
-| T2.4 | Health endpoint + n8n watchdog | T1.5 | NOT STARTED | |
+| T2.4 | Health endpoint + n8n watchdog | T1.5 | CODE DONE, CHECKS FAILING | 22/22 `npm test`; watchdog seen on a scratch n8n 2.37.10 (alerts, no repeat, quiet when off, cleared); production deploy + provisioning + real WhatsApp pending |
 | T2.5 | Factory backups + restore drill | T1.10 | NOT STARTED | |
 | T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
 | T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
@@ -1263,7 +1263,9 @@ scheduled window exactly **one** message arrives.
 
 ### T2.4 — Health endpoint + n8n watchdog
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–2 seen on a scratch n8n 2.37.10 (the production
+version) with a stand-in health endpoint, and the rules by `npm test` (18 Oct 2026); on production
+they need the deploy, `bash deploy/provision-n8n.sh`, and the factory PC sending heartbeats
 **Deps:** T1.5
 
 **Do:**
@@ -1279,6 +1281,54 @@ scheduled window exactly **one** message arrives.
 2. **Negative case:** stop the factory PC for 20 minutes → **no** alert.
 
 **Gate:** both observed, including the negative case.
+
+**Built (18 Oct 2026):**
+- `GET /sync/health` (`routes/sync.js`, before the upload-key check) behind
+  `middleware/requireSyncToken.js`: `X-Sync-Token` must equal `SYNC_TOKEN` (timing-safe), else 403.
+  Returns `{ last_ingest_at, writer_registered, rejectedOpenCount, heartbeat, heartbeat_recent,
+  alerts: [{ key, message }] }`.
+- The alert rules are in `backend/services/syncHealth.js`, not in n8n, so `npm test` covers them:
+  `outbox_backlog` (oldest > 1800 s), `quarantine` (> 0), `whatsapp_state` (set and not `ok`; a
+  missing state is not a fault), `whatsapp_backlog` (> 3600 s), `not_writer`. Every rule needs a
+  heartbeat **younger than 5 minutes**; an older or missing one (PC off) gives no alerts.
+  Note: `not_writer` rarely reaches the server, because a replaced PC's heartbeat is refused (403)
+  before it is stored. It is kept for completeness.
+- `n8n/fms-sync-watchdog.json`: every 10 min → GET the health URL (full response, never error,
+  continue on error) → a Code node decides → POST `{ message }` to the existing alerts webhook with
+  `X-FMS-Secret`, so it reuses the Meta credential. The Code node keeps what it last sent in the
+  workflow's static data. It sends a new set of problems at once, the same set again only after
+  6 h, and one "cleared" message when they are gone. A switched-off PC changes nothing. A health
+  call that fails (non-200 / no reply) is an alert of its own (`health_unreachable`).
+- `deploy/provision-n8n.js` provisions both workflows. New values: `SYNC_TOKEN` from
+  `backend/.env`; `FMS_HEALTH_URL` (default `http://backend:5000/sync/health`, the compose
+  network) and `WATCHDOG_ALERT_URL` (default `http://localhost:5678/webhook/fms-alert`), optional
+  in `deploy/.env.n8n`.
+
+**Evidence (18 Oct 2026):**
+- `npm test` → `/sync/health needs SYNC_TOKEN, alerts on each problem with a recent heartbeat, and
+  stays quiet when the PC is off` ✔ — wrong / missing / longer token → 403; each condition alone
+  raises exactly its own key (and 1800 s exactly does not); heartbeat 20 min old with problems →
+  `heartbeat_recent: false`, `alerts: []`; 4 min old → alerts again.
+- Scratch n8n (`docker.n8n.io/n8nio/n8n` 2.37.10, own data dir, host network on 5681), the
+  workflow imported as the provisioner builds it but every **1** minute; a stand-in
+  `/sync/health` whose answer was switched every 65 s, and a stand-in alert webhook logging what
+  arrived:
+
+  | Step | Health answer | Arrived |
+  |---|---|---|
+  | 1 | healthy, recent | nothing |
+  | 2 | `quarantine` | `⚠️ FMS sync watchdog • 2 change(s) were refused by the online server — open Sync issues on the factory PC` |
+  | 3 | same | nothing (no repeat) |
+  | 4 | `outbox_backlog` + `quarantine` | one message listing both |
+  | 5–6 | PC off (`heartbeat_recent: false`), two runs | **nothing** (negative case) |
+  | 7 | back on, healthy | `✅ FMS sync watchdog: the earlier problem has cleared.` |
+  | 8 | health replies 500 | `⚠️ … The online server's health check failed (it replied 500)` |
+
+  Every request carried `X-FMS-Secret`. Not observed: the "no reply at all" branch (connection
+  refused).
+- ⏳ Production: after the deploy, `bash deploy/provision-n8n.sh` → `workflow ready & active: FMS
+  Sync Watchdog`; `curl -s -H "X-Sync-Token: …" $API/sync/health` → 200; with the factory live, one
+  forced condition (e.g. a refused row) → the real WhatsApp message; factory PC off 20 min → none.
 
 ---
 

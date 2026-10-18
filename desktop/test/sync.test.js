@@ -816,3 +816,20 @@ test('an idle PC that was replaced finds out from its heartbeat: worker stops, s
     await worker.stop();
   }
 });
+
+// ---- Ingest: a table whose primary key is text (report_schedules) ----
+
+test('a change to report_schedules (text primary key) uploads instead of stalling sync', async () => {
+  // The factory's cron does this every time a scheduled report runs.
+  await factory.query("UPDATE report_schedules SET last_run_at = now(), enabled = true WHERE frequency = 'daily'");
+  await factory.query("INSERT INTO customers (name) VALUES ('same batch')");
+  const status = await syncRound();
+  assert.equal(status.state, 'ok', status.error);
+  assert.equal(status.pending, 0);
+  const { rows: [r] } = await vps.query("SELECT enabled, last_run_at FROM report_schedules WHERE frequency = 'daily'");
+  assert.equal(r.enabled, true);
+  assert.ok(r.last_run_at);
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['same batch']);
+  await factory.query("UPDATE report_schedules SET last_run_at = NULL, enabled = false WHERE frequency = 'daily'");
+  assert.equal((await syncRound()).state, 'ok');
+});

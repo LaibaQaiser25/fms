@@ -752,6 +752,19 @@ throwaway Express app on a throwaway embedded Postgres; registered with a setup 
   - Cleanup: both customers deleted through ingest (`applied 2`), product 999001 deleted; `ZZ`
     customers 0, products 0, ledger rows 0.
 
+**Fix (18 Oct 2026), found while building T2.8:** after applying a batch, ingest reset each
+touched table's serial sequence with `setval(seq, GREATEST((SELECT max(pk) ...), 1)) FROM
+pg_get_serial_sequence(...) WHERE seq IS NOT NULL`. For `report_schedules`, whose only key column
+is `frequency` (varchar), Postgres rejects `GREATEST(text, 1)` when the statement is parsed, so the
+`WHERE` never helps: `500 GREATEST types text and integer cannot be matched`. That is not a row
+error (class 42), so the whole batch rolls back and the worker retries it forever. The factory's
+cron updates `report_schedules.last_run_at` every time a scheduled report runs, so **the first
+scheduled report after go-live would have stopped all uploads**. Ingest now looks the sequence up
+first and skips keys without one; `setval(seq, max, true)` is unchanged (§10). New check in
+`npm test`: "a change to report_schedules (text primary key) uploads instead of stalling sync" —
+passes with the fix, fails with the old statement (`server replied 500: GREATEST types text and
+integer cannot be matched`). Needs the backend deploy before the first factory install (T1.10).
+
 ---
 
 ### T1.4 — Bad-row quarantine — factory + retry (D11)

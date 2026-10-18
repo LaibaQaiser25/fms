@@ -303,15 +303,16 @@ class SyncController {
 
       // Rows arrive with explicit ids, which don't advance this side's serial
       // sequences. Keep them at the max so nothing here ever reuses an id.
+      // Look the sequence up first: a key with no sequence can be text
+      // (report_schedules.frequency), and GREATEST(text, 1) fails when the
+      // statement is parsed, even if no row would reach it.
       for (const tableName of touched) {
         const { pk } = tables.get(tableName);
         if (pk.length !== 1) continue;
         const t = `public.${q(tableName)}`;
-        await client.query(
-          `SELECT setval(seq, GREATEST((SELECT max(${q(pk[0])}) FROM ${t}), 1))
-             FROM pg_get_serial_sequence($1, $2) AS seq WHERE seq IS NOT NULL`,
-          [t, pk[0]]
-        );
+        const { rows: [{ seq }] } = await client.query('SELECT pg_get_serial_sequence($1, $2) AS seq', [t, pk[0]]);
+        if (!seq) continue;
+        await client.query(`SELECT setval($1, GREATEST((SELECT max(${q(pk[0])}) FROM ${t}), 1))`, [seq]);
       }
 
       await client.query('COMMIT');

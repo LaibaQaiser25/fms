@@ -7,8 +7,9 @@
 //   5. push every local change to the VPS whenever it's reachable (lib/sync.js)
 //   6. queue WhatsApp alerts locally, send when online (lib/alertRelay.js)
 //   7. update itself from GitHub Releases (electron-updater)
+//   8. FMS menu (Alt): rebuild the online server from this PC's data (T2.8)
 // The app itself talks over 127.0.0.1 only; internet is needed only for sync.
-const { app, BrowserWindow, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -20,6 +21,7 @@ const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./l
 const { installSyncCapture } = require('./lib/syncCapture');
 const { SyncWorker } = require('./lib/sync');
 const { registerWriter, downloadSnapshot, importSnapshot } = require('./lib/snapshot');
+const { resendAndPrune } = require('./lib/rebuild');
 const { AlertRelay } = require('./lib/alertRelay');
 const { StatusReporter } = require('./lib/status');
 
@@ -170,6 +172,89 @@ function runSetup({ cfg, databaseUrl }) {
 
     win.loadFile(path.join(__dirname, 'setup', 'index.html'));
   });
+}
+
+// FMS menu -> "Rebuild the online server…" (T2.8, D17): the server was lost
+// or restored from an old backup. Register again with a setup code made
+// there (scripts/createSetupCode.js), keeping this PC's writer_id and all of
+// its data — no snapshot — then resend every row and prune what the server
+// has that this PC doesn't (lib/rebuild.js).
+let rebuildWindow = null;
+function runRebuild({ cfg, databaseUrl }) {
+  if (rebuildWindow) { rebuildWindow.focus(); return; }
+  const win = new BrowserWindow({
+    parent: mainWindow,
+    modal: true,
+    width: 620,
+    height: 720,
+    resizable: false,
+    minimizable: false,
+    autoHideMenuBar: true,
+    title: 'Rebuild the online server',
+    webPreferences: {
+      preload: path.join(__dirname, 'setup', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  rebuildWindow = win;
+  let busy = false;
+  win.on('close', (event) => {
+    if (busy) {
+      event.preventDefault();
+      dialog.showMessageBox(win, { type: 'info', message: 'Still sending data to the server.', detail: 'Wait until it says it is done.' });
+    }
+  });
+  win.on('closed', () => {
+    ['rebuild:defaults', 'rebuild:run'].forEach((ch) => ipcMain.removeHandler(ch));
+    rebuildWindow = null;
+  });
+
+  ipcMain.handle('rebuild:defaults', () => ({ serverUrl: cfg.syncServerUrl }));
+  ipcMain.handle('rebuild:run', async (_e, { serverUrl, code }) => {
+    const progress = (msg) => { if (!win.isDestroyed()) win.webContents.send('rebuild:progress', msg); };
+    busy = true;
+    try {
+      progress('Registering this computer with the server again…');
+      const writerId = cfg.writerId || crypto.randomUUID();
+      const { uploadKey, setup } = await registerWriter({ serverUrl, code, writerId });
+      Object.assign(cfg, { syncServerUrl: serverUrl, writerId, uploadKey });
+      saveConfig(cfg);
+      applySetup(cfg, setup);
+      log(`rebuild: registered again as main PC ${writerId}, resending everything`);
+      await startUploads({ cfg, databaseUrl });
+      const { queued, deleted } = await resendAndPrune({
+        databaseUrl, worker: syncWorker, serverUrl, uploadKey, log, progress,
+      });
+      const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+      log(`rebuild: done — ${sum(queued)} row(s) sent, ${sum(deleted)} removed on the server`);
+      return { ok: true, sent: sum(queued), removed: sum(deleted) };
+    } catch (err) {
+      log(`rebuild: failed: ${err.message}`);
+      return { ok: false, error: err.message };
+    } finally {
+      busy = false;
+    }
+  });
+
+  win.loadFile(path.join(__dirname, 'setup', 'rebuild.html'));
+}
+
+function setupMenu({ cfg, databaseUrl }) {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'FMS',
+      submenu: [
+        { label: 'Rebuild the online server…', click: () => runRebuild({ cfg, databaseUrl }) },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ]));
 }
 
 function portIsFree(port) {
@@ -367,6 +452,49 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// The SyncWorker and the StatusReporter (heartbeat) with the current upload
+// key. Called at startup, and again after the rebuild registers a new key.
+let configTimer = null;
+async function startUploads({ cfg, databaseUrl }) {
+  if (syncWorker) await syncWorker.stop();
+  if (statusReporter) await statusReporter.stop();
+  syncWorker = null;
+  if (cfg.uploadKey) {
+    syncWorker = new SyncWorker({
+      databaseUrl,
+      serverUrl: cfg.syncServerUrl,
+      uploadKey: cfg.uploadKey,
+      log,
+      onStatus: (status) => {
+        lastSync = status;
+        syncStatusText = describeSync(status);
+        refreshTitle();
+        statusReporter?.refresh();
+      },
+    });
+    syncWorker.start();
+    refreshServerConfig(cfg);
+    if (!configTimer) configTimer = setInterval(() => refreshServerConfig(cfg), 3600_000);
+  } else {
+    lastSync = { state: 'not_registered' };
+    syncStatusText = 'Upload to server not set up';
+    refreshTitle();
+    log('sync: this PC is not registered (no uploadKey in config.json), changes are kept locally');
+  }
+  statusReporter = new StatusReporter({
+    databaseUrl,
+    statusFile,
+    getSync: () => lastSync,
+    relay: alertRelay,
+    tablesWithoutPk,
+    upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
+    log,
+    // Replaced by another PC while idle: stop the worker as if an upload had been refused.
+    onNotWriter: (message) => syncWorker?.markNotWriter(message),
+  });
+  statusReporter.start();
+}
+
 async function boot() {
   createWindow();
   const cfg = loadConfig();
@@ -409,40 +537,8 @@ async function boot() {
   if (mainWindow) await mainWindow.loadURL(`${APP_ORIGIN}/login`);
   setupAutoUpdate();
 
-  if (cfg.uploadKey) {
-    syncWorker = new SyncWorker({
-      databaseUrl,
-      serverUrl: cfg.syncServerUrl,
-      uploadKey: cfg.uploadKey,
-      log,
-      onStatus: (status) => {
-        lastSync = status;
-        syncStatusText = describeSync(status);
-        refreshTitle();
-        statusReporter?.refresh();
-      },
-    });
-    syncWorker.start();
-    refreshServerConfig(cfg);
-    setInterval(() => refreshServerConfig(cfg), 3600_000);
-  } else {
-    lastSync = { state: 'not_registered' };
-    syncStatusText = 'Upload to server not set up';
-    refreshTitle();
-    log('sync: this PC is not registered (no uploadKey in config.json), changes are kept locally');
-  }
-  statusReporter = new StatusReporter({
-    databaseUrl,
-    statusFile,
-    getSync: () => lastSync,
-    relay: alertRelay,
-    tablesWithoutPk,
-    upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
-    log,
-    // Replaced by another PC while idle: stop the worker as if an upload had been refused.
-    onNotWriter: (message) => syncWorker?.markNotWriter(message),
-  });
-  statusReporter.start();
+  await startUploads({ cfg, databaseUrl });
+  setupMenu({ cfg, databaseUrl });
 
   if (owner) {
     const { response } = await dialog.showMessageBox(mainWindow, {

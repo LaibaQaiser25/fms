@@ -209,7 +209,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.5 | Factory backups + restore drill | T1.10 | NOT STARTED | |
 | T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
 | T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
-| T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | NOT STARTED | |
+| T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | CODE DONE, CHECKS FAILING | 25/25 `npm test` (checks 1–5 in the harness); the app's menu + window need a real run |
 | T3.1 | `desktop/host.js` entry point | T1.5 | NOT STARTED | |
 | T3.2 | Service install + dedicated user + drain | T3.1 | NOT STARTED | |
 | T3.3 | LAN bind + firewall + hostname | T3.2 | NOT STARTED | |
@@ -1449,7 +1449,9 @@ fake req/res, as T1.0):
 
 ### T2.8 — Rebuild the online server from the factory (D17)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 by `npm test` against the real controllers and
+SyncWorker (18 Oct 2026); the menu + window in the real app need a run of the app (Windows, or
+Electron under Xvfb)
 **Deps:** T1.1, T1.3
 
 **Problem:** if the online server is lost, or restored from an older backup, its copy is missing
@@ -1484,6 +1486,48 @@ everything.
 5. The T1.0 check "resend everything leaves both sides identical" passes.
 
 **Gate:** checks 1–5 observed.
+
+**Built (18 Oct 2026):**
+- Step 1 already existed as `backend/scripts/createSetupCode.js` (T1.1), same rules; the command
+  is `sg docker -c "docker compose exec backend node scripts/createSetupCode.js"`.
+- `POST /sync/prune` (`SyncController.prune`, upload key, after `requireSyncWriter`): body
+  `{ table_name, keys: [{ id: 7 }, …] }`; checks the key again under the `sync_writer` row lock
+  like ingest, refuses `PROTECTED_TABLES` / `VPS_ONLY_TABLES` / unknown tables and keys without
+  the primary key (409), then in replica mode `DELETE … WHERE NOT EXISTS (key in the list)`.
+- `desktop/lib/rebuild.js` (plain Node, ready for `host.js`): `queueEverything` (one REPEATABLE
+  READ transaction, every table that has the `fms_sync_capture` trigger, so exactly what sync
+  carries) → the normal `SyncWorker` uploads → `pruneServer` (keys from one consistent snapshot,
+  one request per table) → `resendAndPrune` runs the three and reports progress.
+- **Race found while building it:** a row added at the factory and uploaded *between* reading the
+  keys and the server's delete would be deleted there and never sent again. So the worker is
+  **paused** while pruning (`SyncWorker.pause()` / `resume()`); new changes just wait in the
+  outbox and go up after the prune.
+- Factory app: menu **FMS → Rebuild the online server…** (the menu bar shows with Alt) opens
+  `setup/rebuild.html`: setup code + server address → `registerWriter` with the **existing**
+  `writerId`, new key saved to `config.json`, no snapshot; `startUploads()` (split out of `boot()`)
+  restarts the worker and the heartbeat with the new key; then `resendAndPrune` with progress in
+  the window; the window can't be closed while it runs.
+
+**Evidence (18 Oct 2026):** `npm test` (harness: factory `fms_db` + server `vps_db`, real
+`SyncController` / `requireSyncWriter` / `SyncWorker` / `registerWriter`):
+- Checks 1, 3, 4, 5 ✅ — `rebuild: an empty new server gets every row; a second run changes
+  nothing; the factory is untouched`: the server's synced tables truncated and `sync_writer`
+  reset (a new server, migrations only); the factory's old key → `blocked_not_writer`; a code from
+  `createSetupCode` + re-register with the same `writer_id` → every synced table identical row
+  for row on both sides (users included, so the Owner can log in online again); factory rows
+  unchanged; outbox empty; the server's `customers` sequence moved past the resent ids; a
+  second run → identical again, 0 pruned.
+- Check 2 ✅ — `rebuild: a server restored from an older backup gets the newer rows, and loses
+  rows deleted since`: server back to Ali/Bilal/Chand while the factory has Ali Khan/Chand/Dawood
+  → after the rebuild the server has Ali Khan, Chand, Dawood; `deleted.customers = 1` (Bilal).
+- `prune: only the registered PC, never a server-only table; uploads wait while the worker is
+  paused`: wrong key → 403; `sync_writer`, `pgmigrations` → 409; key without `id` → 409; no
+  `keys` → 400; a row written while paused is not uploaded within 3 s, and is uploaded after
+  `resume()`.
+- Window: `setup/rebuild.html` rendered in headless Chrome with a stand-in bridge (code entered,
+  progress, done line).
+- ⏳ The menu item and window in the real app; a drill against a scratch server restored from a
+  real `pg_dump`.
 
 **Phase 2 exit:** a scheduled report arrives with the factory off, labelled with data age, exactly
 once; the watchdog alerts on real problems and stays quiet when the PC is off; the factory backup

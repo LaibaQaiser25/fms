@@ -41,6 +41,9 @@ router.use(express.json({ limit: '20mb' }));
 // Factory desktop app -> this server (see desktop/lib/sync.js)
 router.post('/ingest', SyncController.ingest);
 
+// Rebuilding this server from the factory (T2.8): delete rows it no longer has
+router.post('/prune', SyncController.prune);
+
 // Settings for the factory app (WhatsApp webhook), fetched at startup + hourly
 router.get('/config', SyncController.getConfig);
 

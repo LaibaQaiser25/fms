@@ -224,6 +224,59 @@ class SyncController {
     }
   }
 
+  // Rebuilding this server from the factory (T2.8, D17): after resending
+  // every row, the factory sends each table's full list of primary keys, and
+  // any row here that isn't in it is deleted — rows the factory deleted after
+  // the backup this server was restored from. Body { table_name, keys: [{ id: 7 }, ...] }.
+  // The factory pauses uploads while it prunes, so no row it adds meanwhile
+  // can arrive here before this list and be deleted by it.
+  static async prune(req, res) {
+    const { table_name: tableName, keys } = req.body || {};
+    if (typeof tableName !== 'string' || !Array.isArray(keys)) {
+      return res.status(400).json({ error: 'Body must be { table_name, keys: [...] }' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Like ingest: no cascades or triggers — the factory's own deletes
+      // already removed the children, and their keys are missing too.
+      await client.query('SET LOCAL session_replication_role = replica');
+      const { rowCount: isWriter } = await client.query(
+        'UPDATE sync_writer SET last_ingest_at = now() WHERE id = 1 AND upload_key_hash = $1',
+        [uploadKeyHashFrom(req)]
+      );
+      if (!isWriter) throw new NotWriter();
+
+      const tables = await loadTables(client);
+      const table = tables.get(tableName);
+      // loadTables already leaves out PROTECTED_TABLES; VPS-only ones are
+      // this server's own and never pruned.
+      if (!table || VPS_ONLY_TABLES.has(tableName)) throw new SchemaMismatch(`unknown table "${tableName}"`);
+      if (keys.some((k) => !k || typeof k !== 'object' || table.pk.some((c) => !(c in k)))) {
+        throw new SchemaMismatch(`every key for ${tableName} needs ${table.pk.join(', ')}`);
+      }
+      const q = (name) => client.escapeIdentifier(name);
+      const t = `public.${q(tableName)}`;
+      const match = table.pk.map((c) => `k.${q(c)} = t.${q(c)}`).join(' AND ');
+      const { rowCount: deleted } = await client.query(
+        `DELETE FROM ${t} t
+          WHERE NOT EXISTS (SELECT 1 FROM jsonb_populate_recordset(NULL::${t}, $1::jsonb) k WHERE ${match})`,
+        [JSON.stringify(keys)]
+      );
+      await client.query('COMMIT');
+      if (deleted) console.log(`🧹 Sync: pruned ${deleted} row(s) from ${tableName} that the factory no longer has`);
+      res.json({ deleted });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (err instanceof NotWriter) return res.status(403).json(NOT_WRITER);
+      if (err instanceof SchemaMismatch) return res.status(409).json({ error: err.message });
+      console.error('❌ Sync prune failed:', err.message);
+      res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  }
+
   static async ingest(req, res) {
     const changes = req.body?.changes;
     if (!Array.isArray(changes)) {

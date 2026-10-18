@@ -88,6 +88,7 @@ const route = () => ({
   '/sync/config': [requireSyncWriter, SyncController.getConfig],
   '/sync/heartbeat': [requireSyncWriter, SyncController.heartbeat],
   '/sync/health': [requireSyncToken, SyncController.health],
+  '/sync/prune': [requireSyncWriter, SyncController.prune],
 });
 const withKey = (key = uploadKey) => ({ 'X-Upload-Key': key });
 
@@ -907,5 +908,132 @@ test('/sync/health needs SYNC_TOKEN, alerts on each problem with a recent heartb
     await vps.query('DELETE FROM sync_rejected');
   } finally {
     if (prevToken === undefined) delete process.env.SYNC_TOKEN; else process.env.SYNC_TOKEN = prevToken;
+  }
+});
+
+// ---- T2.8: rebuild the online server from the factory ----
+
+// Every synced table, row for row, as one comparable value.
+async function allSyncedRows(client) {
+  const { rows: tables } = await factory.query(
+    `SELECT c.relname AS t FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid
+      WHERE tg.tgname = 'fms_sync_capture' ORDER BY 1`
+  );
+  const out = {};
+  for (const { t } of tables) {
+    const { rows } = await client.query(`SELECT to_jsonb(x) AS r FROM public.${client.escapeIdentifier(t)} x`);
+    out[t] = rows.map((r) => JSON.stringify(r.r)).sort();
+  }
+  return out;
+}
+const countsOf = (all) => Object.fromEntries(Object.entries(all).map(([t, rows]) => [t, rows.length]));
+
+// What the Owner does on the factory PC: a code from scripts/createSetupCode.js
+// on the new server, register with this PC's existing writer_id, then resend
+// everything and prune — through the real SyncWorker.
+async function rebuildFromFactory(writerId) {
+  const { resendAndPrune } = require('../lib/rebuild');
+  const { registerWriter } = require('../lib/snapshot');
+  const { code } = await syncWriter.createSetupCode(vpsPool);
+  const { uploadKey: key } = await registerWriter({ serverUrl: SERVER_URL, code, writerId });
+  uploadKey = key;
+  const worker = new SyncWorker({ databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey: key, log, onStatus: () => {} });
+  worker.start();
+  try {
+    return await resendAndPrune({ databaseUrl: factoryUrl, worker, serverUrl: SERVER_URL, uploadKey: key, log, pollMs: 100, progress: (m) => console.log('PROGRESS', m) });
+  } finally {
+    await worker.stop();
+  }
+}
+
+test('rebuild: an empty new server gets every row; a second run changes nothing; the factory is untouched', async () => {
+  await factory.query("INSERT INTO customers (name, phone) VALUES ('Ali', '0300'), ('Bilal', NULL), ('Chand', '0333')");
+  await factory.query("DELETE FROM customers WHERE name = 'Bilal'");
+  await factory.query("INSERT INTO stock (name, unit_price, quantity) VALUES ('rebuild probe', 10, 4)");
+  await factory.query("INSERT INTO users (username, email, password_hash, role) VALUES ('rebuild-owner', 'rebuild@test', 'x', 'Owner')");
+  assert.equal((await syncRound()).state, 'ok');
+
+  // The server is lost and replaced: migrations only, nobody registered.
+  const { rows: tables } = await factory.query(
+    "SELECT c.relname AS t FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid WHERE tg.tgname = 'fms_sync_capture'"
+  );
+  await vps.query(`TRUNCATE ${tables.map((r) => `public.${vps.escapeIdentifier(r.t)}`).join(', ')} RESTART IDENTITY CASCADE`);
+  await vps.query('UPDATE sync_writer SET writer_id = NULL, upload_key_hash = NULL, registered_at = NULL, last_ingest_at = NULL');
+  assert.equal((await customersOn(vps)).length, 0);
+  // The factory's old key means nothing to the new server.
+  await factory.query("INSERT INTO customers (name) VALUES ('Dawood')");
+  assert.equal((await syncRound()).state, 'blocked_not_writer');
+
+  const before = await allSyncedRows(factory);
+  assert.ok(before.users.length > 0, 'the factory has users, so the Owner can log in online afterwards');
+  const writerId = crypto.randomUUID();
+  const first = await rebuildFromFactory(writerId);
+  assert.equal(first.queued.customers, 3);
+  assert.deepEqual(await allSyncedRows(vps), before, 'every synced table identical on both sides');
+  assert.deepEqual(await allSyncedRows(factory), before, 'nothing changed at the factory');
+  assert.equal((await outbox()).length, 0);
+  const { rows: [w] } = await vps.query('SELECT writer_id FROM sync_writer');
+  assert.equal(w.writer_id, writerId);
+  // Sequences on the server moved past the resent ids.
+  const { rows: [{ next }] } = await vps.query("SELECT nextval(pg_get_serial_sequence('customers', 'id'))::int AS next");
+  assert.ok(next > Math.max(...(await customersOn(factory)).map((c) => c.id)));
+
+  // Again: same counts, no duplicates.
+  const second = await rebuildFromFactory(writerId);
+  assert.deepEqual(countsOf(await allSyncedRows(vps)), countsOf(before));
+  assert.deepEqual(await allSyncedRows(vps), before);
+  assert.ok(Object.values(second.deleted).every((n) => n === 0), 'nothing left to prune the second time');
+  await factory.query("DELETE FROM stock WHERE name = 'rebuild probe'");
+  await factory.query("DELETE FROM users WHERE username = 'rebuild-owner'");
+  assert.equal((await syncRound()).state, 'ok');
+});
+
+test('rebuild: a server restored from an older backup gets the newer rows, and loses rows deleted since', async () => {
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali'), ('Bilal'), ('Chand')");
+  assert.equal((await syncRound()).state, 'ok');
+  const ids = Object.fromEntries((await customersOn(factory)).map((c) => [c.name, c.id]));
+
+  // The backup was taken here. Since then the factory renamed Ali, deleted
+  // Bilal and added Dawood, and the server took those changes too...
+  await factory.query("UPDATE customers SET name = 'Ali Khan' WHERE id = $1", [ids.Ali]);
+  await factory.query('DELETE FROM customers WHERE id = $1', [ids.Bilal]);
+  await factory.query("INSERT INTO customers (name) VALUES ('Dawood')");
+  assert.equal((await syncRound()).state, 'ok');
+  // ...then the server was restored from that backup: back to Ali, Bilal, Chand.
+  await vps.query('TRUNCATE customers RESTART IDENTITY CASCADE');
+  await vps.query(
+    "INSERT INTO customers (id, name) VALUES ($1, 'Ali'), ($2, 'Bilal'), ($3, 'Chand')",
+    [ids.Ali, ids.Bilal, ids.Chand]
+  );
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal', 'Chand']);
+
+  const result = await rebuildFromFactory(crypto.randomUUID());
+  assert.equal(result.deleted.customers, 1, 'Bilal, deleted at the factory after the backup');
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali Khan', 'Chand', 'Dawood']);
+  assert.deepEqual(await customersOn(vps), await customersOn(factory));
+});
+
+test('prune: only the registered PC, never a server-only table; uploads wait while the worker is paused', async () => {
+  const prune = (body, key = uploadKey) => call(route()['/sync/prune'], { body, headers: withKey(key) });
+  assert.equal((await prune({ table_name: 'customers', keys: [] }, '0'.repeat(64))).status, 403);
+  assert.equal((await prune({ table_name: 'sync_writer', keys: [] })).status, 409);
+  assert.equal((await prune({ table_name: 'pgmigrations', keys: [] })).status, 409);
+  assert.equal((await prune({ table_name: 'customers', keys: [{ name: 'x' }] })).status, 409, 'a key without the primary key');
+  assert.equal((await prune({ table_name: 'customers' })).status, 400);
+  const { rows: [w] } = await vps.query('SELECT writer_id FROM sync_writer');
+  assert.ok(w.writer_id, 'sync_writer untouched');
+
+  const worker = new SyncWorker({ databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey, log, onStatus: () => {} });
+  worker.start();
+  try {
+    await worker.pause();
+    await factory.query("INSERT INTO customers (name) VALUES ('Paused')");
+    await new Promise((r) => setTimeout(r, 3000));
+    assert.equal((await customersOn(vps)).length, 0, 'nothing uploaded while paused');
+    worker.resume();
+    for (let i = 0; i < 50 && (await customersOn(vps)).length === 0; i++) await new Promise((r) => setTimeout(r, 100));
+    assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Paused']);
+  } finally {
+    await worker.stop();
   }
 });

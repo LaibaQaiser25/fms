@@ -5,6 +5,8 @@ import { Button, Pagination } from '../shared/UIComponents';
 import { SkeletonTable } from '../shared/Skeleton';
 import CreateReportModal from './CreateReportModal';
 import ReportAutomationModal from './ReportAutomationModal';
+import SentReports from './SentReports';
+import { IS_DESKTOP } from '../../config';
 
 const ReportDetailModal = lazy(() => import('./ReportDetailModal'));
 
@@ -45,6 +47,8 @@ export default function Reports() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [notice, setNotice] = useState('');
+  // Online dashboard: what the server sent to WhatsApp itself (T2.3)
+  const [tab, setTab] = useState('reports');
 
   // Feed the typed search into the query a beat later, so every keystroke
   // doesn't fire its own request (same pattern as Cashbook.jsx)
@@ -140,6 +144,24 @@ export default function Reports() {
           </div>
         </div>
 
+        {!IS_DESKTOP && (
+          <div className="flex gap-1 mb-4 border-b border-gray-200" role="tablist">
+            {[['reports', 'Reports'], ['sent', 'Sent to WhatsApp']].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={`px-4 py-2 text-sm font-semibold -mb-px border-b-2 ${tab === key ? 'border-[var(--color-accent)] text-[var(--color-accent)]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === 'sent' ? <SentReports /> : (<>
         {/* Search + filters */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[220px]">
@@ -225,6 +247,7 @@ export default function Reports() {
         {totalPages > 1 && (
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         )}
+        </>)}
       </div>
 
       <CreateReportModal isOpen={createOpen} onClose={() => setCreateOpen(false)} onCreated={handleCreated} />

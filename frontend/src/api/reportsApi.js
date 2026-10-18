@@ -10,3 +10,6 @@ export const getSchedules = () => http.get('/reports/schedules');
 export const updateSchedule = (frequency, payload) => http.put(`/reports/schedules/${frequency}`, payload);
 
 export const sendDailyReportWhatsApp = () => http.post('/reports/send-whatsapp');
+
+// What the online server sent to WhatsApp on its own (read-only history)
+export const listDispatchLog = (params) => http.get('/reports/dispatch-log', { params });

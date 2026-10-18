@@ -404,6 +404,10 @@ function startBackend({ databaseUrl, jwtSecret, relaySecret }) {
       FMS_STATUS_FILE: statusFile,
       // Factory-only routes, e.g. retrying changes the server refused (/api/sync-quarantine)
       FMS_FACTORY: '1',
+      // Reports and digests go out from the online server (T2.1, its
+      // REPORT_SENDER_MODE=send_only), even with this PC off; exactly one
+      // scheduler, so none here (T2.2).
+      DISABLE_CRON: 'true',
       TZ: 'Asia/Karachi',
       // WhatsApp alerts go to the local relay, which queues them offline.
       N8N_WEBHOOK_URL: `http://127.0.0.1:${ALERT_PORT}/alert`,

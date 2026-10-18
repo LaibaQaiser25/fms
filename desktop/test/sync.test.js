@@ -1121,3 +1121,84 @@ test('send-only scheduler: a due report goes out once, a failed send retries, a 
     await vps.query("UPDATE report_schedules SET enabled = false, run_time = '23:55'");
   }
 });
+
+// ---- T2.3: freshness label on server-sent messages + history ----
+
+test('server-sent reports say how fresh the data is: stale warning after 2 h, "period incomplete", data as of; the history lists them', async () => {
+  const scheduler = require(path.join(BACKEND_DIR, 'services', 'sendOnlyScheduler'));
+  const ReportsController = require(path.join(BACKEND_DIR, 'controllers', 'ReportsController'));
+  const sent = [];
+  const send = async (message) => { sent.push(message); return { ok: true, queued: false }; };
+  const now = new Date(); now.setHours(21, 30, 0, 0);
+  const ago = (min) => new Date(now.getTime() - min * 60000);
+  const beat = (receivedAt, outbox) => vps.query(
+    `INSERT INTO sync_heartbeat (id, received_at, outbox_count) VALUES (1, $1, $2)
+     ON CONFLICT (id) DO UPDATE SET received_at = $1, outbox_count = $2`, [receivedAt, outbox]
+  );
+  const daily = async () => {
+    await vps.query('DELETE FROM report_dispatch_log');
+    await scheduler.tick(now, { send });
+    return sent.filter((m) => /Report — Daily/.test(m)).at(-1);
+  };
+  await vps.query("UPDATE report_schedules SET enabled = (frequency = 'daily'), run_time = '21:00'");
+  try {
+    // Fresh: uploaded a minute ago.
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(1)]);
+    await vps.query('DELETE FROM sync_heartbeat');
+    let m = await daily();
+    assert.doesNotMatch(m, /Old data|Period incomplete/);
+    assert.match(m, /\n\n_Data as of .+_$/);
+    const asOf = m.match(/_Data as of (.+)_$/)[1];
+
+    // Nothing uploaded for 5 h, but a heartbeat a minute ago said nothing was
+    // waiting: the copy is still complete.
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(300)]);
+    await beat(ago(1), 0);
+    m = await daily();
+    assert.doesNotMatch(m, /Old data|Period incomplete/);
+    assert.equal(m.match(/_Data as of (.+)_$/)[1], asOf, 'data as of = the caught-up heartbeat');
+
+    // Factory off since 3 h ago (last heartbeat then, changes were waiting).
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(185)]);
+    await beat(ago(180), 4);
+    m = await daily();
+    assert.match(m, /^⚠️ \*Old data:\* the factory has not uploaded for 3 h\./);
+    assert.match(m, /⚠️ \*Period incomplete:\* anything entered at the factory after .+ is not included\./);
+    const { rows: [row] } = await vps.query("SELECT payload FROM report_dispatch_log WHERE frequency = 'daily'");
+    assert.equal(new Date(row.payload.dataAsOf).getTime(), ago(185).getTime(), 'dataAsOf stored with what was sent');
+
+    // 30 min behind: not stale, but the period is incomplete.
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(30)]);
+    await vps.query('DELETE FROM sync_heartbeat');
+    m = await daily();
+    assert.doesNotMatch(m, /Old data/);
+    assert.match(m, /Period incomplete/);
+
+    // Digests carry the label too (no period).
+    await vps.query('DELETE FROM report_dispatch_log');
+    const morning = new Date(now); morning.setHours(7, 45, 0, 0);
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [new Date(morning.getTime() - 10 * 3600000)]);
+    await scheduler.tick(morning, { send });
+    const digest = sent.at(-1);
+    assert.match(digest, /^⚠️ \*Old data:\* the factory has not uploaded for 10 h\./);
+    assert.match(digest, /FMS Daily Alerts/);
+    assert.doesNotMatch(digest, /Period incomplete/);
+
+    // History view (GET /api/reports/dispatch-log): the 7:45 digest, then at
+    // 21:30 the daily report and the 10:00 digest (still in its window).
+    await scheduler.tick(now, { send });
+    const list = await call(ReportsController.listDispatchLog, {});
+    assert.equal(list.status, 200);
+    assert.deepEqual(list.body.data.map((r) => r.period_key.replace(/:\d{4}-\d{2}-\d{2}$/, '')).sort(),
+      ['daily', 'digest:0730', 'digest:1000']);
+    const d = list.body.data.find((r) => r.frequency === 'daily');
+    assert.match(d.label, /^Daily — /);
+    assert.equal(d.message, sent.filter((x) => /Report — Daily/.test(x)).at(-1), 'the message as sent');
+    assert.ok(d.data_as_of);
+    assert.equal(list.body.pagination.total, 3);
+  } finally {
+    await vps.query('DELETE FROM report_dispatch_log');
+    await vps.query('DELETE FROM sync_heartbeat');
+    await vps.query("UPDATE report_schedules SET enabled = false, run_time = '23:55'");
+  }
+});

@@ -203,8 +203,8 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.9 | Faster upload + final upload on quit | T1.4 | CODE DONE, CHECKS FAILING | 18/18 `npm test` (2.0 s to the server; 5 writes → 1 push; quit cap); real app quit needs Windows |
 | T1.10 | Release 1.0.2 + first factory install | T0.2, T1.0–T1.9 | NOT STARTED | go-live |
 | T2.1 | VPS send-only report scheduler | T1.10 | CODE DONE, CHECKS FAILING | 26/26 `npm test` (once per period, race, failed send, digests, no mirror writes) + grep; real WhatsApp at go-live |
-| T2.2 | Factory `DISABLE_CRON` | T2.1 | NOT STARTED | |
-| T2.3 | Report freshness label + history view | T2.1, T1.5 | NOT STARTED | |
+| T2.2 | Factory `DISABLE_CRON` | T2.1 | CODE DONE, CHECKS FAILING | startup log seen on the real `server.js`; ships in 1.0.2 with send-only at E1; one delivery at go-live |
+| T2.3 | Report freshness label + history view | T2.1, T1.5 | CODE DONE, CHECKS FAILING | 27/27 `npm test` (stale, fresh, period incomplete, history route); Sent to WhatsApp tab built, not yet seen in a browser; production pending |
 | T2.4 | Health endpoint + n8n watchdog | T1.5 | CODE DONE, CHECKS FAILING | 22/22 `npm test`; watchdog seen on a scratch n8n 2.37.10 (alerts, no repeat, quiet when off, cleared); production deploy + provisioning + real WhatsApp pending |
 | T2.5 | Factory backups + restore drill | T1.10 | NOT STARTED | |
 | T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
@@ -1262,7 +1262,8 @@ CREATE TABLE IF NOT EXISTS report_dispatch_log (
 
 ### T2.2 — Factory `DISABLE_CRON`
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — the startup log observed on the real `server.js` (18 Oct
+2026); the one-delivery check needs go-live (the factory on 1.0.2 + the VPS in send-only mode)
 **Deps:** T2.1
 
 **Do:** gate `startCronJobs()` in `server.js` behind `DISABLE_CRON=true`, and set it in the
@@ -1274,11 +1275,31 @@ scheduled window exactly **one** message arrives.
 
 **Gate:** one delivery observed, and the factory log shows cron did not start.
 
+**Built (18 Oct 2026):**
+- `server.js`: a `DISABLE_CRON=true` branch after `REPORT_SENDER_MODE=send_only` and before the
+  read-only branch, so it starts neither scheduler and logs
+  `⏸️ DISABLE_CRON: no scheduled reports or digests from this server`.
+- `desktop/main.js` sets `DISABLE_CRON: 'true'` in the backend's environment.
+- **Release: 1.0.2, not 1.0.3.** No 1.0.2 install exists yet, so the factory has never been the
+  sender. Both halves are switched on in the same sitting at go-live (`GO-LIVE-CHECKLIST.md` E1:
+  `READ_ONLY_MODE=true` **and** `REPORT_SENDER_MODE=send_only`), so there is no gap with no sender
+  and no time with two. Until E1 the VPS keeps its current cron jobs.
+
+**Evidence (18 Oct 2026):**
+- `env -i … DISABLE_CRON=true node server.js` (scratch port, no database) → `⏸️ DISABLE_CRON: no
+  scheduled reports or digests from this server`, no `✅ Cron jobs started`; the same without the
+  flag → `✅ Cron jobs started`.
+- `npm test` 27/27.
+- ⏳ At go-live: the factory log (1.0.2) shows the `DISABLE_CRON` line; across one scheduled window
+  exactly one WhatsApp message arrives (T2.1 check 1).
+
 ---
 
 ### T2.3 — Report freshness label + history view (D2, D9)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–3 by `npm test` on the real scheduler and route
+(18 Oct 2026); on production they need the deploy and the factory live, and the history page has
+been built and linted but not yet opened in a browser
 **Deps:** T2.1, T1.5
 
 **Do:**
@@ -1295,6 +1316,35 @@ scheduled window exactly **one** message arrives.
 3. The history view lists the sent reports.
 
 **Gate:** all three observed.
+
+**Built (18 Oct 2026):**
+- `backend/services/reportFreshness.js`: `getDataAsOf()` = the later of `sync_writer.last_ingest_at`
+  and the last heartbeat that reported an **empty outbox**. A factory with nothing new to upload is
+  still current, so "data as of" doesn't age just because there were no changes. `withFreshness()`
+  wraps the message:
+  - `⚠️ *Old data:* the factory has not uploaded for N h.` first, when that is > 2 h old (or
+    `No upload from the factory yet`);
+  - `⚠️ *Period incomplete:* anything entered at the factory after <time> is not included.` for
+    reports whose period ends (or `now`, if sooner) more than 10 min after "data as of". Digests
+    have no period, so they never get this line;
+  - `_Data as of <time>_` last, always.
+- `sendOnlyScheduler.js` uses it for reports and digests and stores `dataAsOf` in the dispatch
+  row's `payload` with what was sent.
+- `GET /api/reports/dispatch-log?page=&limit=` (`ReportsController.listDispatchLog`, read-only).
+  Online dashboard → Reports → **Sent to WhatsApp** tab (`SentReports.jsx`; hidden on the factory
+  build, which sends none): sent time, kind, label, data as of; click a row for the message.
+
+**Evidence (18 Oct 2026):**
+- `npm test` → `server-sent reports say how fresh the data is …` ✔ (27/27): upload 1 min ago → no
+  warning, ends with `_Data as of …_`. No upload for 5 h but a heartbeat 1 min ago with an empty
+  outbox → no warning, as of = that heartbeat. Last upload 185 min ago (heartbeat 180 min, 4
+  waiting) → `⚠️ *Old data:* … for 3 h.` + `Period incomplete`, `payload.dataAsOf` = the upload
+  time. 30 min behind → `Period incomplete` only. A digest 10 h stale → the warning, no period
+  line. `listDispatchLog` → 200, the three rows sent, each `message` exactly as sent.
+- Frontend: `eslint` clean on the changed files, `vite build` OK.
+- ⏳ Production: after the deploy and migration 028, with the factory live, a scheduled message
+  carries the label (check 2), and one sent with the factory off > 2 h carries the warning (check
+  1). The tab lists them (check 3).
 
 ---
 

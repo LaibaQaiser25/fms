@@ -56,11 +56,12 @@ Usage: `vpsql <<< "SELECT now();"`
 
 ## B. Deploy the branch
 
-- [ ] **B1** Merge `sync-hardening` into `main` (PR or `git merge`), push. Watch the GitHub
+- [ ] **B1** Merge `sync-hardening-phase2` into `main` (PR or `git merge`), push. Watch the GitHub
       Action "Deploy backend to VPS" go green; Vercel deploys the frontend from `main`.
 - [ ] **B2 · T1.10-1 (part)** 🖥
-      `vpsql <<< "SELECT name FROM pgmigrations ORDER BY id DESC LIMIT 6;"`
-      → `026-sync-heartbeat` … `022-sync-writer` (and `021-gate-passes`). ✍️
+      `vpsql <<< "SELECT name FROM pgmigrations ORDER BY id DESC LIMIT 7;"`
+      → `028-report-dispatch-log`, `027-stock-quantity-nonneg`, `026-sync-heartbeat` …
+      `022-sync-writer`. ✍️
 - [ ] **B3** 🖥 `sg docker -c "docker compose exec -T backend node -e \"require('sharp'); console.log('sharp ok')\""`
       → `sharp ok` (the logo resizer loads in the Alpine image).
 - [ ] **B4 · T0.3-1** 🖥 `curl -s -o /dev/null -w "%{http_code}\n" $API/testautodeployment` → `404`. ✍️
@@ -166,7 +167,7 @@ Usage: `vpsql <<< "SELECT now();"`
 
 - [ ] **D1** `git pull` on `main`; in `desktop/`: `npm ci` (installs the Windows builds of
       Postgres, sharp, Electron).
-- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 20 / pass 20 / fail 0`. ✍️ paste the summary.
+- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 27 / pass 27 / fail 0`. ✍️ paste the summary.
 - [ ] **D3** Set `"version": "1.0.2"` in `desktop/package.json`, commit + push
       ("Release 1.0.2"), then `npm run dist` → `dist/FMS-Setup-1.0.2.exe`, `.blockmap`, `latest.yml`.
 - [ ] **D4** Upload (PowerShell, in `desktop/`), `latest.yml` last:
@@ -175,8 +176,10 @@ Usage: `vpsql <<< "SELECT now();"`
 
 ## E. Go-live (same sitting — a setup code and the snapshot both expire after 1 hour)
 
-- [ ] **E1 · T1.10 step 3 / D5** 🖥 `READ_ONLY_MODE=true` in `backend/.env`,
-      `sg docker -c "docker compose up -d backend"`. Then:
+- [ ] **E1 · T1.10 step 3 / D5 + T2.1/T2.2** 🖥 in `backend/.env`: `READ_ONLY_MODE=true` **and**
+      `REPORT_SENDER_MODE=send_only` (both together: installer 1.0.2 sends no reports itself,
+      `DISABLE_CRON`), then `sg docker -c "docker compose up -d backend"` → the log shows
+      `✅ Send-only report scheduler started` and `🔒 READ_ONLY_MODE: writes blocked`. Then:
   - **T1.1-5 (403 half)** — the curl key from C2 is over an hour old by now:
     `curl -s -w " %{http_code}\n" -H "X-Upload-Key: $KEY" $API/sync/snapshot`
     → `403 {"code":"SnapshotWindowClosed",…}`. ✍️ (If C2 was under an hour ago, wait.)

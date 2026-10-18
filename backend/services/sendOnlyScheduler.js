@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const pool = require('../db/pool');
 const { sendWhatsApp } = require('./whatsappService');
 const { buildDailyDigest } = require('./stockAlerts');
+const { getDataAsOf, withFreshness } = require('./reportFreshness');
 const ReportsController = require('../controllers/ReportsController');
 
 // Online server only, REPORT_SENDER_MODE=send_only (T2.1). Scheduled reports
@@ -20,6 +21,8 @@ const ReportsController = require('../controllers/ReportsController');
 // the send and committed only if the send worked. A failed send leaves no
 // row, so the next minute tries again; a second process in the same minute
 // waits on that row and then skips it.
+
+// Every message ends with how current the data is (T2.3, reportFreshness.js).
 
 // Digests: 7:30, and again at 10:00 for Meta's 24-hour window (§10). Each is
 // caught up until the next one is due, so a late start never sends both.
@@ -50,8 +53,10 @@ async function dueItems(now, db = pool) {
       periodKey: `${schedule.frequency}:${dateKey(now)}`,
       build: async () => {
         const data = await ReportsController.generateSnapshot(period.periodStart, period.periodEnd);
-        const message = await ReportsController.buildReportMessage(period, data);
-        return { message, payload: { label: period.label, periodStart: period.periodStart, periodEnd: period.periodEnd } };
+        const dataAsOf = await getDataAsOf(db);
+        const message = withFreshness(await ReportsController.buildReportMessage(period, data),
+          { dataAsOf, now, periodEnd: period.periodEnd });
+        return { message, payload: { label: period.label, periodStart: period.periodStart, periodEnd: period.periodEnd, dataAsOf } };
       },
     });
   }
@@ -60,7 +65,11 @@ async function dueItems(now, db = pool) {
     items.push({
       frequency: 'digest',
       periodKey: `digest:${slot.key}:${dateKey(now)}`,
-      build: async () => ({ message: await buildDailyDigest(slot.label), payload: { label: `Daily alerts (${slot.label})` } }),
+      build: async () => {
+        const dataAsOf = await getDataAsOf(db);
+        const message = withFreshness(await buildDailyDigest(slot.label), { dataAsOf, now });
+        return { message, payload: { label: `Daily alerts (${slot.label})`, dataAsOf } };
+      },
     });
   }
   return items;

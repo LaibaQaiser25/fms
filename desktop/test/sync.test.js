@@ -353,7 +353,7 @@ test('the snapshot needs read-only mode and a registration less than an hour old
     const snap = await call(route()['/sync/snapshot'], { headers: withKey() });
     assert.equal(snap.status, 200, JSON.stringify(snap.body));
     assert.ok('customers' in snap.body.tables);
-    for (const t of ['sync_writer', 'setup_code', 'offline_setup', 'pgmigrations']) {
+    for (const t of ['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log', 'pgmigrations']) {
       assert.ok(!(t in snap.body.tables), `${t} is not in the snapshot`);
     }
 
@@ -1035,5 +1035,89 @@ test('prune: only the registered PC, never a server-only table; uploads wait whi
     assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Paused']);
   } finally {
     await worker.stop();
+  }
+});
+
+// ---- T2.1: send-only report scheduler on the online server ----
+
+test('send-only scheduler: a due report goes out once, a failed send retries, a racing second process does not double-send, the mirror is never written', async () => {
+  const scheduler = require(path.join(BACKEND_DIR, 'services', 'sendOnlyScheduler'));
+  const sent = [];
+  let failing = false;
+  const send = async (message) => {
+    await new Promise((r) => setTimeout(r, 150)); // n8n round trip
+    if (failing) return { ok: false, error: 'n8n webhook responded with 500' };
+    sent.push(message);
+    return { ok: true, queued: false };
+  };
+  const reports = () => sent.filter((m) => /Report — /.test(m));
+  const digests = () => sent.filter((m) => /FMS Daily Alerts/.test(m));
+  const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d; };
+  const logRows = async (frequency) => (await vps.query(
+    'SELECT frequency, period_key, status, payload FROM report_dispatch_log WHERE frequency = $1', [frequency]
+  )).rows;
+  const mirror = async () => (await vps.query(
+    `SELECT (SELECT count(*)::int FROM reports) AS reports,
+            (SELECT json_agg(r ORDER BY frequency) FROM report_schedules r) AS schedules`
+  )).rows[0];
+
+  await vps.query('DELETE FROM report_dispatch_log');
+  // As synced from the factory: daily report at 21:00. Weekly/monthly off.
+  await vps.query("UPDATE report_schedules SET enabled = (frequency = 'daily'), run_time = '21:00', last_run_at = NULL");
+  const before = await mirror();
+  try {
+    // Digests first. 7:30 is caught up until 10:00; a start at 10:05 sends
+    // only the 10:00 one, never both.
+    await scheduler.tick(at(7, 29), { send });
+    assert.equal(sent.length, 0, 'nothing due at 7:29');
+    await scheduler.tick(at(9, 15), { send });
+    await scheduler.tick(at(9, 16), { send });
+    assert.equal(digests().length, 1);
+    assert.match(digests()[0], /FMS Daily Alerts\* \(7:30 AM\)/);
+    await vps.query("DELETE FROM report_dispatch_log WHERE frequency = 'digest'");
+    await scheduler.tick(at(10, 5), { send });
+    assert.equal(digests().length, 2);
+    assert.match(digests()[1], /\(10:00 AM\)/);
+    assert.equal((await logRows('digest')).length, 1);
+    assert.match((await logRows('digest'))[0].period_key, /^digest:1000:\d{4}-\d{2}-\d{2}$/);
+
+    await scheduler.tick(at(20, 59), { send });
+    assert.equal(reports().length, 0, 'not due before run_time');
+
+    // n8n down at 21:00: nothing recorded, so the next minute tries again.
+    failing = true;
+    await scheduler.tick(at(21, 0), { send });
+    assert.equal((await logRows('daily')).length, 0);
+    failing = false;
+
+    // 21:01, and a second backend (or a restart) ticking in the same minute.
+    await Promise.all([scheduler.tick(at(21, 1), { send }), scheduler.tick(at(21, 1), { send })]);
+    await scheduler.tick(at(21, 2), { send });
+    await scheduler.tick(at(23, 59), { send });
+    assert.equal(reports().length, 1, 'exactly one report message for the day');
+    assert.match(reports()[0], /Report — Daily/);
+    const log = await logRows('daily');
+    assert.equal(log.length, 1);
+    assert.match(log[0].period_key, /^daily:\d{4}-\d{2}-\d{2}$/);
+    assert.equal(log[0].status, 'sent');
+    assert.equal(log[0].payload.message, reports()[0]);
+    assert.equal(digests().length, 2, 'the 10:00 digest was not sent again either');
+
+    assert.deepEqual(await mirror(), before, 'no report row stored, report_schedules untouched');
+
+    // Registered in all four places (§4): no capture trigger on the factory,
+    // ingest refuses it (snapshot: see the snapshot test).
+    const { rowCount: trig } = await factory.query(
+      "SELECT 1 FROM pg_trigger WHERE tgname = 'fms_sync_capture' AND tgrelid = 'report_dispatch_log'::regclass"
+    );
+    assert.equal(trig, 0);
+    const forged = await call(route()['/sync/ingest'], {
+      body: { changes: [{ id: 1, table_name: 'report_dispatch_log', op: 'I', row_data: { id: 9, frequency: 'x', period_key: 'x', status: 'sent' } }] },
+      headers: withKey(),
+    });
+    assert.equal(forged.status, 409);
+  } finally {
+    await vps.query('DELETE FROM report_dispatch_log');
+    await vps.query("UPDATE report_schedules SET enabled = false, run_time = '23:55'");
   }
 });

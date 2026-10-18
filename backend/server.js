@@ -156,9 +156,16 @@ if (process.env.SYNC_TOKEN && !process.env.N8N_PUBLIC_WEBHOOK_URL) {
   console.warn('⚠️⚠️⚠️  N8N_PUBLIC_WEBHOOK_URL is not set: the factory app will queue WhatsApp alerts and NOT send them. Set it in backend/.env to turn alerts on.');
 }
 
-// Scheduled reports write rows, so in read-only mode only the factory app runs
-// them (their results reach this server through /sync like everything else).
-if (process.env.READ_ONLY_MODE === 'true') {
+// Exactly one scheduler sends reports and digests:
+// - online server once the factory is live: REPORT_SENDER_MODE=send_only, the
+//   send-only scheduler (T2.1) — it never writes the mirror, so it runs in
+//   read-only mode too, and works with the factory PC switched off;
+// - otherwise, the original cron jobs, which also store the reports. They
+//   write rows, so read-only mode stops them.
+if (process.env.REPORT_SENDER_MODE === 'send_only') {
+  require('./services/sendOnlyScheduler').startSendOnlyScheduler();
+  if (process.env.READ_ONLY_MODE === 'true') console.log('🔒 READ_ONLY_MODE: writes blocked');
+} else if (process.env.READ_ONLY_MODE === 'true') {
   console.log('🔒 READ_ONLY_MODE: writes blocked, cron jobs not started');
 } else {
   startCronJobs(); // Start the cron jobs when the server starts

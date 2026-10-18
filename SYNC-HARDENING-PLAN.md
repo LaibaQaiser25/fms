@@ -202,7 +202,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | CODE DONE, CHECKS FAILING | outcomes 1–2 seen with a fake n8n; 3 needs a real message to the owner's WhatsApp |
 | T1.9 | Faster upload + final upload on quit | T1.4 | CODE DONE, CHECKS FAILING | 18/18 `npm test` (2.0 s to the server; 5 writes → 1 push; quit cap); real app quit needs Windows |
 | T1.10 | Release 1.0.2 + first factory install | T0.2, T1.0–T1.9 | NOT STARTED | go-live |
-| T2.1 | VPS send-only report scheduler | T1.10 | NOT STARTED | |
+| T2.1 | VPS send-only report scheduler | T1.10 | CODE DONE, CHECKS FAILING | 26/26 `npm test` (once per period, race, failed send, digests, no mirror writes) + grep; real WhatsApp at go-live |
 | T2.2 | Factory `DISABLE_CRON` | T2.1 | NOT STARTED | |
 | T2.3 | Report freshness label + history view | T2.1, T1.5 | NOT STARTED | |
 | T2.4 | Health endpoint + n8n watchdog | T1.5 | CODE DONE, CHECKS FAILING | 22/22 `npm test`; watchdog seen on a scratch n8n 2.37.10 (alerts, no repeat, quiet when off, cleared); production deploy + provisioning + real WhatsApp pending |
@@ -1178,7 +1178,9 @@ visible on both versions; alert failures are visible; the factory is live.
 
 ### T2.1 — VPS send-only report scheduler
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 2, 3 (the race), 4 and 5 by `npm test` and grep
+(18 Oct 2026); check 1 needs a real WhatsApp delivery, and the VPS needs migration 028 and
+`REPORT_SENDER_MODE=send_only` at go-live
 **Deps:** T1.10
 
 **Problem (F12):** reports and digests go out only if the factory PC is on at that minute.
@@ -1220,6 +1222,41 @@ CREATE TABLE IF NOT EXISTS report_dispatch_log (
    `report_dispatch_log` insert.
 
 **Gate:** checks 1–5 observed.
+
+**Built (18 Oct 2026):**
+- Migration **028** `report_dispatch_log` (as above, with a comment), registered in all four places
+  (§4): `PROTECTED_TABLES`, `VPS_ONLY_TABLES`, `EXCLUDED_TABLES`.
+- `backend/services/sendOnlyScheduler.js`: every minute, `dueItems(now)` reads `report_schedules`
+  (same `>=` catch-up, weekday / day-of-month rules as `cronJobs.js`) and builds with
+  `resolvePeriod` + `generateSnapshot` + `buildReportMessage`. **Digests:** `digest:0730:<date>`
+  is due from 07:30 until 10:00 and `digest:1000:<date>` from 10:00 until midnight, so a late
+  start never sends both. `buildDailyDigest` was split out of `sendDailyDigest`
+  (`stockAlerts.js`) so the scheduler sees the send result.
+- **Once per period, even with two processes:** a cheap `SELECT` skips periods already sent. Then,
+  in one transaction: `INSERT … ON CONFLICT DO NOTHING` (0 rows = someone else has it) → send →
+  `COMMIT` only if the send worked, otherwise `ROLLBACK`, so no row is written and the next minute
+  retries. A second process inserting the same key waits on that row, then skips. The row lands
+  only after a successful send, as step 3 asks. A crash mid-send rolls back, and the next minute
+  sends again (at least once).
+- `server.js`: `REPORT_SENDER_MODE=send_only` starts this scheduler **instead of** `cronJobs.js`,
+  with or without read-only mode. Otherwise nothing changes. Documented in
+  `backend/.env.example`.
+
+**Evidence (18 Oct 2026):**
+- `npm test` → `send-only scheduler: a due report goes out once, a failed send retries, a racing
+  second process does not double-send, the mirror is never written` ✔ (fake send, 150 ms each):
+  nothing at 7:29; 9:15 + 9:16 → one `(7:30 AM)` digest; with that row removed, a start at 10:05
+  → only the `(10:00 AM)` digest; daily at 21:00 with n8n failing → **no row** (check 4); 21:01
+  twice **at the same time** + 21:02 + 23:59 → **one** message, one row `daily:<date> | sent`,
+  `payload.message` = what was sent (checks 2, 3); `reports` count and `report_schedules`
+  unchanged; no capture trigger on `report_dispatch_log` at the factory; ingest of it → 409;
+  snapshot test now also asserts `sync_rejected`, `sync_heartbeat`, `report_dispatch_log` absent.
+- Sabotage: send first, then insert without the transaction → the same test fails `exactly one
+  report message for the day — actual: 2`. Restored.
+- Check 5 ✅ — `grep -nE "INSERT|UPDATE|DELETE" backend/services/sendOnlyScheduler.js` →
+  `83:      \`INSERT INTO report_dispatch_log (frequency, period_key, status, payload)` only.
+- ⏳ Check 1 (a real WhatsApp delivery with the factory off) at go-live; check 3 against a real
+  restart of the VPS backend.
 
 ---
 

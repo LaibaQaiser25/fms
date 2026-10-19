@@ -1,11 +1,12 @@
 const pool = require('../db/pool');
 const { broadcast } = require('../services/wsServer');
 const { alertIfNewlyLow } = require('../services/stockAlerts');
+const { VERSION, lockForEdit, editInTransaction } = require('../services/rowVersion');
 
 // GET all stock items
 exports.getAllStock = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM stock ORDER BY name ASC');
+    const result = await pool.query(`SELECT *, ${VERSION} FROM stock ORDER BY name ASC`);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -17,7 +18,7 @@ exports.searchStock = async (req, res) => {
   try {
     const { q } = req.query;
     const result = await pool.query(
-      `SELECT * FROM stock WHERE name ILIKE $1 ORDER BY name ASC LIMIT 10`,
+      `SELECT *, ${VERSION} FROM stock WHERE name ILIKE $1 ORDER BY name ASC LIMIT 10`,
       [`%${q}%`]
     );
     res.json(result.rows);
@@ -29,7 +30,7 @@ exports.searchStock = async (req, res) => {
 // GET single stock item
 exports.getStockById = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM stock WHERE id = $1', [req.params.id]);
+    const result = await pool.query(`SELECT *, ${VERSION} FROM stock WHERE id = $1`, [req.params.id]);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -76,28 +77,29 @@ exports.addStock = async (req, res) => {
   }
 };
 
-// PUT update stock item
+// PUT update stock item. `version` (from the GET) makes a save refused with
+// 409 when someone else changed the item in between (T3.5); the row is
+// locked from the check to the update, so the low-stock alert compares
+// against the value really replaced.
 exports.updateStock = async (req, res) => {
-  const { name, unit_price, quantity, category, size, extra } = req.body;
+  const { name, unit_price, quantity, category, size, extra, version } = req.body;
   try {
     if (Number(quantity) < 0) {
       return res.status(400).json({ error: 'Quantity cannot be negative' });
     }
-    // Pre-update row, to tell whether this edit newly drops it to low stock.
-    const before = await pool.query(
-      'SELECT quantity, minimum_stock FROM stock WHERE id = $1',
-      [req.params.id]
-    );
-    const result = await pool.query(
-      `UPDATE stock SET name=$1, unit_price=$2, quantity=$3, category=$4, size=$5, extra=$6
-       WHERE id=$7 RETURNING *`,
-      [name, unit_price, quantity, category, size, extra, req.params.id]
-    );
-    res.json(result.rows[0]);
-    if (result.rows.length > 0) {
-      broadcast('stock:updated', result.rows[0]);
-      alertIfNewlyLow('stock', before.rows[0], result.rows[0]);
-    }
+    const done = await editInTransaction(pool, res, async (client) => {
+      const before = await lockForEdit(client, 'stock', req.params.id, version, 'Stock item');
+      const { rows } = await client.query(
+        `UPDATE stock SET name=$1, unit_price=$2, quantity=$3, category=$4, size=$5, extra=$6
+         WHERE id=$7 RETURNING *, ${VERSION}`,
+        [name, unit_price, quantity, category, size, extra, req.params.id]
+      );
+      return { before, after: rows[0] };
+    });
+    if (!done) return;
+    res.json(done.after);
+    broadcast('stock:updated', done.after);
+    alertIfNewlyLow('stock', done.before, done.after);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

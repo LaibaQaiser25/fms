@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { VERSION, lockForEdit, editInTransaction } = require('../services/rowVersion');
 const { alertIfNewlyLow } = require('../services/stockAlerts');
 
 class RawMaterialsController {
@@ -41,7 +42,7 @@ class RawMaterialsController {
     try {
       const { search = '', limit = 10 } = req.query;
 
-      let query = 'SELECT * FROM raw_materials';
+      let query = `SELECT *, ${VERSION} FROM raw_materials`;
       let params = [];
 
       if (search) {
@@ -74,7 +75,7 @@ class RawMaterialsController {
   static async getLowStockRawMaterials(req, res) {
     try {
       const result = await pool.query(
-        `SELECT * FROM raw_materials WHERE quantity <= minimum_stock ORDER BY name ASC`
+        `SELECT *, ${VERSION} FROM raw_materials WHERE quantity <= minimum_stock ORDER BY name ASC`
       );
 
       res.set('Cache-Control', 'private, max-age=10');
@@ -99,7 +100,7 @@ class RawMaterialsController {
       const offset = (page - 1) * limit;
 
       const result = await pool.query(
-        'SELECT * FROM raw_materials ORDER BY name ASC LIMIT $1 OFFSET $2',
+        `SELECT *, ${VERSION} FROM raw_materials ORDER BY name ASC LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
 
@@ -130,7 +131,7 @@ class RawMaterialsController {
    */
   static async getAllRawMaterialsList(req, res) {
     try {
-      const result = await pool.query('SELECT * FROM raw_materials ORDER BY name ASC');
+      const result = await pool.query(`SELECT *, ${VERSION} FROM raw_materials ORDER BY name ASC`);
       res.json(result.rows);
     } catch (error) {
       console.error('❌ Error fetching raw materials list:', error);
@@ -147,7 +148,7 @@ class RawMaterialsController {
       const { id } = req.params;
 
       const result = await pool.query(
-        'SELECT * FROM raw_materials WHERE id = $1',
+        `SELECT *, ${VERSION} FROM raw_materials WHERE id = $1`,
         [id]
       );
 
@@ -173,39 +174,37 @@ class RawMaterialsController {
   static async updateRawMaterial(req, res) {
     try {
       const { id } = req.params;
-      const { name, unit, unit_price, quantity, category, minimum_stock } = req.body;
+      const { name, unit, unit_price, quantity, category, minimum_stock, version } = req.body;
 
-      // Pre-update row, to tell whether this edit newly drops it to low stock.
-      const before = await pool.query(
-        'SELECT quantity, minimum_stock FROM raw_materials WHERE id = $1',
-        [id]
-      );
-
-      const result = await pool.query(
-        `UPDATE raw_materials
-         SET name = COALESCE($1, name),
-             unit = COALESCE($2, unit),
-             unit_price = COALESCE($3, unit_price),
-             quantity = COALESCE($4, quantity),
-             category = COALESCE($5, category),
-             minimum_stock = COALESCE($6, minimum_stock),
-             updated_at = NOW()
-         WHERE id = $7
-         RETURNING *`,
-        [name || null, unit || null, unit_price || null, quantity ?? null, category || null, minimum_stock ?? null, id]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Raw material not found' });
-      }
+      // Locked from the check to the update: refused (409) if someone else
+      // changed it since `version` was read, and the low-stock alert compares
+      // against the value really replaced (T3.5).
+      const done = await editInTransaction(pool, res, async (client) => {
+        const before = await lockForEdit(client, 'raw_materials', id, version, 'Raw material');
+        const result = await client.query(
+          `UPDATE raw_materials
+           SET name = COALESCE($1, name),
+               unit = COALESCE($2, unit),
+               unit_price = COALESCE($3, unit_price),
+               quantity = COALESCE($4, quantity),
+               category = COALESCE($5, category),
+               minimum_stock = COALESCE($6, minimum_stock),
+               updated_at = NOW()
+           WHERE id = $7
+           RETURNING *, ${VERSION}`,
+          [name || null, unit || null, unit_price || null, quantity ?? null, category || null, minimum_stock ?? null, id]
+        );
+        return { before, after: result.rows[0] };
+      });
+      if (!done) return;
 
       res.json({
         success: true,
         message: 'Raw material updated',
-        data: result.rows[0]
+        data: done.after
       });
 
-      alertIfNewlyLow('raw', before.rows[0], result.rows[0]);
+      alertIfNewlyLow('raw', done.before, done.after);
 
     } catch (error) {
       console.error('❌ Error updating raw material:', error);

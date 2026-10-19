@@ -214,7 +214,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T3.2 | Service install + dedicated user + drain | T3.1 | CODE DONE, CHECKS FAILING | scripts parse + PSScriptAnalyzer clean; drain (Ctrl+C to the process group → upload, backup, clean stop) and the app's service mode seen on Linux; checks 1–4 need the factory PC |
 | T3.3 | LAN bind + firewall + hostname | T3.2 | CODE DONE, CHECKS FAILING | login, save, WebSocket and refused 48621/48622 over a non-loopback address on Linux; firewall/hostname scripts parse; second-PC checks on the factory network pending |
 | T3.4 | Frontend relative API base + variant | T3.3 | CODE DONE, CHECKS FAILING | both checks seen on Linux in a browser by name (`fms-host`) and by IP; a real second factory PC pending |
-| T3.5 | Concurrency audit + fixes | T3.3 | NOT STARTED | |
+| T3.5 | Concurrency audit + fixes | T3.3 | CODE DONE, CHECKS FAILING | checks 1–3 with two logged-in sessions against `host.js` on Linux (baseline overwrite recorded; 409 after the fix); the two terminals in the real UI on the factory network pending |
 
 ---
 
@@ -1959,7 +1959,8 @@ standing in for the LAN — this machine's other address is public, so `0.0.0.0`
 
 ### T3.5 — Concurrency audit + fixes
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–3 observed with two logged-in sessions against the
+real backend under `host.js` (19 Oct 2026); still to do with two real terminals and the UI
 **Deps:** T3.3
 
 **Already safe — verify, do not change:**
@@ -1993,6 +1994,54 @@ prices), so a concurrent edit returns "changed by someone else" instead of last-
    conflict error; the stored value matches the first save.
 
 **Gate:** checks 1–3 observed, with check 1's baseline recorded.
+
+**Audit (19 Oct 2026):**
+
+| Path | Finding |
+|---|---|
+| sale stock decrement, invoice/payment allocation (both sides), raw-material consumption, ledger edit/delete (both sides), production status, gate pass | `FOR UPDATE` in a transaction — verified, not changed |
+| purchase → stock / raw material, production complete → stock | `quantity = quantity + $1`, atomic — fine |
+| production cancel → stock | locked since T2.7 |
+| ledger `debt` | per row (`debit - credit`), no running balance read from an earlier row — fine |
+| cashbook | read-only queries only |
+| **stock, raw material, customer, seller, product edits** | **last save wins** (bare read-modify-write; stock and raw materials also read the "before" for the low-stock alert outside any lock) → fixed |
+| **purchase: raw material found by name or created** | two purchases of a new name at once both create it → fixed |
+| **production complete: stock row found or created** | same race for a first-ever product → fixed |
+
+**Built (19 Oct 2026):**
+- `backend/services/rowVersion.js`: `lockForEdit` (`SELECT …, xmin::text AS version … FOR UPDATE`,
+  404 / **409 "Someone else changed this since you opened it…"** with the current row) and
+  `editInTransaction`. Used by `updateStock`, `updateRawMaterial`, `updateCustomer`,
+  `updateSeller` (the purchase-side twin), `updateProduct`; their GET/search/list responses carry
+  `version`. A save without `version` (a page opened before the update) is applied as before.
+- **Deviation: `xmin`, not `updated_at`.** `stock` has no `updated_at` (a migration, and a VPS deploy
+  before the factory could sync). And `updated_at` is only as good as every `UPDATE` setting it:
+  `createSale`'s decrement doesn't, so a sale between "open" and "save" would go unnoticed and the
+  edit would put the sold units back. `xmin` changes on every write of the row, `FOR UPDATE` doesn't
+  change it, and it is not a column, so sync carries nothing new.
+- `lockKey` (`pg_advisory_xact_lock(hashtext(key))`) around the two find-or-create paths; no unique
+  index, so existing duplicate names don't break anything.
+- Frontend: `StockManager.jsx` and `ProductsManager.jsx` send the `version` they loaded; on 409 they
+  show the message, close the form and reload. (Customer, seller and raw-material edits have no form
+  calling them today; the backend check is ready.)
+- `createSale` untouched (rule 7).
+
+**Evidence (19 Oct 2026; `host.js` on Linux, two separate logins = two terminals):**
+- Check 1 baseline (before the fix) ✅ — stock item quantity 10, price 100 open in A and B; A saves
+  quantity 7 → 200; B saves price 120 from its open form → 200; stored: **quantity 10**, price 120 —
+  A's change silently gone.
+- Check 2 ✅ — stock 5, both sell 5 at once, three rounds, before and after the fix: each round one
+  sale `ready` (from stock), the other `pending` (to production), stock 0, never negative.
+- Check 3 ✅ (after) — both open (version 845); A saves quantity 7 → 200; B saves price 120 → **409**
+  "Someone else changed this since you opened it. Your change was not saved: …"; stored quantity 7,
+  price 100 (= A's save).
+- A sale of 2 between A opening and saving → A's save → 409; stored quantity 5 (the sale kept).
+- Save without `version` → 200 (old pages keep working); unknown id → 404.
+- Two purchases of a new raw material at the same moment, 3 names → 201/201 each and **1** row with
+  quantity 20. Sabotage (lock removed in the staged copy): 2, 1, 2 rows. Restored.
+- `npm test` 30/30; `vite build` OK; `eslint` clean on the two forms except a `'index' is defined
+  but never used` in `StockManager.jsx` line 296 that was there before.
+- ⏳ With two real terminals on the factory network: the same three checks through the Stock page.
 
 **Phase 3 exit:** the service survives a reboot with nobody logged in; extra factory PCs work over
 the factory network (`http://fms-host:48620`); the database port is unreachable from them; the

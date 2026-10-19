@@ -258,7 +258,8 @@ export default function ProductsManager() {
 
     try {
       if (editing) {
-        await productsApi.updateProduct(editing.id, form);
+        // version: as loaded, so a save over someone else's change is refused (409)
+        await productsApi.updateProduct(editing.id, { ...form, version: editing.version });
       } else {
         await productsApi.createProduct(form);
       }
@@ -266,6 +267,11 @@ export default function ProductsManager() {
       fetchProducts();
     } catch (err) {
       alert('Error: ' + (err.response?.data?.error || err.message));
+      // Changed by someone else since it was opened: show their values; edit again from those.
+      if (err.response?.status === 409) {
+        resetForm();
+        fetchProducts();
+      }
     }
   };
 

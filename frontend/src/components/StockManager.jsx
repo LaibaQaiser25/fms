@@ -176,7 +176,8 @@ export default function StockManager() {
     if (!form.name || !form.unit_price) return alert('Name and price are required!');
     try {
       if (editing) {
-        await updateStock(editing.id, form);
+        // version: as loaded, so a save over someone else's change is refused (409)
+        await updateStock(editing.id, { ...form, version: editing.version });
       } else {
         await createStock(form);
       }
@@ -185,6 +186,12 @@ export default function StockManager() {
       fetchStock();
     } catch (err) {
       alert('Error: ' + (err.response?.data?.error || err.message));
+      // Changed by someone else since it was opened: show their values; edit again from those.
+      if (err.response?.status === 409) {
+        resetForm();
+        setShowForm(false);
+        fetchStock();
+      }
     }
   };
 

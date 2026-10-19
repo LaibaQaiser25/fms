@@ -5,6 +5,9 @@
 //       EDB binaries zip of the SAME version as the embedded server, and use
 //       its DLLs (libpq, zlib, lz4, zstd, ssl): lib/backup.js runs them with
 //       the embedded bin folder on PATH.
+//   node.exe  runs host.js as a Windows service (T3.1/T3.2), so the service
+//       needs no Electron (D4). The native modules (bcrypt, sharp) are N-API,
+//       so the same node_modules work under it.
 // Only the files needed are read out of the 300+ MB zip, with HTTP range
 // requests. Every file is checked against a pinned SHA-256; a mismatch stops
 // the build. Run by `npm run dist`; safe to re-run (skips good files).
@@ -15,10 +18,12 @@ const crypto = require('crypto');
 
 const PG_VERSION = '16.14'; // must match @embedded-postgres/windows-x64 (16.14.0-beta.17)
 const PG_ZIP = `https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-1-windows-x64-binaries.zip`;
+const NODE_VERSION = 'v24.21.0'; // LTS; pinned hash = nodejs.org SHASUMS256.txt for win-x64/node.exe
 
 const TOOLS = [
   { name: 'pg_dump.exe', zipEntry: 'pgsql/bin/pg_dump.exe', sha256: 'c354d7dff443eafc8c2f7141245ff86d40f094857bafee176e44c132a99b7495' },
   { name: 'pg_restore.exe', zipEntry: 'pgsql/bin/pg_restore.exe', sha256: '27a51e27253bc3e565127558136400608a62e392ca95b4858cbe7480fdda198c' },
+  { name: 'node.exe', url: `https://nodejs.org/dist/${NODE_VERSION}/win-x64/node.exe`, sha256: 'ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32' },
 ];
 
 const outDir = path.join(__dirname, '..', 'tools');

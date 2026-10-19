@@ -45,6 +45,7 @@
     "npmRebuild": false,
     "files": [
       "main.js",
+      "host.js",
       "lib/**",
       "setup/**",
       "staged/**",

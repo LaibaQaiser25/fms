@@ -113,6 +113,28 @@ To release a new version:
    never sees a version whose installer isn't there yet. Keep the previous
    version's `.blockmap` — it lets updates download only what changed.
 
+## Running as a service (Phase 3)
+
+`host.js` runs the same stack as the app (`lib/runtime.js`) with no window,
+so FMS can run as a Windows service with nobody logged in. It runs on
+`tools\node.exe` from the install folder (`resources\app\`):
+
+```
+set FMS_DATA_DIR=C:\ProgramData\FMS
+tools\node.exe host.js                     # run; Ctrl+C = drain + clean stop
+tools\node.exe host.js copy-data --from "%APPDATA%\FMS"   # move the app's data (below)
+tools\node.exe host.js setup --code K7QM-2XPA     # or: a brand-new main PC
+tools\node.exe host.js drill                # test the newest backup (service stopped)
+tools\node.exe host.js rebuild --code <code>  # rebuild the online server (service stopped)
+```
+
+**Moving the data (D1) — copy, verify, then switch, never in place.** Close
+the FMS app, then `copy-data`. It refuses if the target folder isn't empty or
+the database is still open, checksums every file of `%APPDATA%\FMS`, copies
+it, checksums the copy and the original again, and only then puts the copy in
+place. `%APPDATA%\FMS` is only read and stays exactly as it was: keep it until
+the service has run for a while. The service install (T3.2) is the switch.
+
 ## How sync works
 
 - Triggers (`lib/syncCapture.js`) append every insert/update/delete to

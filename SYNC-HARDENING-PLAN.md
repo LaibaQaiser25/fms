@@ -210,7 +210,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.6 | UPS + Postgres durability check | — | CODE DONE, CHECKS FAILING | ops; FMS now logs the three settings at start (seen on Linux) and goes red if one is off (`npm test` 30/30); UPS + the factory log line pending |
 | T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
 | T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | CODE DONE, CHECKS FAILING | 25/25 `npm test` (checks 1–5 in the harness); the app's menu + window need a real run |
-| T3.1 | `desktop/host.js` entry point | T1.5 | NOT STARTED | |
+| T3.1 | `desktop/host.js` entry point | T1.5 | CODE DONE, CHECKS FAILING | checks 1–2 seen on Linux (scratch VPS: sale uploaded; copy-data → original byte-identical, start from copy); Windows (`tools\node.exe`) pending; T1.5 must be `DONE` before Phase 3 ships |
 | T3.2 | Service install + dedicated user + drain | T3.1 | NOT STARTED | |
 | T3.3 | LAN bind + firewall + hostname | T3.2 | NOT STARTED | |
 | T3.4 | Frontend relative API base + variant | T3.3 | NOT STARTED | |
@@ -1696,7 +1696,9 @@ drill is done; stock can't go negative; the online server can be rebuilt from th
 
 ### T3.1 — `desktop/host.js` entry point (D1, D4)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — both checks observed on Linux with `node host.js` against a
+scratch server (19 Oct 2026); not yet on Windows with `tools\node.exe`. Phase 3 also waits for
+T1.5 to be `DONE` (see the phase note).
 **Deps:** T1.5
 
 **Do:** a new entry point with **no Electron dependency**, reusing the Electron-free modules
@@ -1719,9 +1721,66 @@ fork, sync worker start.
 
 **Gate:** both observed, including the unchanged-source check.
 
----
+**Built (19 Oct 2026):**
+- `desktop/lib/runtime.js` — `FactoryRuntime`: everything `main.js` `boot()` did without Electron
+  (config, setup name/branding, Postgres, durability check, schema, capture, `ensureOwner`,
+  backups, relay, backend, uploads + heartbeat, rebuild) and the shutdown order. **`main.js` now
+  uses it too**, so the app and the service run one code path; `main.js` keeps the window, setup
+  screen, rebuild window, menu, updater and dialogs. The backend is forked by whoever runs it
+  (`utilityProcess` in the app, `child_process.fork` in the service).
+- **Shutdown order, both:** backend first (no new business writes), then the final upload (10 s app,
+  45 s service), then the closing backup, relay, `pg_ctl stop`. Before, the app uploaded before
+  stopping the backend, so a save in those seconds waited for the next start.
+- `desktop/host.js` (packed: `host.js` added to `build.files`), run with `tools\node.exe` (now in
+  `scripts/fetch-tools.js`: Node v24.21.0, hash = nodejs.org `SHASUMS256.txt`). Commands: run
+  (default) · `setup --code <c> [--server <url>]` / `setup --empty` · `copy-data --from <dir>` ·
+  `rebuild --code <c>` · `backup` · `drill`. `FMS_DATA_DIR`, default `%PROGRAMDATA%\FMS` (D1);
+  `FMS_BIND_HOST`, default `127.0.0.1` (T3.3 opens it). A data dir that isn't set up refuses to
+  start and says which command to run.
+- **Two Windows traps found while building it:**
+  1. NSSM stops a service with Ctrl+C on its console, and Postgres on Windows takes Ctrl+C as
+     *fast shutdown* — it would be gone before the drain. In the service Postgres is started
+     **detached** (`database.js` `startDetached`: no console, own process group) and only `pg_ctl
+     stop` ends it, last.
+  2. `embedded-postgres` installs `async-exit-hook`, which answers SIGINT/SIGTERM/SIGHUP/SIGBREAK
+     with "stop Postgres, `process.exit(130)`" — observed: the host died one line after "stopping".
+     In the service those hooks are removed (the `exit` hook stays). The app is unchanged.
+- Postgres now always starts with `-c listen_addresses=127.0.0.1` (was the `localhost` default),
+  ahead of T3.3.
+- **D1, the move (`desktop/README.md` → Running as a service):** `host.js copy-data
+  --from <%APPDATA%\FMS>` refuses a non-empty target and an open database (`postmaster.pid`),
+  checksums every file of the source, copies to `<target>.partial` (folder modes included),
+  checksums the copy, checksums the source again, and only if all three match renames it into place
+  and writes `copied-from.json`. The source is only read. The switch is installing the service on
+  the copy (T3.2); the original stays until the service has run a while.
+- **D4, updates:** `desktop/service/update-service.ps1` (T3.2).
 
-### T3.2 — Service install + dedicated user + shutdown drain (D14)
+**Evidence (19 Oct 2026, Linux; scratch "VPS" = Postgres on 55441 + the real `backend/server.js`
+on 5057 with `SYNC_TOKEN` and `READ_ONLY_MODE=true`, an Owner and 2 customers):**
+- Check 1 ✅ (Linux) — clean `FMS_DATA_DIR`: `host.js setup --code TWTC-PKPN --server …` →
+  `registered as main PC 1cc1154d-…`, `snapshot: imported 9 rows from 32 tables`, Postgres
+  `listening on IPv4 address "127.0.0.1", port 48621`, `postgres stopped cleanly`. `node host.js` →
+  `host: ready`; `POST /auth/login` (owner) → token; `POST /api/sales` → `201`; 6 s later on the
+  server: `1 | SALE-1792394300182-9c16c5 | 300.00`.
+- Drain — a sale (`201`), then SIGINT to the whole process group at once, as the service's Ctrl+C
+  reaches every process on the console: `host: SIGINT, stopping (final upload up to 45 s)` →
+  `sync: pushed 5 change(s)` → `backup OK (shutdown)` → `postgres stopped cleanly` → `host:
+  stopped`, exit 0; the server has `300.00, 50.00, 70.00`. (Before the two fixes: exit 130 right
+  after "stopping", the last sale left in the outbox, Postgres still running.)
+- Check 2 ✅ (Linux) — the Electron test profile (closed) as `%APPDATA%\FMS`: `copy-data` → `1560
+  files; pgdata: 1494 files, sha256 adae7625…`, `copied and verified`. Independent check
+  (`find | sort | sha256sum`): source `1cf44c89… 1494` before, after the copy, and after starting
+  and stopping `host.js` on the copy; copy `1cf44c89… 1494`. Started from the copy: `host: ready`,
+  `users = owner`, 28 migrations; `host: stopped`, exit 0. (First try: Postgres refused the copy,
+  `data directory … has invalid permissions` — `cpSync` doesn't copy folder modes. Fixed.)
+- The app after the refactor (Electron 44, Linux, Xvfb): boots (`postgres durability: …`, title
+  `FMS — Upload to server not set up`, `/auth/me` → 401), Ctrl+Q → `backup OK (shutdown)` →
+  Postgres `shutting down`.
+- `npm test` 30/30 three runs in a row; one earlier run failed only the timing test "a write is
+  uploaded within ~3 s" (3.5 s budget) while the machine was busy.
+- ⏳ Windows: the same two checks with `tools\node.exe host.js` (and that `pg_ctl stop` ends the
+  detached Postgres there); a sale reaching the real VPS.
+ — Service install + dedicated user + shutdown drain (D14)
 
 **Status:** NOT STARTED
 **Deps:** T3.1

@@ -58,6 +58,9 @@ Usage: `vpsql <<< "SELECT now();"`
 
 - [ ] **B1** Merge `sync-hardening-phase2` into `main` (PR or `git merge`), push. Watch the GitHub
       Action "Deploy backend to VPS" go green; Vercel deploys the frontend from `main`.
+      (The branch also carries T2.5–T2.6 and the Phase 3 code — `host.js`, `desktop/service/`.
+      The service part stays unused until someone runs `install-service.ps1`; the app itself now
+      runs through `lib/runtime.js`, which the E/F steps below exercise.)
 - [ ] **B2 · T1.10-1 (part)** 🖥
       `vpsql <<< "SELECT name FROM pgmigrations ORDER BY id DESC LIMIT 7;"`
       → `028-report-dispatch-log`, `027-stock-quantity-nonneg`, `026-sync-heartbeat` …
@@ -167,9 +170,13 @@ Usage: `vpsql <<< "SELECT now();"`
 
 - [ ] **D1** `git pull` on `main`; in `desktop/`: `npm ci` (installs the Windows builds of
       Postgres, sharp, Electron).
-- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 27 / pass 27 / fail 0`. ✍️ paste the summary.
+- [ ] **D2 · T1.10-1 (rule 10)** `npm test` → `tests 30 / pass 30 / fail 0`. ✍️ paste the summary.
+      Run `npm run fetch-tools` first: the two backup tests use `desktop\tools\pg_dump.exe` /
+      `pg_restore.exe` (with the embedded Postgres's DLLs), as the app does.
 - [ ] **D3** Set `"version": "1.0.2"` in `desktop/package.json`, commit + push
       ("Release 1.0.2"), then `npm run dist` → `dist/FMS-Setup-1.0.2.exe`, `.blockmap`, `latest.yml`.
+      `dist` now also runs `fetch-tools` (internet needed once: `pg_dump.exe`, `pg_restore.exe`,
+      `node.exe`, ~95 MB, each checked against a pinned SHA-256 — a mismatch stops the build).
 - [ ] **D4** Upload (PowerShell, in `desktop/`), `latest.yml` last:
       `scp dist/FMS-Setup-1.0.2.exe dist/FMS-Setup-1.0.2.exe.blockmap dist/latest.yml myuser@158.220.94.68:~/fms/downloads/`
       → https://api.ittefaqbuilder.com/downloads shows version 1.0.2. ✍️
@@ -277,6 +284,14 @@ Usage: `vpsql <<< "SELECT now();"`
 - [ ] **F16 · T1.6-4** expiry → `whatsapp_dead`: observed on the real relay with a 30 s limit
       (plan evidence). Repeating it live needs a code change; write "accepted from relay run" unless
       you want a special build.
+
+- [ ] **F17 · T2.5** 🏭 (gate) FMS menu (Alt) → **Backups → Back up now** → "Backup done" with the
+      row count ✍️; then **Test the newest backup** → "The newest backup restores correctly" with
+      the tables / rows ✍️ — the first run of the Windows `pg_dump.exe`. Then **Choose the backup
+      folder…** on a second drive (the status bar's "same drive" note goes away) and, weekly, **Copy
+      the newest backup to a USB drive…**.
+- [ ] **F18 · T2.6** 🏭 `%APPDATA%\FMS\logs\fms.log` has `postgres durability: fsync=on,
+      full_page_writes=on, synchronous_commit=on` ✍️. Ops: the UPS, and who installed it ✍️.
 
 ## G. Close out
 

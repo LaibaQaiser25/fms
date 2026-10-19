@@ -30,6 +30,14 @@
        opens a window on the service instead of starting its own copy, and
        MOVED-TO-SERVICE.txt in %APPDATA%\FMS, so the old copy never runs again
 
+  -Lan (T3.3) also lets the other factory PCs use it in a browser at
+  http://<this PC>:48620: the backend listens on every interface, Windows
+  Firewall lets TCP 48620 in from the local subnet on Private networks only, and
+  the dashboard's origins are allowed. Postgres (48621) and the alert relay
+  (48622) stay on 127.0.0.1 - never reachable from another PC.
+  -HostName fms-host renames this PC (takes effect after a restart), so the
+  others can use http://fms-host:48620. Give it a fixed address too: a DHCP
+  reservation on the router for this PC's network card.
   Re-running it is safe: the service is stopped, updated and started again, and
   the data is never copied twice.
 #>
@@ -39,7 +47,9 @@ param(
   [string]$FromAppData = (Join-Path $env:APPDATA 'FMS'),
   [string]$DataDir = (Join-Path $env:ProgramData 'FMS'),
   [string]$ServiceName = 'FMS',
-  [string]$ServiceUser = 'fms-service'
+  [string]$ServiceUser = 'fms-service',
+  [switch]$Lan,
+  [string]$HostName
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -105,6 +115,7 @@ Step "$DataDir belongs to $ServiceUser"
 
 # 6. The service.
 $envExtra = @("FMS_DATA_DIR=$DataDir")
+if ($Lan) { $envExtra += Get-LanEnvironment -HostName $HostName }
 if (-not $svc) {
   & $nssmExe install $ServiceName $node | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "nssm install failed" }
@@ -146,6 +157,7 @@ Step "service $ServiceName registered (Automatic, runs as $ServiceUser)"
 Wait-Dashboard -DataDir $DataDir
 Assert-NoAdminRefusal -DataDir $DataDir
 Write-ServiceMarker -DataDir $DataDir -ServiceName $ServiceName -AppDir $appDir
+if ($Lan) { Enable-LanAccess -Node $node -HostName $HostName }
 # The switch (D1): the app's old folder is never used again. pgdata there
 # stays exactly as it was; this note is a new file next to it, and the app
 # refuses to start on a folder that has it.

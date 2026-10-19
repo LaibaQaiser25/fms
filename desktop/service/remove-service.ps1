@@ -26,6 +26,7 @@ Stop-FmsService -Nssm $nssmExe -ServiceName $marker.serviceName
 & $nssmExe remove $marker.serviceName confirm | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "nssm could not remove $($marker.serviceName)" }
 Remove-Item $script:MarkerFile
+Disable-LanAccess
 Step "service $($marker.serviceName) removed; data kept in $($marker.dataDir)"
 if ($RemoveUser) {
   Remove-LocalUser -Name $ServiceUser

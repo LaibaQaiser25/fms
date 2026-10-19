@@ -121,3 +121,43 @@ function Find-InstalledApp {
   }
   return $null
 }
+
+# ---- T3.3: the dashboard on the factory network ----------------------------
+
+$script:LanRule = 'FMS dashboard (factory network)'
+
+# The backend listens on every interface; the dashboard's own origins (by
+# name and by each IPv4 address) are allowed for CORS. The frontend calls
+# the API on the same origin it was loaded from (T3.4), so these are a
+# safety net.
+function Get-LanEnvironment([string]$HostName) {
+  $names = @($env:COMPUTERNAME.ToLower())
+  if ($HostName) { $names += $HostName.ToLower() }
+  $ips = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
+    Select-Object -ExpandProperty IPAddress
+  $origins = @($names + $ips | Select-Object -Unique | ForEach-Object { "http://${_}:48620" })
+  return @('FMS_BIND_HOST=0.0.0.0', "FMS_LAN_ORIGINS=$($origins -join ',')")
+}
+
+function Enable-LanAccess([string]$Node, [string]$HostName) {
+  Get-NetFirewallRule -DisplayName $script:LanRule -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+  New-NetFirewallRule -DisplayName $script:LanRule -Direction Inbound -Action Allow -Protocol TCP `
+    -LocalPort 48620 -Profile Private -RemoteAddress LocalSubnet -Program $Node | Out-Null
+  Step "firewall: TCP 48620 open to the local subnet on Private networks (only for $Node)"
+  $public = Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object { $_.NetworkCategory -eq 'Public' }
+  foreach ($p in $public) {
+    Write-Host "   NOTE: the network '$($p.Name)' ($($p.InterfaceAlias)) is set to Public, so the other PCs can't connect through it." -ForegroundColor Yellow
+    Write-Host "   If it is the factory network, run: Set-NetConnectionProfile -InterfaceAlias '$($p.InterfaceAlias)' -NetworkCategory Private" -ForegroundColor Yellow
+  }
+  if ($HostName -and $env:COMPUTERNAME -ne $HostName) {
+    Rename-Computer -NewName $HostName -Force | Out-Null
+    Step "this PC will be called $HostName after the next restart"
+  }
+  $ips = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' }).IPAddress -join ', '
+  Step "other factory PCs: http://$(if ($HostName) { $HostName } else { $env:COMPUTERNAME }):48620  (or by address: $ips)"
+}
+
+function Disable-LanAccess {
+  Get-NetFirewallRule -DisplayName $script:LanRule -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+}

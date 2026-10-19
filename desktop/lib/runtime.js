@@ -296,7 +296,9 @@ class FactoryRuntime {
     const started = Date.now();
     return new Promise((resolve, reject) => {
       const attempt = () => {
-        const req = http.get(`${this.appOrigin}/`, (res) => { res.resume(); resolve(); });
+        // 0.0.0.0 includes 127.0.0.1; a single other address doesn't.
+        const host = ['0.0.0.0', '::'].includes(this.bindHost) ? '127.0.0.1' : this.bindHost;
+        const req = http.get(`http://${host}:${APP_PORT}/`, (res) => { res.resume(); resolve(); });
         req.on('error', () => {
           if (Date.now() - started > timeoutMs) reject(new Error('backend did not start in time'));
           else setTimeout(attempt, 300);

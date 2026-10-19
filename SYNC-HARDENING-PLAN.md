@@ -212,7 +212,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | CODE DONE, CHECKS FAILING | 25/25 `npm test` (checks 1–5 in the harness); the app's menu + window need a real run |
 | T3.1 | `desktop/host.js` entry point | T1.5 | CODE DONE, CHECKS FAILING | checks 1–2 seen on Linux (scratch VPS: sale uploaded; copy-data → original byte-identical, start from copy); Windows (`tools\node.exe`) pending; T1.5 must be `DONE` before Phase 3 ships |
 | T3.2 | Service install + dedicated user + drain | T3.1 | CODE DONE, CHECKS FAILING | scripts parse + PSScriptAnalyzer clean; drain (Ctrl+C to the process group → upload, backup, clean stop) and the app's service mode seen on Linux; checks 1–4 need the factory PC |
-| T3.3 | LAN bind + firewall + hostname | T3.2 | NOT STARTED | |
+| T3.3 | LAN bind + firewall + hostname | T3.2 | CODE DONE, CHECKS FAILING | login, save, WebSocket and refused 48621/48622 over a non-loopback address on Linux; firewall/hostname scripts parse; second-PC checks on the factory network pending |
 | T3.4 | Frontend relative API base + variant | T3.3 | NOT STARTED | |
 | T3.5 | Concurrency audit + fixes | T3.3 | NOT STARTED | |
 
@@ -1858,7 +1858,8 @@ Windows PowerShell 5.1 reads them right:
 
 ### T3.3 — LAN bind + firewall + hostname
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — observed on Linux over a second interface (19 Oct 2026); the
+firewall rule, the hostname and a real second factory PC need Windows
 **Deps:** T3.2
 
 **Do:**
@@ -1874,6 +1875,40 @@ Windows PowerShell 5.1 reads them right:
 3. Port 48621 is **refused** (`Test-NetConnection fms-host -Port 48621`).
 
 **Gate:** all three observed.
+
+**Built (19 Oct 2026):**
+- `install-service.ps1 -Lan [-HostName fms-host]`: the service gets `FMS_BIND_HOST=0.0.0.0` (step 1)
+  and `FMS_LAN_ORIGINS` = `http://<name>:48620` for the PC name, `-HostName`, and every IPv4
+  address (step 5; with T3.4 the dashboard calls its own origin, so CORS is a safety net). Firewall
+  rule "FMS dashboard (factory network)": inbound TCP 48620, **Private** profile, `RemoteAddress
+  LocalSubnet`, only for the service's `node.exe` (step 3); a warning with the fix when the network
+  is set to Public. `-HostName` → `Rename-Computer` (after a restart). The DHCP reservation is on
+  the router (README). `update-service.ps1` keeps these settings; `remove-service.ps1` removes the
+  rule.
+- Postgres stays on `127.0.0.1:48621` (`listen_addresses=127.0.0.1` since T3.1, step 2); the alert
+  relay stays on `127.0.0.1:48622`.
+- `runtime.waitForServer` polls the bound address when it isn't `0.0.0.0`.
+- **Found while doing it:** `server.js` trusted `X-Forwarded-For` (`trust proxy 1`, right on the
+  VPS behind Cloudflare). On the factory network there is no proxy, so any terminal could set the
+  header and get a fresh login rate limit per request. Factory (`FMS_FACTORY=1`): `trust proxy`
+  off. The VPS is unchanged.
+
+**Evidence (19 Oct 2026, Linux; `host.js` with `FMS_BIND_HOST=172.17.0.1`, a Docker bridge address
+standing in for the LAN — this machine's other address is public, so `0.0.0.0` was not used):**
+- `ss -ltn`: `172.17.0.1:48620`, `127.0.0.1:48621`, `127.0.0.1:48622`; `host: ready on
+  http://172.17.0.1:48620`.
+- Check 1 (API half) ✅ — over `http://172.17.0.1:48620`: `/auth/login` → token; `POST
+  /api/customers` → `200 Customer created successfully`; 6 s later `3 | From the LAN` on the
+  scratch server. (The page itself in a browser: T3.4.)
+- Check 2 ✅ — `ws://172.17.0.1:48620/ws?token=<jwt>` → open; `token=nope` → `401`.
+- Check 3 ✅ — TCP to `172.17.0.1:48621` and `:48622` → refused.
+- Rate limit: 11 wrong logins, each with a different `X-Forwarded-For` → `401 ×8, 429 ×3` (2 good
+  logins earlier in the window count too). Sabotage, `trust proxy 1` back in the staged copy → 12
+  attempts, all `401`. Restored.
+- `install-service.ps1` / `common.ps1` parse, PSScriptAnalyzer clean, ASCII only.
+- ⏳ Windows: `install-service.ps1 -Lan -HostName fms-host`, then from a second factory PC:
+  `http://fms-host:48620` loads, login + a save; the WebSocket (live updates) connects;
+  `Test-NetConnection fms-host -Port 48621` → `TcpTestSucceeded : False`.
 
 ---
 

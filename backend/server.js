@@ -48,10 +48,13 @@ try {
 
 const app = express();
 
-// We're always behind the Cloudflare Tunnel (cloudflared on the VPS host) —
-// trust its X-Forwarded-For so express-rate-limit keys on the real client IP
-// instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request.
-app.set('trust proxy', 1);
+// The VPS is always behind the Cloudflare Tunnel (cloudflared on the VPS
+// host) — trust its X-Forwarded-For so express-rate-limit keys on the real
+// client IP instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every
+// request. The factory PC has no proxy, and other factory PCs reach it
+// directly (T3.3): trusting the header there would let any terminal pick its
+// own IP and dodge the login rate limit.
+app.set('trust proxy', process.env.FMS_FACTORY === '1' ? false : 1);
 
 // FRONTEND_URL may list several origins, comma-separated — the dashboard
 // (app.ittefaqbuilder.com) and the public site are separate origins.

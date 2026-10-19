@@ -165,6 +165,14 @@ Administrators can open it; owned by `fms-service`), registers the service
   and goes back to the old version by itself if the new one doesn't start.
 - `service\remove-service.ps1` removes the service and keeps all data.
 
+**Other factory PCs (T3.3).** Install with `-Lan -HostName fms-host` (or run
+it again with them). The others then open `http://fms-host:48620` in any
+browser — nothing is installed on them. The script opens TCP 48620 in Windows
+Firewall for the local subnet on **Private** networks only; set the factory
+network to Private if it says Public. On the router, give this PC a DHCP
+reservation so its address never changes. The database port (48621) is never
+opened.
+
 ## How sync works
 
 - Triggers (`lib/syncCapture.js`) append every insert/update/delete to

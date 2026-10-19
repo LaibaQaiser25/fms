@@ -34,15 +34,17 @@ fs.cpSync(backendSrc, path.join(stagedDir, 'backend'), {
 });
 console.log('staged backend');
 
-// 127.0.0.1 rather than localhost: config.js compares window.location.hostname
-// against VITE_APP_URL to decide this is the dashboard (so "/" -> /login).
+// The dashboard is served by the same backend it calls, at 127.0.0.1 in the
+// app's window and at http://fms-host:48620 (or an IP) from other factory PCs
+// (T3.4): so a relative API base, and the site variant fixed to the
+// dashboard instead of guessed from the hostname (frontend/src/config.js).
 const origin = `http://127.0.0.1:${APP_PORT}`;
 execSync(
   `npx vite build --outDir "${path.join(stagedDir, 'frontend')}" --emptyOutDir`,
   {
     cwd: frontendSrc,
     stdio: 'inherit',
-    env: { ...process.env, VITE_API_URL: `${origin}/api`, VITE_APP_URL: origin, VITE_FMS_DESKTOP: '1' },
+    env: { ...process.env, VITE_API_URL: '/api', VITE_SITE_VARIANT: 'app', VITE_APP_URL: origin, VITE_FMS_DESKTOP: '1' },
   }
 );
 console.log('staged frontend');

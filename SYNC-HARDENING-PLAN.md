@@ -213,7 +213,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T3.1 | `desktop/host.js` entry point | T1.5 | CODE DONE, CHECKS FAILING | checks 1–2 seen on Linux (scratch VPS: sale uploaded; copy-data → original byte-identical, start from copy); Windows (`tools\node.exe`) pending; T1.5 must be `DONE` before Phase 3 ships |
 | T3.2 | Service install + dedicated user + drain | T3.1 | CODE DONE, CHECKS FAILING | scripts parse + PSScriptAnalyzer clean; drain (Ctrl+C to the process group → upload, backup, clean stop) and the app's service mode seen on Linux; checks 1–4 need the factory PC |
 | T3.3 | LAN bind + firewall + hostname | T3.2 | CODE DONE, CHECKS FAILING | login, save, WebSocket and refused 48621/48622 over a non-loopback address on Linux; firewall/hostname scripts parse; second-PC checks on the factory network pending |
-| T3.4 | Frontend relative API base + variant | T3.3 | NOT STARTED | |
+| T3.4 | Frontend relative API base + variant | T3.3 | CODE DONE, CHECKS FAILING | both checks seen on Linux in a browser by name (`fms-host`) and by IP; a real second factory PC pending |
 | T3.5 | Concurrency audit + fixes | T3.3 | NOT STARTED | |
 
 ---
@@ -1914,7 +1914,8 @@ standing in for the LAN — this machine's other address is public, so `0.0.0.0`
 
 ### T3.4 — Frontend relative API base + variant (D13)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — both checks observed in a browser on Linux, by name and by IP
+(19 Oct 2026); still to do from a real second factory PC
 **Deps:** T3.3
 
 **Do:**
@@ -1929,6 +1930,30 @@ standing in for the LAN — this machine's other address is public, so `0.0.0.0`
 2. `/auth/login` succeeds and an authenticated `/api/*` call returns data.
 
 **Gate:** both observed.
+
+**Built (19 Oct 2026):**
+- `desktop/scripts/stage.js`: `VITE_API_URL=/api`, `VITE_SITE_VARIANT=app` (step 1).
+- `frontend/src/config.js`: `SITE = VITE_SITE_VARIANT ||` the hostname rule, with the reason in a
+  comment (step 2, F11).
+- Step 3, **changed on purpose**: a bare relative base would give `AUTH_BASE_URL = ''`, and
+  `statusApi.js` calls `http.get(`${AUTH_BASE_URL}/status`)` on the axios instance whose `baseURL`
+  is `/api` — `/status` would become `/api/status` (404) and the status bar would break. So
+  `API_BASE_URL` is resolved against `window.location.origin` (`new URL('/api', origin)`), and
+  `AUTH_BASE_URL` / the WebSocket URL are the page's own origin, absolute. The online build
+  (absolute `VITE_API_URL`) gives the same strings as before.
+
+**Evidence (19 Oct 2026, Linux):** `npm run stage` → the bundle has `"/api"` and no
+`127.0.0.1:48620/api`. `host.js` bound to `172.17.0.1` (T3.3); a separate browser window
+(Electron 44 as a plain browser, `host-resolver-rules: MAP fms-host 172.17.0.1`, own profile):
+- Check 1 ✅ — `http://fms-host:48620/` → `http://fms-host:48620/login`, login form shown, no
+  marketing text; `http://172.17.0.1:48620/` → `…/login`, same.
+- Check 2 ✅ — logged in as owner through the form → `http://fms-host:48620/dashboard`, token stored;
+  `POST http://fms-host:48620/auth/login 200`, then `GET …/api/sales/dashboard/data 200`,
+  `…/api/stock 200`, `…/api/production/stats/overview 200`, …; **no** request to `127.0.0.1`; the
+  WebSocket on `ws://fms-host:48620/ws` opens; the status bar reads "Uploaded ✓ · Last upload 2 min
+  ago" (`/status` through the absolute base). Screenshot: the full dashboard with figures.
+- `eslint src/config.js` clean; `vite build` OK.
+- ⏳ From a second factory PC on the real network (after T3.3's install with `-Lan`).
 
 ---
 

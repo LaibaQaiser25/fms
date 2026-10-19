@@ -135,6 +135,36 @@ it, checksums the copy and the original again, and only then puts the copy in
 place. `%APPDATA%\FMS` is only read and stays exactly as it was: keep it until
 the service has run for a while. The service install (T3.2) is the switch.
 
+**Installing the service (T3.2).** Needs NSSM 2.24 (https://nssm.cc/download:
+put `win64\nssm.exe` in `resources\app\service\`, or `winget install
+NSSM.NSSM`). Close the FMS app, open PowerShell **as Administrator**:
+
+```
+& "<FMS install folder>\resources\app\service\install-service.ps1"
+```
+
+It copies the program to `C:\Program Files\FMS Service\app-<version>`,
+creates the local user `fms-service` (not an administrator — Postgres refuses
+to run as one; the random password is given only to Windows), moves the data
+with `copy-data` into `C:\ProgramData\FMS` (only `fms-service`, SYSTEM and
+Administrators can open it; owned by `fms-service`), registers the service
+(Automatic, restarts after a crash) and starts it. From then on:
+
+- FMS runs with nobody logged in; log in `C:\ProgramData\FMS\logs\fms.log`.
+- The FMS icon only opens a window on the service's dashboard. The old
+  `%APPDATA%\FMS` gets a `MOVED-TO-SERVICE.txt` and the app never starts on it
+  again (its data is out of date). Delete it once the service has run a while.
+- **Stopping** the service (Services → FMS → Stop, or a restart) stops the
+  backend, uploads what is waiting (up to 45 s), makes the closing backup and
+  shuts Postgres down cleanly. Windows gives services only a few seconds at a
+  normal PC shutdown, so that upload and backup may be cut short there; the
+  data is safe either way and goes up at the next start.
+- **Updates (D4):** deploy the VPS first, then, as Administrator:
+  `& "C:\Program Files\FMS Service\app-<current>\service\update-service.ps1" -Installer D:\FMS-Setup-<new>.exe`.
+  It installs the new version next to the old one, switches the service over,
+  and goes back to the old version by itself if the new one doesn't start.
+- `service\remove-service.ps1` removes the service and keeps all data.
+
 ## How sync works
 
 - Triggers (`lib/syncCapture.js`) append every insert/update/delete to

@@ -211,7 +211,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
 | T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | CODE DONE, CHECKS FAILING | 25/25 `npm test` (checks 1–5 in the harness); the app's menu + window need a real run |
 | T3.1 | `desktop/host.js` entry point | T1.5 | CODE DONE, CHECKS FAILING | checks 1–2 seen on Linux (scratch VPS: sale uploaded; copy-data → original byte-identical, start from copy); Windows (`tools\node.exe`) pending; T1.5 must be `DONE` before Phase 3 ships |
-| T3.2 | Service install + dedicated user + drain | T3.1 | NOT STARTED | |
+| T3.2 | Service install + dedicated user + drain | T3.1 | CODE DONE, CHECKS FAILING | scripts parse + PSScriptAnalyzer clean; drain (Ctrl+C to the process group → upload, backup, clean stop) and the app's service mode seen on Linux; checks 1–4 need the factory PC |
 | T3.3 | LAN bind + firewall + hostname | T3.2 | NOT STARTED | |
 | T3.4 | Frontend relative API base + variant | T3.3 | NOT STARTED | |
 | T3.5 | Concurrency audit + fixes | T3.3 | NOT STARTED | |
@@ -1780,9 +1780,14 @@ on 5057 with `SYNC_TOKEN` and `READ_ONLY_MODE=true`, an Owner and 2 customers):*
   uploaded within ~3 s" (3.5 s budget) while the machine was busy.
 - ⏳ Windows: the same two checks with `tools\node.exe host.js` (and that `pg_ctl stop` ends the
   detached Postgres there); a sale reaching the real VPS.
- — Service install + dedicated user + shutdown drain (D14)
 
-**Status:** NOT STARTED
+---
+
+### T3.2 — Service install + dedicated user + shutdown drain (D14)
+
+**Status:** CODE DONE, CHECKS FAILING — scripts written, parse-checked and linted; the drain and the
+app's service mode observed on Linux (19 Oct 2026). Checks 1–4 need Windows (NSSM, a reboot with
+nobody logged in, ACLs)
 **Deps:** T3.1
 
 **Do:**
@@ -1800,6 +1805,54 @@ on 5057 with `SYNC_TOKEN` and `READ_ONLY_MODE=true`, an Owner and 2 customers):*
 4. Network up: create a sale, stop the service → the row is on the VPS.
 
 **Gate:** all four observed.
+
+**Built (19 Oct 2026)** — `desktop/service/` (packed: `service/**` in `build.files`), ASCII-only so
+Windows PowerShell 5.1 reads them right:
+- `install-service.ps1` (as Administrator, FMS app closed): finds `nssm.exe` (`-Nssm`, next to the
+  script, or PATH; NSSM isn't shipped — nssm.cc answered 503 when this was built, so there is no
+  pinned download) → stops an earlier install and **waits** until it has stopped → copies
+  `resources\app` to `C:\Program Files\FMS Service\app-<version>` (through `.partial`; the
+  per-user install folder is in the admin's profile, unreadable for the service user, and the
+  app's updater would replace files under it) → local user `fms-service`, random password given
+  only to NSSM, refused if it is in Administrators → data: `host.js copy-data --from
+  %APPDATA%\FMS` if `C:\ProgramData\FMS` is empty (D1), else uses what is there → `icacls`:
+  inheritance off, SYSTEM + Administrators full, `fms-service` modify, owner `fms-service` (check
+  3) → NSSM: `tools\node.exe "<app>\host.js"`, `FMS_DATA_DIR`, start Automatic, `ObjectName
+  .\fms-service`, stop = console Ctrl+C with **75 s** (`AppStopMethodConsole`, NSSM's name for the
+  plan's "AppStopTimeout": 45 s upload + backup + Postgres), then the process tree is ended;
+  restart on exit (10 s delay); stdout/stderr to `logs\service.log`, rotated at 10 MB;
+  `PreshutdownTimeout` 90 s → start → wait for the dashboard on `127.0.0.1:48620` (check 1) → no
+  "administrative permissions" line in `fms.log` (check 2) → `C:\ProgramData\FMS-service.json` +
+  `MOVED-TO-SERVICE.txt` in the old folder.
+- `update-service.ps1` (D4): `-Installer FMS-Setup-x.exe` runs it with `/S` for the user and takes
+  its folder from the Uninstall registry key → copies it to `app-<new>` next to the running version
+  → stop (drain) → point NSSM at it → start → wait; if it doesn't answer within 2 min: back to the
+  old version, started, and reported as failed. Keeps the previous version folder.
+- `remove-service.ps1`: stop (drain), `nssm remove`, marker removed; data and program kept.
+- `main.js`: with `FMS-service.json` present the app is only a window on the service's dashboard
+  (no Postgres, no backend, no updater); with `MOVED-TO-SERVICE.txt` in its folder it refuses to
+  start, so the out-of-date copy can never run or upload again (its `config.json` still holds the
+  upload key).
+- **Drain (step 2):** T3.1's `runtime.stop()` — backend stopped first ("stop accepting new business
+  writes"), then `finalUpload(45 s)`, closing backup, `pg_ctl stop`. Postgres detached + the
+  exit-hooks fix (T3.1) are what make NSSM's Ctrl+C reach `host.js` without killing the database.
+- **Known limit:** at a normal Windows shutdown services get only a few seconds unless they take
+  pre-shutdown; whether NSSM 2.24 does is unverified. If not, the upload/backup can be cut short at
+  shutdown — the data is safe (Postgres recovery, the outbox), and both happen at the next start.
+
+**Evidence (19 Oct 2026):**
+- `pwsh` 7.6.7 (Linux): all four scripts parse; `Invoke-ScriptAnalyzer` → 0 errors/warnings (after
+  removing the non-ASCII characters it flagged).
+- Drain, Linux: see T3.1 (sale → Ctrl+C to the process group → `sync: pushed 5 change(s)`, `backup
+  OK (shutdown)`, `postgres stopped cleanly`, exit 0).
+- The app's service mode (Electron 44, Linux, Xvfb), with `host.js` running as the stand-in service
+  and a marker file: window title `FMS`, the log only `service mode: FMS runs as the Windows service
+  "FMS" …`, no `pgdata`, no Postgres/backend lines; closed with Ctrl+Q → the service still answers
+  `200`. A profile with `MOVED-TO-SERVICE.txt` → `startup failed: Error: The FMS data on this PC was
+  moved …`, no `pgdata` created.
+- ⏳ Windows: checks 1–4 (reboot with nobody logged in → dashboard on 48620; no admin refusal in the
+  log; `(Get-Acl C:\ProgramData\FMS\pgdata).Owner` = `…\fms-service`; a sale, `Stop-Service FMS`
+  → the sale on the VPS), and one `update-service.ps1` run.
 
 ---
 

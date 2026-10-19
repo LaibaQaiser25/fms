@@ -11,6 +11,8 @@
 //   9. back up the database every 6 h and on close (lib/backup.js, T2.5)
 // Steps 1-3, 5, 6 and 9 are lib/runtime.js, shared with host.js (the Windows
 // service, T3.1); this file adds the window, setup screens, menu and updates.
+// Once FMS runs as a service on this PC (T3.2), this app only opens a window
+// on it: see bootViewer().
 // The app itself talks over 127.0.0.1 only; internet is needed only for sync.
 const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
@@ -298,7 +300,49 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// Written by service/install-service.ps1 (T3.2): FMS runs as the Windows
+// service, which owns the database and does the uploads. A second copy here
+// would fight it for the ports, or — worse — run the out-of-date data left in
+// %APPDATA%\FMS. So: just a window on the service's dashboard. No updates
+// either; the service is updated with service/update-service.ps1 (D4).
+const SERVICE_MARKER = process.env.FMS_SERVICE_MARKER
+  || (process.env.PROGRAMDATA ? path.join(process.env.PROGRAMDATA, 'FMS-service.json') : null);
+function serviceInfo() {
+  try { return JSON.parse(fs.readFileSync(SERVICE_MARKER, 'utf8')); } catch { return null; }
+}
+const NOT_RUNNING_HTML = `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
+<html><body style="margin:0;height:100vh;display:grid;place-items:center;font-family:Segoe UI,sans-serif;background:#f5f5f4;color:#292524">
+<div style="text-align:center;max-width:520px"><div style="font-size:22px;font-weight:600">FMS is not answering</div>
+<div style="margin-top:8px;color:#78716c">FMS runs as a Windows service on this PC. It may still be starting; if this stays, restart the PC
+or start the "FMS" service in Services. This window keeps trying.</div></div></body></html>`)}`;
+
+async function bootViewer(svc) {
+  const url = (svc.url || APP_ORIGIN).replace(/\/$/, '');
+  log(`service mode: FMS runs as the Windows service "${svc.serviceName}" (data ${svc.dataDir}); this window only opens ${url}`);
+  createWindow();
+  let warned = false;
+  for (;;) {
+    try {
+      const res = await fetch(`${url}/branding`, { signal: AbortSignal.timeout(3000) });
+      runtime.appName = (await res.json()).name || 'FMS';
+      break;
+    } catch {
+      if (!warned && mainWindow) { warned = true; mainWindow.loadURL(NOT_RUNNING_HTML); }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  refreshTitle();
+  if (mainWindow) await mainWindow.loadURL(`${url}/login`);
+}
+
 async function boot() {
+  const svc = serviceInfo();
+  if (svc) return bootViewer(svc);
+  // install-service.ps1 copied this folder to the service and left this note:
+  // what is here is out of date and must never run (or upload) again.
+  if (fs.existsSync(path.join(userData, 'MOVED-TO-SERVICE.txt'))) {
+    throw new Error(`The FMS data on this PC was moved to the FMS Windows service, and ${userData} is the old, out-of-date copy, so FMS will not start on it. Reinstall the service (service\\install-service.ps1), or ask for help.`);
+  }
   createWindow();
   runtime.loadConfig();
   runtime.applySetup();

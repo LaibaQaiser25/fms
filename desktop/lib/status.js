@@ -13,7 +13,8 @@ const BACKLOG_AMBER_SEC = 5 * 60;
 // sync: { state, error } from SyncWorker's last report, or
 //   { state: 'not_registered' } when this PC has no upload key.
 // relay: an AlertRelay (status() -> relayState etc.), or null.
-async function collectStatus({ pool, sync, relay, tablesWithoutPk = [] }) {
+// backup: a BackupScheduler (lib/backup.js), or null.
+async function collectStatus({ pool, sync, relay, backup, tablesWithoutPk = [] }) {
   const { rows: [db] } = await pool.query(
     `SELECT (SELECT count(*)::int FROM sync_outbox) AS outbox_count,
             (SELECT COALESCE(EXTRACT(EPOCH FROM now() - min(created_at)), 0)::int FROM sync_outbox) AS oldest_outbox_age,
@@ -21,6 +22,8 @@ async function collectStatus({ pool, sync, relay, tablesWithoutPk = [] }) {
             (SELECT last_synced_at FROM sync_state WHERE id = 1) AS last_synced_at`
   );
   const wa = relay ? await relay.status() : null;
+  // No folder path: status.json is served to every terminal (GET /status).
+  const bk = backup ? backup.status() : null;
 
   const status = {
     state: sync?.state || 'starting',
@@ -34,6 +37,7 @@ async function collectStatus({ pool, sync, relay, tablesWithoutPk = [] }) {
     whatsappQueued: wa?.whatsappQueued ?? null,
     oldestWhatsappAge: wa?.oldestWhatsappAge ?? null,
     tablesWithoutPk,
+    backup: bk && { sameDrive: bk.sameDrive, lastBackupAt: bk.lastBackupAt, lastError: bk.lastError },
     generatedAt: new Date().toISOString(),
   };
   return { ...status, ...levelOf(status) };
@@ -58,6 +62,10 @@ function levelOf(s) {
     const why = { no_target: 'no WhatsApp number set up on the server', n8n_rejecting: 'refused by WhatsApp', offline: 'no internet' }[s.relayState];
     amber.push(`${s.whatsappQueued} WhatsApp alert${s.whatsappQueued === 1 ? '' : 's'} not sent (${why || s.relayState})`);
   }
+  // Backups (T2.5): not an upload fault either, but the only copy of what
+  // has not reached the server yet.
+  if (s.backup?.lastError) amber.push(`Last backup failed: ${s.backup.lastError.message}`);
+  if (s.backup?.sameDrive) amber.push('Backups are on the same drive as the database — choose a folder on another drive');
   return { level: red.length ? 'red' : amber.length ? 'amber' : 'green', problems: [...red, ...amber] };
 }
 
@@ -68,10 +76,10 @@ function levelOf(s) {
 //   onNotWriter(message): the heartbeat was refused because another PC is now
 //     the registered main PC — so even an idle PC finds out within a minute
 class StatusReporter {
-  constructor({ databaseUrl, statusFile, getSync, relay, tablesWithoutPk, upload, log,
+  constructor({ databaseUrl, statusFile, getSync, relay, backup = null, tablesWithoutPk, upload, log,
     onNotWriter = () => {}, intervalMs = 15_000, heartbeatMs = 60_000 }) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 1 });
-    Object.assign(this, { statusFile, getSync, relay, tablesWithoutPk, upload, log, onNotWriter, intervalMs, heartbeatMs });
+    Object.assign(this, { statusFile, getSync, relay, backup, tablesWithoutPk, upload, log, onNotWriter, intervalMs, heartbeatMs });
     this.last = null;
     this.timers = [];
     this.heartbeatFailing = false;
@@ -95,7 +103,7 @@ class StatusReporter {
     if (this.stopped) return;
     try {
       this.last = await collectStatus({
-        pool: this.pool, sync: this.getSync(), relay: this.relay, tablesWithoutPk: this.tablesWithoutPk,
+        pool: this.pool, sync: this.getSync(), relay: this.relay, backup: this.backup, tablesWithoutPk: this.tablesWithoutPk,
       });
       const tmp = `${this.statusFile}.tmp`;
       fs.writeFileSync(tmp, JSON.stringify(this.last));

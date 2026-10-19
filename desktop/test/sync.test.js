@@ -1202,3 +1202,124 @@ test('server-sent reports say how fresh the data is: stale warning after 2 h, "p
     await vps.query("UPDATE report_schedules SET enabled = false, run_time = '23:55'");
   }
 });
+
+// T2.5. pg_dump / pg_restore come from PATH here (Postgres 16 client tools);
+// the installer ships the Windows ones in tools/ (scripts/fetch-tools.js).
+test('backup: a dump taken while the factory keeps writing restores with matching row counts; a failed or damaged one is never kept', async () => {
+  const { backupNow, restoreDrill, BackupScheduler } = require('../lib/backup');
+  const { levelOf } = require('../lib/status');
+  const dir = path.join(tmpDir, 'backups');
+  const dbs = async () => (await factory.query("SELECT datname FROM pg_database WHERE datname LIKE 'fms_drill_%'")).rows;
+  for (let i = 0; i < 20; i++) await factory.query('INSERT INTO customers (name) VALUES ($1)', [`Before ${i}`]);
+
+  // Writes keep landing while the dump runs; the counts are the dump's own snapshot.
+  let writing = true;
+  const writer = (async () => {
+    for (let i = 0; writing; i++) await factory.query('INSERT INTO customers (name) VALUES ($1)', [`During ${i}`]);
+  })();
+  const r = await backupNow({ databaseUrl: factoryUrl, dir });
+  writing = false;
+  await writer;
+  const counts = JSON.parse(fs.readFileSync(`${r.file}.counts.json`, 'utf8')).counts;
+  assert.ok(counts['public.customers'] >= 20);
+  assert.ok(counts['public.sync_outbox'] >= 20, 'the outbox is backed up too');
+  assert.deepEqual(fs.readdirSync(dir).sort(), [path.basename(r.file), `${path.basename(r.file)}.counts.json`]);
+
+  const drill = await restoreDrill({ databaseUrl: factoryUrl, file: r.file });
+  assert.equal(drill.ok, true, JSON.stringify(drill.mismatches));
+  assert.equal(drill.tables, r.tables);
+  assert.equal(drill.rows, r.rows);
+  const live = Number((await factory.query('SELECT count(*) FROM customers')).rows[0].count);
+  assert.ok(live > counts['public.customers'], `rows written during the dump are not in it (${live} live, ${counts['public.customers']} dumped)`);
+  assert.deepEqual(await dbs(), [], 'the drill database is dropped');
+
+  // A count that doesn't match is reported, not hidden.
+  const wrong = path.join(tmpDir, 'wrong.dump');
+  fs.copyFileSync(r.file, wrong);
+  fs.writeFileSync(`${wrong}.counts.json`, JSON.stringify({ counts: { ...counts, 'public.customers': counts['public.customers'] + 1 } }));
+  const bad = await restoreDrill({ databaseUrl: factoryUrl, file: wrong });
+  assert.equal(bad.ok, false);
+  assert.deepEqual(bad.mismatches, [{ table: 'public.customers', expected: counts['public.customers'] + 1, restored: counts['public.customers'] }]);
+
+  // A damaged dump fails the drill and leaves no drill database.
+  const cut = path.join(tmpDir, 'cut.dump');
+  fs.writeFileSync(cut, fs.readFileSync(r.file).subarray(0, Math.floor(r.bytes / 2)));
+  fs.copyFileSync(`${r.file}.counts.json`, `${cut}.counts.json`);
+  await assert.rejects(restoreDrill({ databaseUrl: factoryUrl, file: cut }), /pg_restore failed/);
+  assert.deepEqual(await dbs(), []);
+
+  // pg_dump missing (or failing): an error, and no file of any kind left.
+  const failDir = path.join(tmpDir, 'backups-fail');
+  process.env.FMS_PG_TOOLS_DIR = path.join(tmpDir, 'no-such-dir');
+  try {
+    await assert.rejects(backupNow({ databaseUrl: factoryUrl, dir: failDir }), /pg_dump failed/);
+  } finally {
+    delete process.env.FMS_PG_TOOLS_DIR;
+  }
+  assert.deepEqual(fs.readdirSync(failDir), []);
+
+  // The scheduler: a backup when due, one more on stop; status says when the
+  // folder shares the database's drive, and when the last attempt failed.
+  const logs2 = [];
+  const sched = new BackupScheduler({
+    databaseUrl: factoryUrl, getDir: () => dir, pgDataDir: dataDir, log: (m) => logs2.push(m), everyMs: 0, firstCheckMs: 0, checkMs: 3600_000,
+  });
+  sched.start();
+  await waitFor(() => logs2.some((m) => m.startsWith('backup OK (scheduled)')), 10_000);
+  await sleep(1100); // names are per second
+  await sched.stop();
+  assert.ok(logs2.some((m) => m.startsWith('backup OK (shutdown)')), logs2.join('\n'));
+  assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.dump')).length, 3);
+  const st = sched.status();
+  assert.equal(st.sameDrive, true);
+  assert.equal(st.lastError, null);
+  assert.deepEqual(levelOf({ state: 'ok', quarantineCount: 0, tablesWithoutPk: [], outboxCount: 0, backup: st }),
+    { level: 'amber', problems: ['Backups are on the same drive as the database — choose a folder on another drive'] });
+  process.env.FMS_PG_TOOLS_DIR = path.join(tmpDir, 'no-such-dir');
+  try {
+    await assert.rejects(sched.run('test'));
+  } finally {
+    delete process.env.FMS_PG_TOOLS_DIR;
+  }
+  assert.match(levelOf({ state: 'ok', quarantineCount: 0, tablesWithoutPk: [], outboxCount: 0, backup: { ...sched.status(), sameDrive: false } }).problems[0],
+    /^Last backup failed: pg_dump failed/);
+});
+
+test('backup: keeps the last 24 h, the newest of 14 days and of 8 weeks, also when the PC is off on Sundays', () => {
+  const { prune, listBackups } = require('../lib/backup');
+  const dir = fs.mkdtempSync(path.join(tmpDir, 'prune-'));
+  const pad = (n) => String(n).padStart(2, '0');
+  const name = (d) => `fms_db-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}00.dump`;
+  const now = new Date(2026, 9, 19, 20, 0, 0); // Monday 19 Oct 2026
+  // 120 days, 4 dumps a day (8:00, 14:00, 20:00 and one at 18:30 on close), none on Sundays.
+  for (let i = 0; i < 120; i++) {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    if (day.getDay() === 0) continue;
+    for (const [h, m] of [[8, 0], [14, 0], [18, 30], [20, 0]]) {
+      const d = new Date(day); d.setHours(h, m);
+      if (d > now) continue;
+      fs.writeFileSync(path.join(dir, name(d)), 'x');
+      fs.writeFileSync(path.join(dir, `${name(d)}.counts.json`), '{}');
+    }
+  }
+  fs.writeFileSync(path.join(dir, 'notes.txt'), 'not ours');
+  prune(dir, now);
+  const kept = listBackups(dir).map((b) => b.name);
+  // Last 24 h: all four of today's (18 Oct is a Sunday, no dumps).
+  const today = kept.filter((n) => n.startsWith('fms_db-2026-10-19'));
+  assert.equal(today.length, 4);
+  const days = new Set(kept.map((n) => n.slice(7, 17)));
+  // 14 newest days that have a dump (Sundays skipped), plus older weekly ones.
+  const daily = [...days].sort().reverse().slice(0, 14);
+  assert.equal(daily.at(-1), '2026-10-03');
+  for (const d of daily.slice(1)) assert.equal(kept.filter((n) => n.startsWith(`fms_db-${d}`)).length, 1, `one dump kept for ${d}`);
+  // Weekly: the newest dump of each of the 8 newest weeks, this one included
+  // (weeks start on Monday) -> the Saturdays back to 5 Sep, all 20:00.
+  const older = [...days].sort().filter((d) => d < '2026-10-03');
+  assert.deepEqual(older, ['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26']);
+  assert.ok(kept.filter((n) => !n.startsWith('fms_db-2026-10-19')).every((n) => n.endsWith('_200000.dump')));
+  // Counts files follow their dump; other files are left alone.
+  const files = fs.readdirSync(dir);
+  assert.equal(files.filter((n) => n.endsWith('.counts.json')).length, kept.length);
+  assert.ok(files.includes('notes.txt'));
+});

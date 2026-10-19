@@ -77,6 +77,12 @@ the main PC with a setup code made on the server
 - `config.json` — this PC's id (`writerId`) and upload key, server address,
   local secrets.
 - `logs\fms.log` — everything: startup, sync, alerts, updates.
+- `backups\` — `pg_dump` every 6 h while FMS runs and once when it closes,
+  each with its row counts (`.counts.json`). Move them to a second drive with
+  **FMS menu (Alt) → Backups → Choose the backup folder…** (the status bar is
+  amber until then); once a week **Copy the newest backup to a USB drive…**
+  and keep that drive off-site. **Test the newest backup** restores it into a
+  throwaway database and compares every table's row count.
 
 ## Download link and updates
 

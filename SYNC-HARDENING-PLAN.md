@@ -206,7 +206,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.2 | Factory `DISABLE_CRON` | T2.1 | CODE DONE, CHECKS FAILING | startup log seen on the real `server.js`; ships in 1.0.2 with send-only at E1; one delivery at go-live |
 | T2.3 | Report freshness label + history view | T2.1, T1.5 | CODE DONE, CHECKS FAILING | 27/27 `npm test` (stale, fresh, period incomplete, history route); Sent to WhatsApp tab built, not yet seen in a browser; production pending |
 | T2.4 | Health endpoint + n8n watchdog | T1.5 | CODE DONE, CHECKS FAILING | 22/22 `npm test`; watchdog seen on a scratch n8n 2.37.10 (alerts, no repeat, quiet when off, cleared); production deploy + provisioning + real WhatsApp pending |
-| T2.5 | Factory backups + restore drill | T1.10 | NOT STARTED | |
+| T2.5 | Factory backups + restore drill | T1.10 | CODE DONE, CHECKS FAILING | 29/29 `npm test` (dump during writes → drill matches; damaged / failed never kept; retention); scheduled + on-close backup seen in the real app (Linux, Xvfb); Windows `pg_dump.exe` run + drill on the factory PC pending |
 | T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
 | T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
 | T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | CODE DONE, CHECKS FAILING | 25/25 `npm test` (checks 1–5 in the harness); the app's menu + window need a real run |
@@ -1421,7 +1421,9 @@ they need the deploy, `bash deploy/provision-n8n.sh`, and the factory PC sending
 
 ### T2.5 — Factory backups + restore drill (D10, D15)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — backup, drill and retention by `npm test`, and the scheduled
++ on-close backups seen in the real Electron app on Linux (19 Oct 2026); the Windows `pg_dump.exe`
+has not run yet: the drill on the factory PC (1.0.2 or later) is the gate
 **Deps:** T1.10
 
 **Do:**
@@ -1437,6 +1439,57 @@ they need the deploy, `bash deploy/provision-n8n.sh`, and the factory PC sending
 **Checks:** run the backup, then the drill; record row counts from both sides.
 
 **Gate:** the drill completes with matching counts.
+
+**Built (19 Oct 2026):**
+- `desktop/scripts/fetch-tools.js` (`npm run fetch-tools`, part of `npm run dist`): reads
+  `pg_dump.exe` and `pg_restore.exe` out of the EDB `postgresql-16.14-1-windows-x64-binaries.zip`
+  with HTTP range requests (0.8 MB, not the 325 MB zip), checks each against a pinned SHA-256, into
+  `desktop/tools/` (git-ignored; `tools/**` added to `build.files`). Same build as the embedded
+  server: both carry `postgresql-packaging-foundation\postgresql-16.14` and report `16.14`. Their
+  DLLs (`libpq`, `zlib1`, `liblz4`, `libzstd`, `libintl-9`, `libcrypto-3-x64`) are all in the
+  embedded `bin`, so `lib/backup.js` runs them with that folder on `PATH` instead of shipping copies.
+- `desktop/lib/backup.js` (plain Node, for `host.js` too):
+  - every dump runs inside one `REPEATABLE READ` transaction that counts every table and exports
+    its snapshot to `pg_dump --snapshot`, and the counts are saved as `<dump>.counts.json`. The
+    drill compares against those, so it matches exactly even while the factory keeps working
+    (comparing with the live database, as the VPS drill does, would not);
+  - the dump is written as `.partial`, read all the way through (`pg_restore -f <null>`), then
+    renamed; a failure leaves nothing. The password goes in `PGPASSWORD`, not on the command line;
+  - keeps every dump of the last 24 h + the newest of each of the 14 newest days + the newest of
+    each of the 8 newest weeks. **Not "Sundays" like the VPS**: the factory PC is likely off on
+    Sundays, which would leave no weekly copies;
+  - **drill:** restore into a throwaway `fms_drill_<ms>` database on the same server, count, drop.
+- **Schedule: inside FMS, not a Windows scheduled task (deviation from step 2).** The database
+  runs only while FMS runs, so a task would find nothing to dump when FMS is closed, and nothing
+  changes then. `BackupScheduler`: first check 2 min after start, then every 10 min, backs up when
+  the newest dump is ≥ 6 h old; one more when FMS closes (after the backend has stopped, at most
+  60 s). Once FMS runs as a service (Phase 3) it is up around the clock anyway.
+- Folder: `config.json` → `backupDir`, default `%APPDATA%\FMS\backups`. The status bar is amber
+  while it is on the **same drive** as `pgdata` ("choose a folder on another drive") and when the
+  last backup failed.
+- Factory app: **FMS → Backups**: Back up now · Test the newest backup (restore drill) · Copy the
+  newest backup to a USB drive… (D15, weekly) · Choose the backup folder… · Open the backup folder.
+
+**Evidence (19 Oct 2026):**
+- `npm test` 29/29, two new:
+  - `backup: a dump taken while the factory keeps writing …` — customers inserted in a loop
+    during the dump; drill `ok`, same tables and rows as the counts file; the live table has more
+    rows than the dump (writes during the dump are not in it); no `fms_drill_*` database left. A
+    counts file off by one → `mismatches: [{ table: 'public.customers', expected: n+1, restored: n }]`.
+    A dump cut in half → `pg_restore failed`, no drill database left. `pg_dump` missing → `pg_dump
+    failed`, backup folder empty. Scheduler: one scheduled + one on stop; status amber "Backups are
+    on the same drive …", then "Last backup failed: pg_dump failed …".
+  - `backup: keeps the last 24 h, the newest of 14 days and of 8 weeks …` — 120 days × 4 dumps,
+    no Sundays: today's 4 kept, one per day back to 3 Oct, Saturdays 26 Sep → 5 Sep; counts files
+    follow their dump; an unrelated file is left alone.
+  - Sabotage: without `--snapshot` the first test fails (`expected 24, restored 87`). Restored.
+- Real app (Electron 44 on Linux under Xvfb, scratch `--user-data-dir`, `npm run stage`):
+  `backup OK (scheduled): …/backups/fms_db-2026-10-19_090710.dump (134 KB, 44 tables, 39 rows)` two
+  minutes after start; Ctrl+Q → `backup OK (shutdown): …_090912.dump`, then Postgres `database
+  system is shut down`.
+- ⏳ On the factory PC: FMS → Backups → Back up now, then Test the newest backup → "restores
+  correctly" with the row counts (the gate, with the Windows `pg_dump.exe`); choose a folder on a
+  second drive; the first weekly USB copy.
 
 ---
 

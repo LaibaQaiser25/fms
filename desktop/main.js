@@ -8,6 +8,7 @@
 //   6. queue WhatsApp alerts locally, send when online (lib/alertRelay.js)
 //   7. update itself from GitHub Releases (electron-updater)
 //   8. FMS menu (Alt): rebuild the online server from this PC's data (T2.8)
+//   9. back up the database every 6 h and on close (lib/backup.js, T2.5)
 // The app itself talks over 127.0.0.1 only; internet is needed only for sync.
 const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
@@ -24,6 +25,7 @@ const { registerWriter, downloadSnapshot, importSnapshot } = require('./lib/snap
 const { resendAndPrune } = require('./lib/rebuild');
 const { AlertRelay } = require('./lib/alertRelay');
 const { StatusReporter } = require('./lib/status');
+const { BackupScheduler } = require('./lib/backup');
 
 const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
 
@@ -241,12 +243,60 @@ function runRebuild({ cfg, databaseUrl }) {
   win.loadFile(path.join(__dirname, 'setup', 'rebuild.html'));
 }
 
+// FMS menu -> Backups (T2.5). The folder should be on a second drive (D10);
+// "Copy … to a USB drive" is the weekly off-site copy (D15).
+const backupDirOf = (cfg) => cfg.backupDir || path.join(userData, 'backups');
+async function backupAction(what, cfg) {
+  const info = (message, detail) => dialog.showMessageBox(mainWindow, { type: 'info', title: 'Backups', message, detail });
+  const fail = (err) => dialog.showMessageBox(mainWindow, { type: 'error', title: 'Backups', message: 'That did not work.', detail: err.message });
+  try {
+    if (what === 'now') {
+      const r = await backups.run('menu');
+      await info('Backup done.', `${r.file}\n${r.tables} tables, ${r.rows} rows`);
+    } else if (what === 'drill') {
+      const r = await backups.drill();
+      if (r.ok) await info('The newest backup restores correctly.', `${path.basename(r.file)}\n${r.tables} tables, ${r.rows} rows — every table's row count matches.`);
+      else await fail(new Error(`Restored, but these tables differ:\n${r.mismatches.map((m) => `${m.table}: ${m.expected} in the backup, ${m.restored} restored`).join('\n')}`));
+    } else if (what === 'copy') {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Copy the newest backup to…', properties: ['openDirectory', 'createDirectory'] });
+      if (canceled || !filePaths[0]) return;
+      await info('Copied.', backups.copyNewest(filePaths[0]));
+    } else if (what === 'folder') {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Keep backups in… (choose a folder on another drive)', defaultPath: backupDirOf(cfg), properties: ['openDirectory', 'createDirectory'] });
+      if (canceled || !filePaths[0]) return;
+      cfg.backupDir = filePaths[0];
+      saveConfig(cfg);
+      log(`backup: folder is now ${cfg.backupDir}`);
+      const r = await backups.run('new folder');
+      statusReporter?.refresh();
+      await info('Backups now go to this folder.', `First backup done:\n${r.file}`);
+    } else if (what === 'open') {
+      fs.mkdirSync(backupDirOf(cfg), { recursive: true });
+      await shell.openPath(backupDirOf(cfg));
+    }
+  } catch (err) {
+    statusReporter?.refresh();
+    await fail(err);
+  }
+}
+
 function setupMenu({ cfg, databaseUrl }) {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {
       label: 'FMS',
       submenu: [
         { label: 'Rebuild the online server…', click: () => runRebuild({ cfg, databaseUrl }) },
+        {
+          label: 'Backups',
+          submenu: [
+            { label: 'Back up now', click: () => backupAction('now', cfg) },
+            { label: 'Test the newest backup (restore drill)', click: () => backupAction('drill', cfg) },
+            { label: 'Copy the newest backup to a USB drive…', click: () => backupAction('copy', cfg) },
+            { type: 'separator' },
+            { label: 'Choose the backup folder…', click: () => backupAction('folder', cfg) },
+            { label: 'Open the backup folder', click: () => backupAction('open', cfg) },
+          ],
+        },
         { type: 'separator' },
         { role: 'quit' },
       ],
@@ -285,6 +335,7 @@ let mainWindow = null;
 let syncWorker = null;
 let alertRelay = null;
 let statusReporter = null;
+let backups = null;
 let lastSync = null;          // SyncWorker's last report, or { state: 'not_registered' }
 let tablesWithoutPk = [];
 let updateReady = null; // version string once an update has downloaded
@@ -490,6 +541,7 @@ async function startUploads({ cfg, databaseUrl }) {
     statusFile,
     getSync: () => lastSync,
     relay: alertRelay,
+    backup: backups,
     tablesWithoutPk,
     upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
     log,
@@ -524,6 +576,9 @@ async function boot() {
   }
   // Only creates an account when there are none (i.e. "start empty").
   const owner = await ensureOwner({ databaseUrl });
+
+  backups = new BackupScheduler({ databaseUrl, getDir: () => backupDirOf(cfg), pgDataDir, log });
+  backups.start();
 
   alertRelay = new AlertRelay({
     databaseUrl,
@@ -588,6 +643,8 @@ app.on('before-quit', (event) => {
       }
       if (statusReporter) await statusReporter.stop();
       if (backend) backend.kill();
+      // After the backend, so nothing changes during the dump.
+      if (backups) await backups.stop({ timeoutMs: 60_000 });
       if (alertRelay) await alertRelay.stop();
       await stopPostgres({ dataDir: pgDataDir, log });
     } catch (err) {

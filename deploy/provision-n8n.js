@@ -2,12 +2,13 @@
 /**
  * Provision n8n for FMS on a fresh machine — workflow + credential half.
  *
- * Reads deploy/.env.n8n, transforms the RAW repo workflow (n8n/fms-whatsapp-alerts.json):
+ * Reads deploy/.env.n8n (and SYNC_TOKEN from backend/.env), transforms the RAW repo
+ * workflows (n8n/fms-whatsapp-alerts.json, n8n/fms-sync-watchdog.json):
  *   - substitutes {{ $env.X }} with real values (n8n 2.x blocks $env in expressions)
  *   - swaps the placeholder credential id (meta-whatsapp-header-auth) for the real one
  *   - drops the unused "Respond to Webhook" node (responseMode=lastNode + Respond
  *     node is rejected by n8n 2.x)
- * then upserts + activates the workflow and creates the Meta WhatsApp Cloud API
+ * then upserts + activates the workflows and creates the Meta WhatsApp Cloud API
  * httpHeaderAuth credential — all via the n8n public API.
  *
  * Requires N8N_API_KEY (created by provision-n8n.sh). Idempotent.
@@ -34,6 +35,7 @@ function loadEnv(file) {
 }
 
 const n8nEnv = { ...loadEnv(path.join(ROOT, 'deploy/.env.n8n')) };
+const backendEnv = loadEnv(path.join(ROOT, 'backend/.env'));
 
 const env = {
   META_WHATSAPP_TOKEN: n8nEnv.META_WHATSAPP_TOKEN,
@@ -42,10 +44,15 @@ const env = {
   WEBHOOK_URL: n8nEnv.WEBHOOK_URL || 'http://localhost:5678/',
   // Must match N8N_WEBHOOK_SECRET in backend/.env (sent as X-FMS-Secret).
   N8N_WEBHOOK_SECRET: n8nEnv.N8N_WEBHOOK_SECRET,
+  // Sync watchdog (T2.4): reads the backend's GET /sync/health over the
+  // compose network, and sends through the alerts workflow above.
+  SYNC_TOKEN: backendEnv.SYNC_TOKEN,
+  FMS_HEALTH_URL: n8nEnv.FMS_HEALTH_URL || 'http://backend:5000/sync/health',
+  WATCHDOG_ALERT_URL: n8nEnv.WATCHDOG_ALERT_URL || 'http://localhost:5678/webhook/fms-alert',
 };
 for (const [k, v] of Object.entries(env)) {
   if (!v || v === 'change-me') {
-    console.error(`ERROR: missing value for ${k} — fill in deploy/.env.n8n first.`);
+    console.error(`ERROR: missing value for ${k} — fill in ${k === 'SYNC_TOKEN' ? 'backend/.env' : 'deploy/.env.n8n'} first.`);
     process.exit(1);
   }
 }
@@ -101,6 +108,7 @@ function transformWorkflow(rawPath) {
 
 (async () => {
   const alerts = transformWorkflow(path.join(ROOT, 'n8n/fms-whatsapp-alerts.json'));
+  const watchdog = transformWorkflow(path.join(ROOT, 'n8n/fms-sync-watchdog.json'));
 
   // 1. httpHeaderAuth credentials (one per node) --------------------------
   // The public API forbids LISTING credentials, so we derive each existing
@@ -140,31 +148,35 @@ function transformWorkflow(rawPath) {
       'X-FMS-Secret', env.N8N_WEBHOOK_SECRET),
   };
 
-  // 2. Workflow (upsert by name, then activate) --------------------------
+  // 2. Workflows (upsert by name, then activate) -------------------------
   const existing = (list.json?.data || []).reduce((m, w) => { m[w.name] = w; return m; }, {});
 
   alerts.nodes.forEach((n) => {
     if (n.credentials?.httpHeaderAuth) n.credentials.httpHeaderAuth.id = credIds[n.name];
   });
-  const payload = { name: alerts.name, nodes: alerts.nodes, connections: alerts.connections, settings: alerts.settings || {} };
-  let id = existing[alerts.name]?.id;
-  if (id) {
-    const upd = await api('PUT', `/api/v1/workflows/${id}`, payload);
-    if (upd.status !== 200) { console.error(`update failed for ${alerts.name}:`, upd.text); process.exit(1); }
-  } else {
-    const created = await api('POST', '/api/v1/workflows', payload);
-    if (created.status !== 200 && created.status !== 201) {
-      console.error(`create failed for ${alerts.name}:`, created.text);
+  async function upsert(wf) {
+    const payload = { name: wf.name, nodes: wf.nodes, connections: wf.connections, settings: wf.settings || {} };
+    let id = existing[wf.name]?.id;
+    if (id) {
+      const upd = await api('PUT', `/api/v1/workflows/${id}`, payload);
+      if (upd.status !== 200) { console.error(`update failed for ${wf.name}:`, upd.text); process.exit(1); }
+    } else {
+      const created = await api('POST', '/api/v1/workflows', payload);
+      if (created.status !== 200 && created.status !== 201) {
+        console.error(`create failed for ${wf.name}:`, created.text);
+        process.exit(1);
+      }
+      id = created.json.id;
+    }
+    const act = await api('POST', `/api/v1/workflows/${id}/activate`);
+    if (act.status !== 200 && act.status !== 201) {
+      console.error(`activate failed for ${wf.name}:`, act.text);
       process.exit(1);
     }
-    id = created.json.id;
+    console.log(`workflow ready & active: ${wf.name} (${id})`);
   }
-  const act = await api('POST', `/api/v1/workflows/${id}/activate`);
-  if (act.status !== 200 && act.status !== 201) {
-    console.error(`activate failed for ${alerts.name}:`, act.text);
-    process.exit(1);
-  }
-  console.log(`workflow ready & active: ${alerts.name} (${id})`);
+  await upsert(alerts);
+  await upsert(watchdog);
 
-  console.log('\nDONE. n8n workflow + credential provisioned from code.');
+  console.log('\nDONE. n8n workflows + credentials provisioned from code.');
 })().catch((e) => { console.error('FAILED:', e.message); process.exit(1); });

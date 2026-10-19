@@ -544,6 +544,7 @@
 
 const pool = require('../db/pool');
 const crypto = require('crypto');
+const { lockKey } = require('../services/rowVersion');
 const { sendWhatsApp } = require('../services/whatsappService');
 const { broadcast } = require('../services/wsServer');
 
@@ -636,6 +637,9 @@ class PurchaseController {
           if (!rawMaterialId) {
             // Match an existing raw material by name, or create it on the fly
             // (same pattern already used for new sellers during a purchase).
+            // One at a time per name, or two terminals buying a new material
+            // at once would create it twice (T3.5).
+            await lockKey(client, `raw_materials:${String(item.product_name).toLowerCase()}`);
             const existing = await client.query(
               'SELECT id FROM raw_materials WHERE LOWER(name) = LOWER($1)',
               [item.product_name]

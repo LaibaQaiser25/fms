@@ -6,6 +6,7 @@ const ReportsController = require('../controllers/ReportsController');
 router.get('/schedules', ReportsController.getSchedules);
 router.put('/schedules/:frequency', ReportsController.updateSchedule);
 router.post('/send-whatsapp', ReportsController.sendDailyReportWhatsApp);
+router.get('/dispatch-log', ReportsController.listDispatchLog);
 
 router.post('/', ReportsController.createReport);
 router.get('/', ReportsController.listReports);

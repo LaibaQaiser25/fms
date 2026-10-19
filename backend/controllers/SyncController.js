@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const pool = require('../db/pool');
 const { NOT_WRITER, hashSetupCode, hashUploadKey, uploadKeyHashFrom } = require('../services/syncWriter');
 const { getSetup } = require('../services/offlineSetup');
+const { getSyncHealth } = require('../services/syncHealth');
 
 // Receives changes from the factory desktop app (desktop/lib/sync.js). The
 // factory is the single writer; this server just mirrors its rows.
@@ -15,9 +16,9 @@ class NotWriter extends Error {}
 
 // Tables ingest refuses to write: the factory never sends these, and must not
 // be able to. Every VPS-only table is here too (SYNC-HARDENING-PLAN.md §4).
-const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat']);
+const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log']);
 // Server bookkeeping that is never copied to a factory by the snapshot.
-const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat']);
+const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log']);
 
 // The snapshot hands out every business table (password hashes included), so
 // only the PC that registered within the last hour may take it.
@@ -177,6 +178,12 @@ class SyncController {
     res.json({ ok: true });
   }
 
+  // For the n8n watchdog (T2.4): last upload, open rejections, the last
+  // heartbeat, and the alerts it raises (services/syncHealth.js).
+  static async health(req, res) {
+    res.json(await getSyncHealth());
+  }
+
   // One-time copy of every business table, for the factory app's first run
   // (desktop/lib/snapshot.js). Refused unless READ_ONLY_MODE is on: otherwise
   // someone could save here after the copy is taken, and that row would never
@@ -211,6 +218,59 @@ class SyncController {
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       console.error('❌ Sync snapshot failed:', err.message);
+      res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  }
+
+  // Rebuilding this server from the factory (T2.8, D17): after resending
+  // every row, the factory sends each table's full list of primary keys, and
+  // any row here that isn't in it is deleted — rows the factory deleted after
+  // the backup this server was restored from. Body { table_name, keys: [{ id: 7 }, ...] }.
+  // The factory pauses uploads while it prunes, so no row it adds meanwhile
+  // can arrive here before this list and be deleted by it.
+  static async prune(req, res) {
+    const { table_name: tableName, keys } = req.body || {};
+    if (typeof tableName !== 'string' || !Array.isArray(keys)) {
+      return res.status(400).json({ error: 'Body must be { table_name, keys: [...] }' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Like ingest: no cascades or triggers — the factory's own deletes
+      // already removed the children, and their keys are missing too.
+      await client.query('SET LOCAL session_replication_role = replica');
+      const { rowCount: isWriter } = await client.query(
+        'UPDATE sync_writer SET last_ingest_at = now() WHERE id = 1 AND upload_key_hash = $1',
+        [uploadKeyHashFrom(req)]
+      );
+      if (!isWriter) throw new NotWriter();
+
+      const tables = await loadTables(client);
+      const table = tables.get(tableName);
+      // loadTables already leaves out PROTECTED_TABLES; VPS-only ones are
+      // this server's own and never pruned.
+      if (!table || VPS_ONLY_TABLES.has(tableName)) throw new SchemaMismatch(`unknown table "${tableName}"`);
+      if (keys.some((k) => !k || typeof k !== 'object' || table.pk.some((c) => !(c in k)))) {
+        throw new SchemaMismatch(`every key for ${tableName} needs ${table.pk.join(', ')}`);
+      }
+      const q = (name) => client.escapeIdentifier(name);
+      const t = `public.${q(tableName)}`;
+      const match = table.pk.map((c) => `k.${q(c)} = t.${q(c)}`).join(' AND ');
+      const { rowCount: deleted } = await client.query(
+        `DELETE FROM ${t} t
+          WHERE NOT EXISTS (SELECT 1 FROM jsonb_populate_recordset(NULL::${t}, $1::jsonb) k WHERE ${match})`,
+        [JSON.stringify(keys)]
+      );
+      await client.query('COMMIT');
+      if (deleted) console.log(`🧹 Sync: pruned ${deleted} row(s) from ${tableName} that the factory no longer has`);
+      res.json({ deleted });
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (err instanceof NotWriter) return res.status(403).json(NOT_WRITER);
+      if (err instanceof SchemaMismatch) return res.status(409).json({ error: err.message });
+      console.error('❌ Sync prune failed:', err.message);
       res.status(500).json({ error: err.message });
     } finally {
       client.release();
@@ -303,15 +363,16 @@ class SyncController {
 
       // Rows arrive with explicit ids, which don't advance this side's serial
       // sequences. Keep them at the max so nothing here ever reuses an id.
+      // Look the sequence up first: a key with no sequence can be text
+      // (report_schedules.frequency), and GREATEST(text, 1) fails when the
+      // statement is parsed, even if no row would reach it.
       for (const tableName of touched) {
         const { pk } = tables.get(tableName);
         if (pk.length !== 1) continue;
         const t = `public.${q(tableName)}`;
-        await client.query(
-          `SELECT setval(seq, GREATEST((SELECT max(${q(pk[0])}) FROM ${t}), 1))
-             FROM pg_get_serial_sequence($1, $2) AS seq WHERE seq IS NOT NULL`,
-          [t, pk[0]]
-        );
+        const { rows: [{ seq }] } = await client.query('SELECT pg_get_serial_sequence($1, $2) AS seq', [t, pk[0]]);
+        if (!seq) continue;
+        await client.query(`SELECT setval($1, GREATEST((SELECT max(${q(pk[0])}) FROM ${t}), 1))`, [seq]);
       }
 
       await client.query('COMMIT');

@@ -77,6 +77,12 @@ the main PC with a setup code made on the server
 - `config.json` — this PC's id (`writerId`) and upload key, server address,
   local secrets.
 - `logs\fms.log` — everything: startup, sync, alerts, updates.
+- `backups\` — `pg_dump` every 6 h while FMS runs and once when it closes,
+  each with its row counts (`.counts.json`). Move them to a second drive with
+  **FMS menu (Alt) → Backups → Choose the backup folder…** (the status bar is
+  amber until then); once a week **Copy the newest backup to a USB drive…**
+  and keep that drive off-site. **Test the newest backup** restores it into a
+  throwaway database and compares every table's row count.
 
 ## Download link and updates
 
@@ -106,6 +112,66 @@ To release a new version:
    Upload `latest.yml` last (the scp above does, it goes in order) so the app
    never sees a version whose installer isn't there yet. Keep the previous
    version's `.blockmap` — it lets updates download only what changed.
+
+## Running as a service (Phase 3)
+
+`host.js` runs the same stack as the app (`lib/runtime.js`) with no window,
+so FMS can run as a Windows service with nobody logged in. It runs on
+`tools\node.exe` from the install folder (`resources\app\`):
+
+```
+set FMS_DATA_DIR=C:\ProgramData\FMS
+tools\node.exe host.js                     # run; Ctrl+C = drain + clean stop
+tools\node.exe host.js copy-data --from "%APPDATA%\FMS"   # move the app's data (below)
+tools\node.exe host.js setup --code K7QM-2XPA     # or: a brand-new main PC
+tools\node.exe host.js drill                # test the newest backup (service stopped)
+tools\node.exe host.js rebuild --code <code>  # rebuild the online server (service stopped)
+```
+
+**Moving the data (D1) — copy, verify, then switch, never in place.** Close
+the FMS app, then `copy-data`. It refuses if the target folder isn't empty or
+the database is still open, checksums every file of `%APPDATA%\FMS`, copies
+it, checksums the copy and the original again, and only then puts the copy in
+place. `%APPDATA%\FMS` is only read and stays exactly as it was: keep it until
+the service has run for a while. The service install (T3.2) is the switch.
+
+**Installing the service (T3.2).** Needs NSSM 2.24 (https://nssm.cc/download:
+put `win64\nssm.exe` in `resources\app\service\`, or `winget install
+NSSM.NSSM`). Close the FMS app, open PowerShell **as Administrator**:
+
+```
+& "<FMS install folder>\resources\app\service\install-service.ps1"
+```
+
+It copies the program to `C:\Program Files\FMS Service\app-<version>`,
+creates the local user `fms-service` (not an administrator — Postgres refuses
+to run as one; the random password is given only to Windows), moves the data
+with `copy-data` into `C:\ProgramData\FMS` (only `fms-service`, SYSTEM and
+Administrators can open it; owned by `fms-service`), registers the service
+(Automatic, restarts after a crash) and starts it. From then on:
+
+- FMS runs with nobody logged in; log in `C:\ProgramData\FMS\logs\fms.log`.
+- The FMS icon only opens a window on the service's dashboard. The old
+  `%APPDATA%\FMS` gets a `MOVED-TO-SERVICE.txt` and the app never starts on it
+  again (its data is out of date). Delete it once the service has run a while.
+- **Stopping** the service (Services → FMS → Stop, or a restart) stops the
+  backend, uploads what is waiting (up to 45 s), makes the closing backup and
+  shuts Postgres down cleanly. Windows gives services only a few seconds at a
+  normal PC shutdown, so that upload and backup may be cut short there; the
+  data is safe either way and goes up at the next start.
+- **Updates (D4):** deploy the VPS first, then, as Administrator:
+  `& "C:\Program Files\FMS Service\app-<current>\service\update-service.ps1" -Installer D:\FMS-Setup-<new>.exe`.
+  It installs the new version next to the old one, switches the service over,
+  and goes back to the old version by itself if the new one doesn't start.
+- `service\remove-service.ps1` removes the service and keeps all data.
+
+**Other factory PCs (T3.3).** Install with `-Lan -HostName fms-host` (or run
+it again with them). The others then open `http://fms-host:48620` in any
+browser — nothing is installed on them. The script opens TCP 48620 in Windows
+Firewall for the local subnet on **Private** networks only; set the factory
+network to Private if it says Public. On the router, give this PC a DHCP
+reservation so its address never changes. The database port (48621) is never
+opened.
 
 ## How sync works
 

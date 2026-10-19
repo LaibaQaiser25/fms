@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const { Client } = require('pg');
 const { PG_PORT } = require('./ports');
@@ -17,7 +17,16 @@ const execFileAsync = promisify(execFile);
 
 let pgServer = null;
 
-async function startPostgres({ dataDir, password, log }) {
+// Only ever on 127.0.0.1, even once the backend is opened to the factory
+// network (T3.3): the database is never exposed beyond the main PC.
+const POSTGRES_FLAGS = ['-c', 'listen_addresses=127.0.0.1'];
+
+// detached (the Windows service, T3.2): Postgres runs outside this process's
+// console. The service is stopped with Ctrl+C on that console, which Postgres
+// on Windows takes as "fast shutdown" — it would be gone before the final
+// upload and the closing backup. Detached, only pg_ctl stop (stopPostgres)
+// shuts it down, last.
+async function startPostgres({ dataDir, password, log, detached = false }) {
   // embedded-postgres is ESM-only; main.js is CommonJS.
   const { default: EmbeddedPostgres } = await import('embedded-postgres');
 
@@ -31,6 +40,7 @@ async function startPostgres({ dataDir, password, log }) {
     // and any Urdu text or emoji (the WhatsApp alerts use emoji) fails to
     // save. ICU en-US sorts text the way the VPS's en_US.utf8 does.
     initdbFlags: ['--encoding=UTF8', '--locale-provider=icu', '--icu-locale=en-US', '--locale=C'],
+    postgresFlags: POSTGRES_FLAGS,
     onLog: (msg) => log(`[postgres] ${String(msg).trimEnd()}`),
     onError: (msg) => log(`[postgres:err] ${String(msg).trimEnd()}`),
   });
@@ -41,7 +51,16 @@ async function startPostgres({ dataDir, password, log }) {
   } else {
     await stopLeftoverPostgres({ dataDir, log });
   }
-  await pgServer.start();
+  if (detached) {
+    pgServer = await startDetached({ dataDir, log });
+    // embedded-postgres (through async-exit-hook) answers SIGINT, SIGTERM,
+    // SIGHUP and SIGBREAK by stopping Postgres and exiting at once, which
+    // would cut the service's drain short. host.js runs the shutdown itself
+    // (lib/runtime.js stop()), so those hooks go; the 'exit' one stays.
+    const exitHook = require('async-exit-hook');
+    for (const ev of ['SIGHUP', 'SIGINT', 'SIGTERM', 'SIGBREAK', 'message']) exitHook.unhookEvent(ev);
+  }
+  else await pgServer.start();
 
   const url = (db) => `postgresql://${DB_USER}:${encodeURIComponent(password)}@127.0.0.1:${PG_PORT}/${db}`;
 
@@ -81,9 +100,32 @@ async function stopLeftoverPostgres({ dataDir, log }) {
   await execFileAsync(pgCtl, ['stop', '-D', dataDir, '-m', 'fast', '-w', '-t', '30'], { windowsHide: true });
 }
 
+const binaries = () => import(`@embedded-postgres/${process.platform === 'win32' ? 'windows' : process.platform}-${process.arch}`);
+
 async function pgCtlPath() {
-  const { pg_ctl } = await import(`@embedded-postgres/${process.platform === 'win32' ? 'windows' : process.platform}-${process.arch}`);
-  return pg_ctl;
+  return (await binaries()).pg_ctl;
+}
+
+// Like EmbeddedPostgres.start(), in its own process group with no console
+// (libuv: DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP on Windows, setsid
+// elsewhere), so a Ctrl+C meant for this process never reaches it.
+async function startDetached({ dataDir, log }) {
+  const { postgres } = await binaries();
+  const child = spawn(postgres, ['-D', dataDir, '-p', String(PG_PORT), ...POSTGRES_FLAGS], {
+    detached: true,
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await new Promise((resolve, reject) => {
+    child.stderr.on('data', (chunk) => {
+      const msg = chunk.toString('utf8');
+      log(`[postgres] ${msg.trimEnd()}`);
+      if (msg.includes('database system is ready to accept connections')) resolve();
+    });
+    child.once('error', reject);
+    child.once('close', (code) => reject(new Error(`postgres exited during start (code ${code})`)));
+  });
+  return { detached: true, process: child };
 }
 
 // embedded-postgres's own stop() does `taskkill /f` on Windows, which is a
@@ -94,7 +136,7 @@ async function stopPostgres({ dataDir, log }) {
   const server = pgServer;
   pgServer = null;
 
-  if (process.platform === 'win32') {
+  if (process.platform === 'win32' || server.detached) {
     try {
       await execFileAsync(await pgCtlPath(), ['stop', '-D', dataDir, '-m', 'fast', '-w', '-t', '30'], { windowsHide: true });
       server.process = undefined; // already exited; stop() would wait for an exit event forever
@@ -104,7 +146,8 @@ async function stopPostgres({ dataDir, log }) {
       log(`pg_ctl stop failed, forcing: ${err.message}`);
     }
   }
-  await server.stop();
+  if (server.detached) server.process.kill();
+  else await server.stop();
 }
 
 // Same order as deploy/setup.sh: base schema (pgdb.sql) on a fresh database,
@@ -155,4 +198,21 @@ async function ensureOwner({ databaseUrl }) {
   }
 }
 
-module.exports = { startPostgres, stopPostgres, prepareSchema, ensureOwner };
+// T2.6: the settings that keep committed data safe through a power cut. The
+// embedded server starts with no flags, so they are at their safe defaults;
+// this logs them at every start (the factory PC has no psql to check with)
+// and returns any that are off.
+const DURABILITY = ['fsync', 'synchronous_commit', 'full_page_writes'];
+async function checkDurability({ databaseUrl, log }) {
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const { rows } = await client.query('SELECT name, setting FROM pg_settings WHERE name = ANY($1) ORDER BY name', [DURABILITY]);
+    log(`postgres durability: ${rows.map((r) => `${r.name}=${r.setting}`).join(', ')}`);
+    return rows.filter((r) => r.setting !== 'on').map((r) => r.name);
+  } finally {
+    await client.end();
+  }
+}
+
+module.exports = { startPostgres, stopPostgres, prepareSchema, ensureOwner, checkDurability };

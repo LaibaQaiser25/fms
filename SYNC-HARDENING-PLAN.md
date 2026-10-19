@@ -202,19 +202,19 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T1.8 | Test WhatsApp button + honest report button | T1.6, T1.7 | CODE DONE, CHECKS FAILING | outcomes 1–2 seen with a fake n8n; 3 needs a real message to the owner's WhatsApp |
 | T1.9 | Faster upload + final upload on quit | T1.4 | CODE DONE, CHECKS FAILING | 18/18 `npm test` (2.0 s to the server; 5 writes → 1 push; quit cap); real app quit needs Windows |
 | T1.10 | Release 1.0.2 + first factory install | T0.2, T1.0–T1.9 | NOT STARTED | go-live |
-| T2.1 | VPS send-only report scheduler | T1.10 | NOT STARTED | |
-| T2.2 | Factory `DISABLE_CRON` | T2.1 | NOT STARTED | |
-| T2.3 | Report freshness label + history view | T2.1, T1.5 | NOT STARTED | |
-| T2.4 | Health endpoint + n8n watchdog | T1.5 | NOT STARTED | |
-| T2.5 | Factory backups + restore drill | T1.10 | NOT STARTED | |
-| T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
+| T2.1 | VPS send-only report scheduler | T1.10 | CODE DONE, CHECKS FAILING | 26/26 `npm test` (once per period, race, failed send, digests, no mirror writes) + grep; real WhatsApp at go-live |
+| T2.2 | Factory `DISABLE_CRON` | T2.1 | CODE DONE, CHECKS FAILING | startup log seen on the real `server.js`; ships in 1.0.2 with send-only at E1; one delivery at go-live |
+| T2.3 | Report freshness label + history view | T2.1, T1.5 | CODE DONE, CHECKS FAILING | 27/27 `npm test` (stale, fresh, period incomplete, history route); Sent to WhatsApp tab built, not yet seen in a browser; production pending |
+| T2.4 | Health endpoint + n8n watchdog | T1.5 | CODE DONE, CHECKS FAILING | 22/22 `npm test`; watchdog seen on a scratch n8n 2.37.10 (alerts, no repeat, quiet when off, cleared); production deploy + provisioning + real WhatsApp pending |
+| T2.5 | Factory backups + restore drill | T1.10 | CODE DONE, CHECKS FAILING | 29/29 `npm test` (dump during writes → drill matches; damaged / failed never kept; retention); scheduled + on-close backup seen in the real app (Linux, Xvfb); Windows `pg_dump.exe` run + drill on the factory PC pending |
+| T2.6 | UPS + Postgres durability check | — | CODE DONE, CHECKS FAILING | ops; FMS now logs the three settings at start (seen on Linux) and goes red if one is off (`npm test` 30/30); UPS + the factory log line pending |
 | T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
-| T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | NOT STARTED | |
-| T3.1 | `desktop/host.js` entry point | T1.5 | NOT STARTED | |
-| T3.2 | Service install + dedicated user + drain | T3.1 | NOT STARTED | |
-| T3.3 | LAN bind + firewall + hostname | T3.2 | NOT STARTED | |
-| T3.4 | Frontend relative API base + variant | T3.3 | NOT STARTED | |
-| T3.5 | Concurrency audit + fixes | T3.3 | NOT STARTED | |
+| T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | CODE DONE, CHECKS FAILING | 25/25 `npm test` (checks 1–5 in the harness); the app's menu + window need a real run |
+| T3.1 | `desktop/host.js` entry point | T1.5 | CODE DONE, CHECKS FAILING | checks 1–2 seen on Linux (scratch VPS: sale uploaded; copy-data → original byte-identical, start from copy); Windows (`tools\node.exe`) pending; T1.5 must be `DONE` before Phase 3 ships |
+| T3.2 | Service install + dedicated user + drain | T3.1 | CODE DONE, CHECKS FAILING | scripts parse + PSScriptAnalyzer clean; drain (Ctrl+C to the process group → upload, backup, clean stop) and the app's service mode seen on Linux; checks 1–4 need the factory PC |
+| T3.3 | LAN bind + firewall + hostname | T3.2 | CODE DONE, CHECKS FAILING | login, save, WebSocket and refused 48621/48622 over a non-loopback address on Linux; firewall/hostname scripts parse; second-PC checks on the factory network pending |
+| T3.4 | Frontend relative API base + variant | T3.3 | CODE DONE, CHECKS FAILING | both checks seen on Linux in a browser by name (`fms-host`) and by IP; a real second factory PC pending |
+| T3.5 | Concurrency audit + fixes | T3.3 | CODE DONE, CHECKS FAILING | checks 1–3 with two logged-in sessions against `host.js` on Linux (baseline overwrite recorded; 409 after the fix); the two terminals in the real UI on the factory network pending |
 
 ---
 
@@ -752,6 +752,19 @@ throwaway Express app on a throwaway embedded Postgres; registered with a setup 
   - Cleanup: both customers deleted through ingest (`applied 2`), product 999001 deleted; `ZZ`
     customers 0, products 0, ledger rows 0.
 
+**Fix (18 Oct 2026), found while building T2.8:** after applying a batch, ingest reset each
+touched table's serial sequence with `setval(seq, GREATEST((SELECT max(pk) ...), 1)) FROM
+pg_get_serial_sequence(...) WHERE seq IS NOT NULL`. For `report_schedules`, whose only key column
+is `frequency` (varchar), Postgres rejects `GREATEST(text, 1)` when the statement is parsed, so the
+`WHERE` never helps: `500 GREATEST types text and integer cannot be matched`. That is not a row
+error (class 42), so the whole batch rolls back and the worker retries it forever. The factory's
+cron updates `report_schedules.last_run_at` every time a scheduled report runs, so **the first
+scheduled report after go-live would have stopped all uploads**. Ingest now looks the sequence up
+first and skips keys without one; `setval(seq, max, true)` is unchanged (§10). New check in
+`npm test`: "a change to report_schedules (text primary key) uploads instead of stalling sync" —
+passes with the fix, fails with the old statement (`server replied 500: GREATEST types text and
+integer cannot be matched`). Needs the backend deploy before the first factory install (T1.10).
+
 ---
 
 ### T1.4 — Bad-row quarantine — factory + retry (D11)
@@ -1165,7 +1178,9 @@ visible on both versions; alert failures are visible; the factory is live.
 
 ### T2.1 — VPS send-only report scheduler
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 2, 3 (the race), 4 and 5 by `npm test` and grep
+(18 Oct 2026); check 1 needs a real WhatsApp delivery, and the VPS needs migration 028 and
+`REPORT_SENDER_MODE=send_only` at go-live
 **Deps:** T1.10
 
 **Problem (F12):** reports and digests go out only if the factory PC is on at that minute.
@@ -1208,11 +1223,47 @@ CREATE TABLE IF NOT EXISTS report_dispatch_log (
 
 **Gate:** checks 1–5 observed.
 
+**Built (18 Oct 2026):**
+- Migration **028** `report_dispatch_log` (as above, with a comment), registered in all four places
+  (§4): `PROTECTED_TABLES`, `VPS_ONLY_TABLES`, `EXCLUDED_TABLES`.
+- `backend/services/sendOnlyScheduler.js`: every minute, `dueItems(now)` reads `report_schedules`
+  (same `>=` catch-up, weekday / day-of-month rules as `cronJobs.js`) and builds with
+  `resolvePeriod` + `generateSnapshot` + `buildReportMessage`. **Digests:** `digest:0730:<date>`
+  is due from 07:30 until 10:00 and `digest:1000:<date>` from 10:00 until midnight, so a late
+  start never sends both. `buildDailyDigest` was split out of `sendDailyDigest`
+  (`stockAlerts.js`) so the scheduler sees the send result.
+- **Once per period, even with two processes:** a cheap `SELECT` skips periods already sent. Then,
+  in one transaction: `INSERT … ON CONFLICT DO NOTHING` (0 rows = someone else has it) → send →
+  `COMMIT` only if the send worked, otherwise `ROLLBACK`, so no row is written and the next minute
+  retries. A second process inserting the same key waits on that row, then skips. The row lands
+  only after a successful send, as step 3 asks. A crash mid-send rolls back, and the next minute
+  sends again (at least once).
+- `server.js`: `REPORT_SENDER_MODE=send_only` starts this scheduler **instead of** `cronJobs.js`,
+  with or without read-only mode. Otherwise nothing changes. Documented in
+  `backend/.env.example`.
+
+**Evidence (18 Oct 2026):**
+- `npm test` → `send-only scheduler: a due report goes out once, a failed send retries, a racing
+  second process does not double-send, the mirror is never written` ✔ (fake send, 150 ms each):
+  nothing at 7:29; 9:15 + 9:16 → one `(7:30 AM)` digest; with that row removed, a start at 10:05
+  → only the `(10:00 AM)` digest; daily at 21:00 with n8n failing → **no row** (check 4); 21:01
+  twice **at the same time** + 21:02 + 23:59 → **one** message, one row `daily:<date> | sent`,
+  `payload.message` = what was sent (checks 2, 3); `reports` count and `report_schedules`
+  unchanged; no capture trigger on `report_dispatch_log` at the factory; ingest of it → 409;
+  snapshot test now also asserts `sync_rejected`, `sync_heartbeat`, `report_dispatch_log` absent.
+- Sabotage: send first, then insert without the transaction → the same test fails `exactly one
+  report message for the day — actual: 2`. Restored.
+- Check 5 ✅ — `grep -nE "INSERT|UPDATE|DELETE" backend/services/sendOnlyScheduler.js` →
+  `83:      \`INSERT INTO report_dispatch_log (frequency, period_key, status, payload)` only.
+- ⏳ Check 1 (a real WhatsApp delivery with the factory off) at go-live; check 3 against a real
+  restart of the VPS backend.
+
 ---
 
 ### T2.2 — Factory `DISABLE_CRON`
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — the startup log observed on the real `server.js` (18 Oct
+2026); the one-delivery check needs go-live (the factory on 1.0.2 + the VPS in send-only mode)
 **Deps:** T2.1
 
 **Do:** gate `startCronJobs()` in `server.js` behind `DISABLE_CRON=true`, and set it in the
@@ -1224,11 +1275,31 @@ scheduled window exactly **one** message arrives.
 
 **Gate:** one delivery observed, and the factory log shows cron did not start.
 
+**Built (18 Oct 2026):**
+- `server.js`: a `DISABLE_CRON=true` branch after `REPORT_SENDER_MODE=send_only` and before the
+  read-only branch, so it starts neither scheduler and logs
+  `⏸️ DISABLE_CRON: no scheduled reports or digests from this server`.
+- `desktop/main.js` sets `DISABLE_CRON: 'true'` in the backend's environment.
+- **Release: 1.0.2, not 1.0.3.** No 1.0.2 install exists yet, so the factory has never been the
+  sender. Both halves are switched on in the same sitting at go-live (`GO-LIVE-CHECKLIST.md` E1:
+  `READ_ONLY_MODE=true` **and** `REPORT_SENDER_MODE=send_only`), so there is no gap with no sender
+  and no time with two. Until E1 the VPS keeps its current cron jobs.
+
+**Evidence (18 Oct 2026):**
+- `env -i … DISABLE_CRON=true node server.js` (scratch port, no database) → `⏸️ DISABLE_CRON: no
+  scheduled reports or digests from this server`, no `✅ Cron jobs started`; the same without the
+  flag → `✅ Cron jobs started`.
+- `npm test` 27/27.
+- ⏳ At go-live: the factory log (1.0.2) shows the `DISABLE_CRON` line; across one scheduled window
+  exactly one WhatsApp message arrives (T2.1 check 1).
+
 ---
 
 ### T2.3 — Report freshness label + history view (D2, D9)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–3 by `npm test` on the real scheduler and route
+(18 Oct 2026); on production they need the deploy and the factory live, and the history page has
+been built and linted but not yet opened in a browser
 **Deps:** T2.1, T1.5
 
 **Do:**
@@ -1246,11 +1317,42 @@ scheduled window exactly **one** message arrives.
 
 **Gate:** all three observed.
 
+**Built (18 Oct 2026):**
+- `backend/services/reportFreshness.js`: `getDataAsOf()` = the later of `sync_writer.last_ingest_at`
+  and the last heartbeat that reported an **empty outbox**. A factory with nothing new to upload is
+  still current, so "data as of" doesn't age just because there were no changes. `withFreshness()`
+  wraps the message:
+  - `⚠️ *Old data:* the factory has not uploaded for N h.` first, when that is > 2 h old (or
+    `No upload from the factory yet`);
+  - `⚠️ *Period incomplete:* anything entered at the factory after <time> is not included.` for
+    reports whose period ends (or `now`, if sooner) more than 10 min after "data as of". Digests
+    have no period, so they never get this line;
+  - `_Data as of <time>_` last, always.
+- `sendOnlyScheduler.js` uses it for reports and digests and stores `dataAsOf` in the dispatch
+  row's `payload` with what was sent.
+- `GET /api/reports/dispatch-log?page=&limit=` (`ReportsController.listDispatchLog`, read-only).
+  Online dashboard → Reports → **Sent to WhatsApp** tab (`SentReports.jsx`; hidden on the factory
+  build, which sends none): sent time, kind, label, data as of; click a row for the message.
+
+**Evidence (18 Oct 2026):**
+- `npm test` → `server-sent reports say how fresh the data is …` ✔ (27/27): upload 1 min ago → no
+  warning, ends with `_Data as of …_`. No upload for 5 h but a heartbeat 1 min ago with an empty
+  outbox → no warning, as of = that heartbeat. Last upload 185 min ago (heartbeat 180 min, 4
+  waiting) → `⚠️ *Old data:* … for 3 h.` + `Period incomplete`, `payload.dataAsOf` = the upload
+  time. 30 min behind → `Period incomplete` only. A digest 10 h stale → the warning, no period
+  line. `listDispatchLog` → 200, the three rows sent, each `message` exactly as sent.
+- Frontend: `eslint` clean on the changed files, `vite build` OK.
+- ⏳ Production: after the deploy and migration 028, with the factory live, a scheduled message
+  carries the label (check 2), and one sent with the factory off > 2 h carries the warning (check
+  1). The tab lists them (check 3).
+
 ---
 
 ### T2.4 — Health endpoint + n8n watchdog
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–2 seen on a scratch n8n 2.37.10 (the production
+version) with a stand-in health endpoint, and the rules by `npm test` (18 Oct 2026); on production
+they need the deploy, `bash deploy/provision-n8n.sh`, and the factory PC sending heartbeats
 **Deps:** T1.5
 
 **Do:**
@@ -1267,11 +1369,61 @@ scheduled window exactly **one** message arrives.
 
 **Gate:** both observed, including the negative case.
 
+**Built (18 Oct 2026):**
+- `GET /sync/health` (`routes/sync.js`, before the upload-key check) behind
+  `middleware/requireSyncToken.js`: `X-Sync-Token` must equal `SYNC_TOKEN` (timing-safe), else 403.
+  Returns `{ last_ingest_at, writer_registered, rejectedOpenCount, heartbeat, heartbeat_recent,
+  alerts: [{ key, message }] }`.
+- The alert rules are in `backend/services/syncHealth.js`, not in n8n, so `npm test` covers them:
+  `outbox_backlog` (oldest > 1800 s), `quarantine` (> 0), `whatsapp_state` (set and not `ok`; a
+  missing state is not a fault), `whatsapp_backlog` (> 3600 s), `not_writer`. Every rule needs a
+  heartbeat **younger than 5 minutes**; an older or missing one (PC off) gives no alerts.
+  Note: `not_writer` rarely reaches the server, because a replaced PC's heartbeat is refused (403)
+  before it is stored. It is kept for completeness.
+- `n8n/fms-sync-watchdog.json`: every 10 min → GET the health URL (full response, never error,
+  continue on error) → a Code node decides → POST `{ message }` to the existing alerts webhook with
+  `X-FMS-Secret`, so it reuses the Meta credential. The Code node keeps what it last sent in the
+  workflow's static data. It sends a new set of problems at once, the same set again only after
+  6 h, and one "cleared" message when they are gone. A switched-off PC changes nothing. A health
+  call that fails (non-200 / no reply) is an alert of its own (`health_unreachable`).
+- `deploy/provision-n8n.js` provisions both workflows. New values: `SYNC_TOKEN` from
+  `backend/.env`; `FMS_HEALTH_URL` (default `http://backend:5000/sync/health`, the compose
+  network) and `WATCHDOG_ALERT_URL` (default `http://localhost:5678/webhook/fms-alert`), optional
+  in `deploy/.env.n8n`.
+
+**Evidence (18 Oct 2026):**
+- `npm test` → `/sync/health needs SYNC_TOKEN, alerts on each problem with a recent heartbeat, and
+  stays quiet when the PC is off` ✔ — wrong / missing / longer token → 403; each condition alone
+  raises exactly its own key (and 1800 s exactly does not); heartbeat 20 min old with problems →
+  `heartbeat_recent: false`, `alerts: []`; 4 min old → alerts again.
+- Scratch n8n (`docker.n8n.io/n8nio/n8n` 2.37.10, own data dir, host network on 5681), the
+  workflow imported as the provisioner builds it but every **1** minute; a stand-in
+  `/sync/health` whose answer was switched every 65 s, and a stand-in alert webhook logging what
+  arrived:
+
+  | Step | Health answer | Arrived |
+  |---|---|---|
+  | 1 | healthy, recent | nothing |
+  | 2 | `quarantine` | `⚠️ FMS sync watchdog • 2 change(s) were refused by the online server — open Sync issues on the factory PC` |
+  | 3 | same | nothing (no repeat) |
+  | 4 | `outbox_backlog` + `quarantine` | one message listing both |
+  | 5–6 | PC off (`heartbeat_recent: false`), two runs | **nothing** (negative case) |
+  | 7 | back on, healthy | `✅ FMS sync watchdog: the earlier problem has cleared.` |
+  | 8 | health replies 500 | `⚠️ … The online server's health check failed (it replied 500)` |
+
+  Every request carried `X-FMS-Secret`. Not observed: the "no reply at all" branch (connection
+  refused).
+- ⏳ Production: after the deploy, `bash deploy/provision-n8n.sh` → `workflow ready & active: FMS
+  Sync Watchdog`; `curl -s -H "X-Sync-Token: …" $API/sync/health` → 200; with the factory live, one
+  forced condition (e.g. a refused row) → the real WhatsApp message; factory PC off 20 min → none.
+
 ---
 
 ### T2.5 — Factory backups + restore drill (D10, D15)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — backup, drill and retention by `npm test`, and the scheduled
++ on-close backups seen in the real Electron app on Linux (19 Oct 2026); the Windows `pg_dump.exe`
+has not run yet: the drill on the factory PC (1.0.2 or later) is the gate
 **Deps:** T1.10
 
 **Do:**
@@ -1288,6 +1440,57 @@ scheduled window exactly **one** message arrives.
 
 **Gate:** the drill completes with matching counts.
 
+**Built (19 Oct 2026):**
+- `desktop/scripts/fetch-tools.js` (`npm run fetch-tools`, part of `npm run dist`): reads
+  `pg_dump.exe` and `pg_restore.exe` out of the EDB `postgresql-16.14-1-windows-x64-binaries.zip`
+  with HTTP range requests (0.8 MB, not the 325 MB zip), checks each against a pinned SHA-256, into
+  `desktop/tools/` (git-ignored; `tools/**` added to `build.files`). Same build as the embedded
+  server: both carry `postgresql-packaging-foundation\postgresql-16.14` and report `16.14`. Their
+  DLLs (`libpq`, `zlib1`, `liblz4`, `libzstd`, `libintl-9`, `libcrypto-3-x64`) are all in the
+  embedded `bin`, so `lib/backup.js` runs them with that folder on `PATH` instead of shipping copies.
+- `desktop/lib/backup.js` (plain Node, for `host.js` too):
+  - every dump runs inside one `REPEATABLE READ` transaction that counts every table and exports
+    its snapshot to `pg_dump --snapshot`, and the counts are saved as `<dump>.counts.json`. The
+    drill compares against those, so it matches exactly even while the factory keeps working
+    (comparing with the live database, as the VPS drill does, would not);
+  - the dump is written as `.partial`, read all the way through (`pg_restore -f <null>`), then
+    renamed; a failure leaves nothing. The password goes in `PGPASSWORD`, not on the command line;
+  - keeps every dump of the last 24 h + the newest of each of the 14 newest days + the newest of
+    each of the 8 newest weeks. **Not "Sundays" like the VPS**: the factory PC is likely off on
+    Sundays, which would leave no weekly copies;
+  - **drill:** restore into a throwaway `fms_drill_<ms>` database on the same server, count, drop.
+- **Schedule: inside FMS, not a Windows scheduled task (deviation from step 2).** The database
+  runs only while FMS runs, so a task would find nothing to dump when FMS is closed, and nothing
+  changes then. `BackupScheduler`: first check 2 min after start, then every 10 min, backs up when
+  the newest dump is ≥ 6 h old; one more when FMS closes (after the backend has stopped, at most
+  60 s). Once FMS runs as a service (Phase 3) it is up around the clock anyway.
+- Folder: `config.json` → `backupDir`, default `%APPDATA%\FMS\backups`. The status bar is amber
+  while it is on the **same drive** as `pgdata` ("choose a folder on another drive") and when the
+  last backup failed.
+- Factory app: **FMS → Backups**: Back up now · Test the newest backup (restore drill) · Copy the
+  newest backup to a USB drive… (D15, weekly) · Choose the backup folder… · Open the backup folder.
+
+**Evidence (19 Oct 2026):**
+- `npm test` 29/29, two new:
+  - `backup: a dump taken while the factory keeps writing …` — customers inserted in a loop
+    during the dump; drill `ok`, same tables and rows as the counts file; the live table has more
+    rows than the dump (writes during the dump are not in it); no `fms_drill_*` database left. A
+    counts file off by one → `mismatches: [{ table: 'public.customers', expected: n+1, restored: n }]`.
+    A dump cut in half → `pg_restore failed`, no drill database left. `pg_dump` missing → `pg_dump
+    failed`, backup folder empty. Scheduler: one scheduled + one on stop; status amber "Backups are
+    on the same drive …", then "Last backup failed: pg_dump failed …".
+  - `backup: keeps the last 24 h, the newest of 14 days and of 8 weeks …` — 120 days × 4 dumps,
+    no Sundays: today's 4 kept, one per day back to 3 Oct, Saturdays 26 Sep → 5 Sep; counts files
+    follow their dump; an unrelated file is left alone.
+  - Sabotage: without `--snapshot` the first test fails (`expected 24, restored 87`). Restored.
+- Real app (Electron 44 on Linux under Xvfb, scratch `--user-data-dir`, `npm run stage`):
+  `backup OK (scheduled): …/backups/fms_db-2026-10-19_090710.dump (134 KB, 44 tables, 39 rows)` two
+  minutes after start; Ctrl+Q → `backup OK (shutdown): …_090912.dump`, then Postgres `database
+  system is shut down`.
+- ⏳ On the factory PC: FMS → Backups → Back up now, then Test the newest backup → "restores
+  correctly" with the row counts (the gate, with the Windows `pg_dump.exe`); choose a folder on a
+  second drive; the first weekly USB copy.
+
 ---
 
 ### T2.6 — UPS + Postgres durability check (ops)
@@ -1301,6 +1504,21 @@ already at their safe defaults (F7) — **do not tune them off**.
 → all `on`.
 
 **Gate:** output recorded, and who installed the UPS.
+
+**Built (19 Oct 2026):** the factory PC has no `psql`, so FMS now checks for itself:
+`checkDurability` (`desktop/lib/database.js`) logs `postgres durability: fsync=on,
+full_page_writes=on, synchronous_commit=on` to `fms.log` at every start, and any that is off makes
+the status bar **red** ("The database is set up unsafely (… off): a power cut can lose saved data").
+The check above is then: that line from `%APPDATA%\FMS\logs\fms.log`.
+
+**Evidence (19 Oct 2026):**
+- `npm test` 30/30 — `durability: …` ✔: the log line with all three `on`; `ALTER SYSTEM SET fsync =
+  off` + reload → `['fsync']` and status red with that message; reset afterwards.
+- Real app on Linux (Xvfb): `postgres durability: fsync=on, full_page_writes=on,
+  synchronous_commit=on`.
+- ⏳ Ops: the UPS (sized for the main PC + monitor + router, with its USB cable so Windows shuts down
+  on low battery: Power Options → Battery → critical action **Shut down**); who installed it; the
+  same log line from the factory PC.
 
 ---
 
@@ -1386,7 +1604,9 @@ fake req/res, as T1.0):
 
 ### T2.8 — Rebuild the online server from the factory (D17)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–5 by `npm test` against the real controllers and
+SyncWorker (18 Oct 2026); the menu + window in the real app need a run of the app (Windows, or
+Electron under Xvfb)
 **Deps:** T1.1, T1.3
 
 **Problem:** if the online server is lost, or restored from an older backup, its copy is missing
@@ -1422,6 +1642,48 @@ everything.
 
 **Gate:** checks 1–5 observed.
 
+**Built (18 Oct 2026):**
+- Step 1 already existed as `backend/scripts/createSetupCode.js` (T1.1), same rules; the command
+  is `sg docker -c "docker compose exec backend node scripts/createSetupCode.js"`.
+- `POST /sync/prune` (`SyncController.prune`, upload key, after `requireSyncWriter`): body
+  `{ table_name, keys: [{ id: 7 }, …] }`; checks the key again under the `sync_writer` row lock
+  like ingest, refuses `PROTECTED_TABLES` / `VPS_ONLY_TABLES` / unknown tables and keys without
+  the primary key (409), then in replica mode `DELETE … WHERE NOT EXISTS (key in the list)`.
+- `desktop/lib/rebuild.js` (plain Node, ready for `host.js`): `queueEverything` (one REPEATABLE
+  READ transaction, every table that has the `fms_sync_capture` trigger, so exactly what sync
+  carries) → the normal `SyncWorker` uploads → `pruneServer` (keys from one consistent snapshot,
+  one request per table) → `resendAndPrune` runs the three and reports progress.
+- **Race found while building it:** a row added at the factory and uploaded *between* reading the
+  keys and the server's delete would be deleted there and never sent again. So the worker is
+  **paused** while pruning (`SyncWorker.pause()` / `resume()`); new changes just wait in the
+  outbox and go up after the prune.
+- Factory app: menu **FMS → Rebuild the online server…** (the menu bar shows with Alt) opens
+  `setup/rebuild.html`: setup code + server address → `registerWriter` with the **existing**
+  `writerId`, new key saved to `config.json`, no snapshot; `startUploads()` (split out of `boot()`)
+  restarts the worker and the heartbeat with the new key; then `resendAndPrune` with progress in
+  the window; the window can't be closed while it runs.
+
+**Evidence (18 Oct 2026):** `npm test` (harness: factory `fms_db` + server `vps_db`, real
+`SyncController` / `requireSyncWriter` / `SyncWorker` / `registerWriter`):
+- Checks 1, 3, 4, 5 ✅ — `rebuild: an empty new server gets every row; a second run changes
+  nothing; the factory is untouched`: the server's synced tables truncated and `sync_writer`
+  reset (a new server, migrations only); the factory's old key → `blocked_not_writer`; a code from
+  `createSetupCode` + re-register with the same `writer_id` → every synced table identical row
+  for row on both sides (users included, so the Owner can log in online again); factory rows
+  unchanged; outbox empty; the server's `customers` sequence moved past the resent ids; a
+  second run → identical again, 0 pruned.
+- Check 2 ✅ — `rebuild: a server restored from an older backup gets the newer rows, and loses
+  rows deleted since`: server back to Ali/Bilal/Chand while the factory has Ali Khan/Chand/Dawood
+  → after the rebuild the server has Ali Khan, Chand, Dawood; `deleted.customers = 1` (Bilal).
+- `prune: only the registered PC, never a server-only table; uploads wait while the worker is
+  paused`: wrong key → 403; `sync_writer`, `pgmigrations` → 409; key without `id` → 409; no
+  `keys` → 400; a row written while paused is not uploaded within 3 s, and is uploaded after
+  `resume()`.
+- Window: `setup/rebuild.html` rendered in headless Chrome with a stand-in bridge (code entered,
+  progress, done line).
+- ⏳ The menu item and window in the real app; a drill against a scratch server restored from a
+  real `pg_dump`.
+
 **Phase 2 exit:** a scheduled report arrives with the factory off, labelled with data age, exactly
 once; the watchdog alerts on real problems and stays quiet when the PC is off; the factory backup
 drill is done; stock can't go negative; the online server can be rebuilt from the factory.
@@ -1434,7 +1696,9 @@ drill is done; stock can't go negative; the online server can be rebuilt from th
 
 ### T3.1 — `desktop/host.js` entry point (D1, D4)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — both checks observed on Linux with `node host.js` against a
+scratch server (19 Oct 2026); not yet on Windows with `tools\node.exe`. Phase 3 also waits for
+T1.5 to be `DONE` (see the phase note).
 **Deps:** T1.5
 
 **Do:** a new entry point with **no Electron dependency**, reusing the Electron-free modules
@@ -1457,11 +1721,73 @@ fork, sync worker start.
 
 **Gate:** both observed, including the unchanged-source check.
 
+**Built (19 Oct 2026):**
+- `desktop/lib/runtime.js` — `FactoryRuntime`: everything `main.js` `boot()` did without Electron
+  (config, setup name/branding, Postgres, durability check, schema, capture, `ensureOwner`,
+  backups, relay, backend, uploads + heartbeat, rebuild) and the shutdown order. **`main.js` now
+  uses it too**, so the app and the service run one code path; `main.js` keeps the window, setup
+  screen, rebuild window, menu, updater and dialogs. The backend is forked by whoever runs it
+  (`utilityProcess` in the app, `child_process.fork` in the service).
+- **Shutdown order, both:** backend first (no new business writes), then the final upload (10 s app,
+  45 s service), then the closing backup, relay, `pg_ctl stop`. Before, the app uploaded before
+  stopping the backend, so a save in those seconds waited for the next start.
+- `desktop/host.js` (packed: `host.js` added to `build.files`), run with `tools\node.exe` (now in
+  `scripts/fetch-tools.js`: Node v24.21.0, hash = nodejs.org `SHASUMS256.txt`). Commands: run
+  (default) · `setup --code <c> [--server <url>]` / `setup --empty` · `copy-data --from <dir>` ·
+  `rebuild --code <c>` · `backup` · `drill`. `FMS_DATA_DIR`, default `%PROGRAMDATA%\FMS` (D1);
+  `FMS_BIND_HOST`, default `127.0.0.1` (T3.3 opens it). A data dir that isn't set up refuses to
+  start and says which command to run.
+- **Two Windows traps found while building it:**
+  1. NSSM stops a service with Ctrl+C on its console, and Postgres on Windows takes Ctrl+C as
+     *fast shutdown* — it would be gone before the drain. In the service Postgres is started
+     **detached** (`database.js` `startDetached`: no console, own process group) and only `pg_ctl
+     stop` ends it, last.
+  2. `embedded-postgres` installs `async-exit-hook`, which answers SIGINT/SIGTERM/SIGHUP/SIGBREAK
+     with "stop Postgres, `process.exit(130)`" — observed: the host died one line after "stopping".
+     In the service those hooks are removed (the `exit` hook stays). The app is unchanged.
+- Postgres now always starts with `-c listen_addresses=127.0.0.1` (was the `localhost` default),
+  ahead of T3.3.
+- **D1, the move (`desktop/README.md` → Running as a service):** `host.js copy-data
+  --from <%APPDATA%\FMS>` refuses a non-empty target and an open database (`postmaster.pid`),
+  checksums every file of the source, copies to `<target>.partial` (folder modes included),
+  checksums the copy, checksums the source again, and only if all three match renames it into place
+  and writes `copied-from.json`. The source is only read. The switch is installing the service on
+  the copy (T3.2); the original stays until the service has run a while.
+- **D4, updates:** `desktop/service/update-service.ps1` (T3.2).
+
+**Evidence (19 Oct 2026, Linux; scratch "VPS" = Postgres on 55441 + the real `backend/server.js`
+on 5057 with `SYNC_TOKEN` and `READ_ONLY_MODE=true`, an Owner and 2 customers):**
+- Check 1 ✅ (Linux) — clean `FMS_DATA_DIR`: `host.js setup --code TWTC-PKPN --server …` →
+  `registered as main PC 1cc1154d-…`, `snapshot: imported 9 rows from 32 tables`, Postgres
+  `listening on IPv4 address "127.0.0.1", port 48621`, `postgres stopped cleanly`. `node host.js` →
+  `host: ready`; `POST /auth/login` (owner) → token; `POST /api/sales` → `201`; 6 s later on the
+  server: `1 | SALE-1792394300182-9c16c5 | 300.00`.
+- Drain — a sale (`201`), then SIGINT to the whole process group at once, as the service's Ctrl+C
+  reaches every process on the console: `host: SIGINT, stopping (final upload up to 45 s)` →
+  `sync: pushed 5 change(s)` → `backup OK (shutdown)` → `postgres stopped cleanly` → `host:
+  stopped`, exit 0; the server has `300.00, 50.00, 70.00`. (Before the two fixes: exit 130 right
+  after "stopping", the last sale left in the outbox, Postgres still running.)
+- Check 2 ✅ (Linux) — the Electron test profile (closed) as `%APPDATA%\FMS`: `copy-data` → `1560
+  files; pgdata: 1494 files, sha256 adae7625…`, `copied and verified`. Independent check
+  (`find | sort | sha256sum`): source `1cf44c89… 1494` before, after the copy, and after starting
+  and stopping `host.js` on the copy; copy `1cf44c89… 1494`. Started from the copy: `host: ready`,
+  `users = owner`, 28 migrations; `host: stopped`, exit 0. (First try: Postgres refused the copy,
+  `data directory … has invalid permissions` — `cpSync` doesn't copy folder modes. Fixed.)
+- The app after the refactor (Electron 44, Linux, Xvfb): boots (`postgres durability: …`, title
+  `FMS — Upload to server not set up`, `/auth/me` → 401), Ctrl+Q → `backup OK (shutdown)` →
+  Postgres `shutting down`.
+- `npm test` 30/30 three runs in a row; one earlier run failed only the timing test "a write is
+  uploaded within ~3 s" (3.5 s budget) while the machine was busy.
+- ⏳ Windows: the same two checks with `tools\node.exe host.js` (and that `pg_ctl stop` ends the
+  detached Postgres there); a sale reaching the real VPS.
+
 ---
 
 ### T3.2 — Service install + dedicated user + shutdown drain (D14)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — scripts written, parse-checked and linted; the drain and the
+app's service mode observed on Linux (19 Oct 2026). Checks 1–4 need Windows (NSSM, a reboot with
+nobody logged in, ACLs)
 **Deps:** T3.1
 
 **Do:**
@@ -1480,11 +1806,60 @@ fork, sync worker start.
 
 **Gate:** all four observed.
 
+**Built (19 Oct 2026)** — `desktop/service/` (packed: `service/**` in `build.files`), ASCII-only so
+Windows PowerShell 5.1 reads them right:
+- `install-service.ps1` (as Administrator, FMS app closed): finds `nssm.exe` (`-Nssm`, next to the
+  script, or PATH; NSSM isn't shipped — nssm.cc answered 503 when this was built, so there is no
+  pinned download) → stops an earlier install and **waits** until it has stopped → copies
+  `resources\app` to `C:\Program Files\FMS Service\app-<version>` (through `.partial`; the
+  per-user install folder is in the admin's profile, unreadable for the service user, and the
+  app's updater would replace files under it) → local user `fms-service`, random password given
+  only to NSSM, refused if it is in Administrators → data: `host.js copy-data --from
+  %APPDATA%\FMS` if `C:\ProgramData\FMS` is empty (D1), else uses what is there → `icacls`:
+  inheritance off, SYSTEM + Administrators full, `fms-service` modify, owner `fms-service` (check
+  3) → NSSM: `tools\node.exe "<app>\host.js"`, `FMS_DATA_DIR`, start Automatic, `ObjectName
+  .\fms-service`, stop = console Ctrl+C with **75 s** (`AppStopMethodConsole`, NSSM's name for the
+  plan's "AppStopTimeout": 45 s upload + backup + Postgres), then the process tree is ended;
+  restart on exit (10 s delay); stdout/stderr to `logs\service.log`, rotated at 10 MB;
+  `PreshutdownTimeout` 90 s → start → wait for the dashboard on `127.0.0.1:48620` (check 1) → no
+  "administrative permissions" line in `fms.log` (check 2) → `C:\ProgramData\FMS-service.json` +
+  `MOVED-TO-SERVICE.txt` in the old folder.
+- `update-service.ps1` (D4): `-Installer FMS-Setup-x.exe` runs it with `/S` for the user and takes
+  its folder from the Uninstall registry key → copies it to `app-<new>` next to the running version
+  → stop (drain) → point NSSM at it → start → wait; if it doesn't answer within 2 min: back to the
+  old version, started, and reported as failed. Keeps the previous version folder.
+- `remove-service.ps1`: stop (drain), `nssm remove`, marker removed; data and program kept.
+- `main.js`: with `FMS-service.json` present the app is only a window on the service's dashboard
+  (no Postgres, no backend, no updater); with `MOVED-TO-SERVICE.txt` in its folder it refuses to
+  start, so the out-of-date copy can never run or upload again (its `config.json` still holds the
+  upload key).
+- **Drain (step 2):** T3.1's `runtime.stop()` — backend stopped first ("stop accepting new business
+  writes"), then `finalUpload(45 s)`, closing backup, `pg_ctl stop`. Postgres detached + the
+  exit-hooks fix (T3.1) are what make NSSM's Ctrl+C reach `host.js` without killing the database.
+- **Known limit:** at a normal Windows shutdown services get only a few seconds unless they take
+  pre-shutdown; whether NSSM 2.24 does is unverified. If not, the upload/backup can be cut short at
+  shutdown — the data is safe (Postgres recovery, the outbox), and both happen at the next start.
+
+**Evidence (19 Oct 2026):**
+- `pwsh` 7.6.7 (Linux): all four scripts parse; `Invoke-ScriptAnalyzer` → 0 errors/warnings (after
+  removing the non-ASCII characters it flagged).
+- Drain, Linux: see T3.1 (sale → Ctrl+C to the process group → `sync: pushed 5 change(s)`, `backup
+  OK (shutdown)`, `postgres stopped cleanly`, exit 0).
+- The app's service mode (Electron 44, Linux, Xvfb), with `host.js` running as the stand-in service
+  and a marker file: window title `FMS`, the log only `service mode: FMS runs as the Windows service
+  "FMS" …`, no `pgdata`, no Postgres/backend lines; closed with Ctrl+Q → the service still answers
+  `200`. A profile with `MOVED-TO-SERVICE.txt` → `startup failed: Error: The FMS data on this PC was
+  moved …`, no `pgdata` created.
+- ⏳ Windows: checks 1–4 (reboot with nobody logged in → dashboard on 48620; no admin refusal in the
+  log; `(Get-Acl C:\ProgramData\FMS\pgdata).Owner` = `…\fms-service`; a sale, `Stop-Service FMS`
+  → the sale on the VPS), and one `update-service.ps1` run.
+
 ---
 
 ### T3.3 — LAN bind + firewall + hostname
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — observed on Linux over a second interface (19 Oct 2026); the
+firewall rule, the hostname and a real second factory PC need Windows
 **Deps:** T3.2
 
 **Do:**
@@ -1501,11 +1876,46 @@ fork, sync worker start.
 
 **Gate:** all three observed.
 
+**Built (19 Oct 2026):**
+- `install-service.ps1 -Lan [-HostName fms-host]`: the service gets `FMS_BIND_HOST=0.0.0.0` (step 1)
+  and `FMS_LAN_ORIGINS` = `http://<name>:48620` for the PC name, `-HostName`, and every IPv4
+  address (step 5; with T3.4 the dashboard calls its own origin, so CORS is a safety net). Firewall
+  rule "FMS dashboard (factory network)": inbound TCP 48620, **Private** profile, `RemoteAddress
+  LocalSubnet`, only for the service's `node.exe` (step 3); a warning with the fix when the network
+  is set to Public. `-HostName` → `Rename-Computer` (after a restart). The DHCP reservation is on
+  the router (README). `update-service.ps1` keeps these settings; `remove-service.ps1` removes the
+  rule.
+- Postgres stays on `127.0.0.1:48621` (`listen_addresses=127.0.0.1` since T3.1, step 2); the alert
+  relay stays on `127.0.0.1:48622`.
+- `runtime.waitForServer` polls the bound address when it isn't `0.0.0.0`.
+- **Found while doing it:** `server.js` trusted `X-Forwarded-For` (`trust proxy 1`, right on the
+  VPS behind Cloudflare). On the factory network there is no proxy, so any terminal could set the
+  header and get a fresh login rate limit per request. Factory (`FMS_FACTORY=1`): `trust proxy`
+  off. The VPS is unchanged.
+
+**Evidence (19 Oct 2026, Linux; `host.js` with `FMS_BIND_HOST=172.17.0.1`, a Docker bridge address
+standing in for the LAN — this machine's other address is public, so `0.0.0.0` was not used):**
+- `ss -ltn`: `172.17.0.1:48620`, `127.0.0.1:48621`, `127.0.0.1:48622`; `host: ready on
+  http://172.17.0.1:48620`.
+- Check 1 (API half) ✅ — over `http://172.17.0.1:48620`: `/auth/login` → token; `POST
+  /api/customers` → `200 Customer created successfully`; 6 s later `3 | From the LAN` on the
+  scratch server. (The page itself in a browser: T3.4.)
+- Check 2 ✅ — `ws://172.17.0.1:48620/ws?token=<jwt>` → open; `token=nope` → `401`.
+- Check 3 ✅ — TCP to `172.17.0.1:48621` and `:48622` → refused.
+- Rate limit: 11 wrong logins, each with a different `X-Forwarded-For` → `401 ×8, 429 ×3` (2 good
+  logins earlier in the window count too). Sabotage, `trust proxy 1` back in the staged copy → 12
+  attempts, all `401`. Restored.
+- `install-service.ps1` / `common.ps1` parse, PSScriptAnalyzer clean, ASCII only.
+- ⏳ Windows: `install-service.ps1 -Lan -HostName fms-host`, then from a second factory PC:
+  `http://fms-host:48620` loads, login + a save; the WebSocket (live updates) connects;
+  `Test-NetConnection fms-host -Port 48621` → `TcpTestSucceeded : False`.
+
 ---
 
 ### T3.4 — Frontend relative API base + variant (D13)
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — both checks observed in a browser on Linux, by name and by IP
+(19 Oct 2026); still to do from a real second factory PC
 **Deps:** T3.3
 
 **Do:**
@@ -1521,11 +1931,36 @@ fork, sync worker start.
 
 **Gate:** both observed.
 
+**Built (19 Oct 2026):**
+- `desktop/scripts/stage.js`: `VITE_API_URL=/api`, `VITE_SITE_VARIANT=app` (step 1).
+- `frontend/src/config.js`: `SITE = VITE_SITE_VARIANT ||` the hostname rule, with the reason in a
+  comment (step 2, F11).
+- Step 3, **changed on purpose**: a bare relative base would give `AUTH_BASE_URL = ''`, and
+  `statusApi.js` calls `http.get(`${AUTH_BASE_URL}/status`)` on the axios instance whose `baseURL`
+  is `/api` — `/status` would become `/api/status` (404) and the status bar would break. So
+  `API_BASE_URL` is resolved against `window.location.origin` (`new URL('/api', origin)`), and
+  `AUTH_BASE_URL` / the WebSocket URL are the page's own origin, absolute. The online build
+  (absolute `VITE_API_URL`) gives the same strings as before.
+
+**Evidence (19 Oct 2026, Linux):** `npm run stage` → the bundle has `"/api"` and no
+`127.0.0.1:48620/api`. `host.js` bound to `172.17.0.1` (T3.3); a separate browser window
+(Electron 44 as a plain browser, `host-resolver-rules: MAP fms-host 172.17.0.1`, own profile):
+- Check 1 ✅ — `http://fms-host:48620/` → `http://fms-host:48620/login`, login form shown, no
+  marketing text; `http://172.17.0.1:48620/` → `…/login`, same.
+- Check 2 ✅ — logged in as owner through the form → `http://fms-host:48620/dashboard`, token stored;
+  `POST http://fms-host:48620/auth/login 200`, then `GET …/api/sales/dashboard/data 200`,
+  `…/api/stock 200`, `…/api/production/stats/overview 200`, …; **no** request to `127.0.0.1`; the
+  WebSocket on `ws://fms-host:48620/ws` opens; the status bar reads "Uploaded ✓ · Last upload 2 min
+  ago" (`/status` through the absolute base). Screenshot: the full dashboard with figures.
+- `eslint src/config.js` clean; `vite build` OK.
+- ⏳ From a second factory PC on the real network (after T3.3's install with `-Lan`).
+
 ---
 
 ### T3.5 — Concurrency audit + fixes
 
-**Status:** NOT STARTED
+**Status:** CODE DONE, CHECKS FAILING — checks 1–3 observed with two logged-in sessions against the
+real backend under `host.js` (19 Oct 2026); still to do with two real terminals and the UI
 **Deps:** T3.3
 
 **Already safe — verify, do not change:**
@@ -1559,6 +1994,54 @@ prices), so a concurrent edit returns "changed by someone else" instead of last-
    conflict error; the stored value matches the first save.
 
 **Gate:** checks 1–3 observed, with check 1's baseline recorded.
+
+**Audit (19 Oct 2026):**
+
+| Path | Finding |
+|---|---|
+| sale stock decrement, invoice/payment allocation (both sides), raw-material consumption, ledger edit/delete (both sides), production status, gate pass | `FOR UPDATE` in a transaction — verified, not changed |
+| purchase → stock / raw material, production complete → stock | `quantity = quantity + $1`, atomic — fine |
+| production cancel → stock | locked since T2.7 |
+| ledger `debt` | per row (`debit - credit`), no running balance read from an earlier row — fine |
+| cashbook | read-only queries only |
+| **stock, raw material, customer, seller, product edits** | **last save wins** (bare read-modify-write; stock and raw materials also read the "before" for the low-stock alert outside any lock) → fixed |
+| **purchase: raw material found by name or created** | two purchases of a new name at once both create it → fixed |
+| **production complete: stock row found or created** | same race for a first-ever product → fixed |
+
+**Built (19 Oct 2026):**
+- `backend/services/rowVersion.js`: `lockForEdit` (`SELECT …, xmin::text AS version … FOR UPDATE`,
+  404 / **409 "Someone else changed this since you opened it…"** with the current row) and
+  `editInTransaction`. Used by `updateStock`, `updateRawMaterial`, `updateCustomer`,
+  `updateSeller` (the purchase-side twin), `updateProduct`; their GET/search/list responses carry
+  `version`. A save without `version` (a page opened before the update) is applied as before.
+- **Deviation: `xmin`, not `updated_at`.** `stock` has no `updated_at` (a migration, and a VPS deploy
+  before the factory could sync). And `updated_at` is only as good as every `UPDATE` setting it:
+  `createSale`'s decrement doesn't, so a sale between "open" and "save" would go unnoticed and the
+  edit would put the sold units back. `xmin` changes on every write of the row, `FOR UPDATE` doesn't
+  change it, and it is not a column, so sync carries nothing new.
+- `lockKey` (`pg_advisory_xact_lock(hashtext(key))`) around the two find-or-create paths; no unique
+  index, so existing duplicate names don't break anything.
+- Frontend: `StockManager.jsx` and `ProductsManager.jsx` send the `version` they loaded; on 409 they
+  show the message, close the form and reload. (Customer, seller and raw-material edits have no form
+  calling them today; the backend check is ready.)
+- `createSale` untouched (rule 7).
+
+**Evidence (19 Oct 2026; `host.js` on Linux, two separate logins = two terminals):**
+- Check 1 baseline (before the fix) ✅ — stock item quantity 10, price 100 open in A and B; A saves
+  quantity 7 → 200; B saves price 120 from its open form → 200; stored: **quantity 10**, price 120 —
+  A's change silently gone.
+- Check 2 ✅ — stock 5, both sell 5 at once, three rounds, before and after the fix: each round one
+  sale `ready` (from stock), the other `pending` (to production), stock 0, never negative.
+- Check 3 ✅ (after) — both open (version 845); A saves quantity 7 → 200; B saves price 120 → **409**
+  "Someone else changed this since you opened it. Your change was not saved: …"; stored quantity 7,
+  price 100 (= A's save).
+- A sale of 2 between A opening and saving → A's save → 409; stored quantity 5 (the sale kept).
+- Save without `version` → 200 (old pages keep working); unknown id → 404.
+- Two purchases of a new raw material at the same moment, 3 names → 201/201 each and **1** row with
+  quantity 20. Sabotage (lock removed in the staged copy): 2, 1, 2 rows. Restored.
+- `npm test` 30/30; `vite build` OK; `eslint` clean on the two forms except a `'index' is defined
+  but never used` in `StockManager.jsx` line 296 that was there before.
+- ⏳ With two real terminals on the factory network: the same three checks through the Stock page.
 
 **Phase 3 exit:** the service survives a reboot with nobody logged in; extra factory PCs work over
 the factory network (`http://fms-host:48620`); the database port is unreachable from them; the

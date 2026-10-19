@@ -42,6 +42,7 @@ let vps;            // pg Client on the server database
 let vpsPool;        // backend/db/pool.js, used by SyncController
 let SyncController;
 let requireSyncWriter;
+let requireSyncToken;
 let syncWriter;     // backend/services/syncWriter.js
 let uploadKey;      // the registered PC's key; a fresh PC registers before each test
 let restoreFetch;
@@ -86,6 +87,8 @@ const route = () => ({
   '/sync/snapshot': [requireSyncWriter, SyncController.snapshot],
   '/sync/config': [requireSyncWriter, SyncController.getConfig],
   '/sync/heartbeat': [requireSyncWriter, SyncController.heartbeat],
+  '/sync/health': [requireSyncToken, SyncController.health],
+  '/sync/prune': [requireSyncWriter, SyncController.prune],
 });
 const withKey = (key = uploadKey) => ({ 'X-Upload-Key': key });
 
@@ -162,6 +165,7 @@ before(async () => {
   process.env.DATABASE_URL = vpsUrl;
   SyncController = require(path.join(BACKEND_DIR, 'controllers', 'SyncController'));
   requireSyncWriter = require(path.join(BACKEND_DIR, 'middleware', 'requireSyncWriter'));
+  requireSyncToken = require(path.join(BACKEND_DIR, 'middleware', 'requireSyncToken'));
   syncWriter = require(path.join(BACKEND_DIR, 'services', 'syncWriter'));
   vpsPool = require(path.join(BACKEND_DIR, 'db', 'pool'));
   // pool.js checks out one client on import and never releases it; keep its
@@ -349,7 +353,7 @@ test('the snapshot needs read-only mode and a registration less than an hour old
     const snap = await call(route()['/sync/snapshot'], { headers: withKey() });
     assert.equal(snap.status, 200, JSON.stringify(snap.body));
     assert.ok('customers' in snap.body.tables);
-    for (const t of ['sync_writer', 'setup_code', 'offline_setup', 'pgmigrations']) {
+    for (const t of ['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log', 'pgmigrations']) {
       assert.ok(!(t in snap.body.tables), `${t} is not in the snapshot`);
     }
 
@@ -814,5 +818,528 @@ test('an idle PC that was replaced finds out from its heartbeat: worker stops, s
   } finally {
     await reporter.stop();
     await worker.stop();
+  }
+});
+
+// ---- Ingest: a table whose primary key is text (report_schedules) ----
+
+test('a change to report_schedules (text primary key) uploads instead of stalling sync', async () => {
+  // The factory's cron does this every time a scheduled report runs.
+  await factory.query("UPDATE report_schedules SET last_run_at = now(), enabled = true WHERE frequency = 'daily'");
+  await factory.query("INSERT INTO customers (name) VALUES ('same batch')");
+  const status = await syncRound();
+  assert.equal(status.state, 'ok', status.error);
+  assert.equal(status.pending, 0);
+  const { rows: [r] } = await vps.query("SELECT enabled, last_run_at FROM report_schedules WHERE frequency = 'daily'");
+  assert.equal(r.enabled, true);
+  assert.ok(r.last_run_at);
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['same batch']);
+  await factory.query("UPDATE report_schedules SET last_run_at = NULL, enabled = false WHERE frequency = 'daily'");
+  assert.equal((await syncRound()).state, 'ok');
+});
+
+// ---- T2.4: health endpoint for the n8n watchdog ----
+
+test('/sync/health needs SYNC_TOKEN, alerts on each problem with a recent heartbeat, and stays quiet when the PC is off', async () => {
+  const prevToken = process.env.SYNC_TOKEN;
+  process.env.SYNC_TOKEN = 'watchdog-test-token';
+  const health = async (token = 'watchdog-test-token') => call(route()['/sync/health'], { headers: { 'X-Sync-Token': token } });
+  const beat = async (fields) => {
+    const r = await call(route()['/sync/heartbeat'], {
+      body: { sync_state: 'ok', outbox_count: 0, oldest_outbox_age_sec: 0, quarantine_count: 0, whatsapp_state: 'ok', whatsapp_oldest_age_sec: 0, ...fields },
+      headers: withKey(),
+    });
+    assert.equal(r.status, 200);
+  };
+  const keys = async () => (await health()).body.alerts.map((a) => a.key);
+  try {
+    assert.equal((await health('wrong')).status, 403);
+    assert.equal((await call(route()['/sync/health'], {})).status, 403, 'no token');
+    assert.equal((await health('watchdog-test-token-and-more')).status, 403);
+
+    // Freshly registered, never heard from: no heartbeat, nothing to alert on.
+    let h = await health();
+    assert.equal(h.status, 200);
+    assert.equal(h.body.writer_registered, true);
+    assert.equal(h.body.heartbeat, null);
+    assert.equal(h.body.heartbeat_recent, false);
+    assert.deepEqual(h.body.alerts, []);
+
+    await beat({});
+    h = await health();
+    assert.equal(h.body.heartbeat_recent, true);
+    assert.equal(h.body.heartbeat.sync_state, 'ok');
+    assert.deepEqual(h.body.alerts, [], 'all fine');
+
+    // Each condition on its own (plan T2.4 step 2).
+    await beat({ outbox_count: 4, oldest_outbox_age_sec: 1801 });
+    assert.deepEqual(await keys(), ['outbox_backlog']);
+    await beat({ outbox_count: 4, oldest_outbox_age_sec: 1800 });
+    assert.deepEqual(await keys(), [], 'exactly 30 min is not yet a backlog');
+    await beat({ quarantine_count: 2 });
+    assert.deepEqual(await keys(), ['quarantine']);
+    await beat({ whatsapp_state: 'n8n_rejecting' });
+    assert.deepEqual(await keys(), ['whatsapp_state']);
+    await beat({ whatsapp_state: null });
+    assert.deepEqual(await keys(), [], 'a PC with no relay state is not a WhatsApp fault');
+    await beat({ whatsapp_oldest_age_sec: 3601 });
+    assert.deepEqual(await keys(), ['whatsapp_backlog']);
+    await beat({ sync_state: 'blocked_not_writer' });
+    assert.deepEqual(await keys(), ['not_writer']);
+    await beat({ quarantine_count: 1, whatsapp_state: 'no_target' });
+    h = await health();
+    assert.deepEqual(h.body.alerts.map((a) => a.key), ['quarantine', 'whatsapp_state']);
+    assert.match(h.body.alerts[0].message, /1 change\(s\) were refused/);
+
+    // Negative case: the PC goes off with problems still in its last
+    // heartbeat. After 20 minutes of silence, no alert.
+    await vps.query("UPDATE sync_heartbeat SET received_at = now() - interval '20 minutes'");
+    h = await health();
+    assert.equal(h.body.heartbeat_recent, false);
+    assert.deepEqual(h.body.alerts, []);
+    // A few missed heartbeats still count as on.
+    await vps.query("UPDATE sync_heartbeat SET received_at = now() - interval '4 minutes'");
+    assert.deepEqual(await keys(), ['quarantine', 'whatsapp_state']);
+
+    // Open rejections on the server side are counted.
+    await vps.query(`INSERT INTO sync_rejected (outbox_id, table_name, op, pk, row_data, code)
+                     VALUES (1, 'customers', 'I', '{"id":1}', '{"id":1}', '23505')`);
+    assert.equal((await health()).body.rejectedOpenCount, 1);
+    await vps.query('DELETE FROM sync_rejected');
+  } finally {
+    if (prevToken === undefined) delete process.env.SYNC_TOKEN; else process.env.SYNC_TOKEN = prevToken;
+  }
+});
+
+// ---- T2.8: rebuild the online server from the factory ----
+
+// Every synced table, row for row, as one comparable value.
+async function allSyncedRows(client) {
+  const { rows: tables } = await factory.query(
+    `SELECT c.relname AS t FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid
+      WHERE tg.tgname = 'fms_sync_capture' ORDER BY 1`
+  );
+  const out = {};
+  for (const { t } of tables) {
+    const { rows } = await client.query(`SELECT to_jsonb(x) AS r FROM public.${client.escapeIdentifier(t)} x`);
+    out[t] = rows.map((r) => JSON.stringify(r.r)).sort();
+  }
+  return out;
+}
+const countsOf = (all) => Object.fromEntries(Object.entries(all).map(([t, rows]) => [t, rows.length]));
+
+// What the Owner does on the factory PC: a code from scripts/createSetupCode.js
+// on the new server, register with this PC's existing writer_id, then resend
+// everything and prune — through the real SyncWorker.
+async function rebuildFromFactory(writerId) {
+  const { resendAndPrune } = require('../lib/rebuild');
+  const { registerWriter } = require('../lib/snapshot');
+  const { code } = await syncWriter.createSetupCode(vpsPool);
+  const { uploadKey: key } = await registerWriter({ serverUrl: SERVER_URL, code, writerId });
+  uploadKey = key;
+  const worker = new SyncWorker({ databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey: key, log, onStatus: () => {} });
+  worker.start();
+  try {
+    return await resendAndPrune({ databaseUrl: factoryUrl, worker, serverUrl: SERVER_URL, uploadKey: key, log, pollMs: 100, progress: (m) => console.log('PROGRESS', m) });
+  } finally {
+    await worker.stop();
+  }
+}
+
+test('rebuild: an empty new server gets every row; a second run changes nothing; the factory is untouched', async () => {
+  await factory.query("INSERT INTO customers (name, phone) VALUES ('Ali', '0300'), ('Bilal', NULL), ('Chand', '0333')");
+  await factory.query("DELETE FROM customers WHERE name = 'Bilal'");
+  await factory.query("INSERT INTO stock (name, unit_price, quantity) VALUES ('rebuild probe', 10, 4)");
+  await factory.query("INSERT INTO users (username, email, password_hash, role) VALUES ('rebuild-owner', 'rebuild@test', 'x', 'Owner')");
+  assert.equal((await syncRound()).state, 'ok');
+
+  // The server is lost and replaced: migrations only, nobody registered.
+  const { rows: tables } = await factory.query(
+    "SELECT c.relname AS t FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid WHERE tg.tgname = 'fms_sync_capture'"
+  );
+  await vps.query(`TRUNCATE ${tables.map((r) => `public.${vps.escapeIdentifier(r.t)}`).join(', ')} RESTART IDENTITY CASCADE`);
+  await vps.query('UPDATE sync_writer SET writer_id = NULL, upload_key_hash = NULL, registered_at = NULL, last_ingest_at = NULL');
+  assert.equal((await customersOn(vps)).length, 0);
+  // The factory's old key means nothing to the new server.
+  await factory.query("INSERT INTO customers (name) VALUES ('Dawood')");
+  assert.equal((await syncRound()).state, 'blocked_not_writer');
+
+  const before = await allSyncedRows(factory);
+  assert.ok(before.users.length > 0, 'the factory has users, so the Owner can log in online afterwards');
+  const writerId = crypto.randomUUID();
+  const first = await rebuildFromFactory(writerId);
+  assert.equal(first.queued.customers, 3);
+  assert.deepEqual(await allSyncedRows(vps), before, 'every synced table identical on both sides');
+  assert.deepEqual(await allSyncedRows(factory), before, 'nothing changed at the factory');
+  assert.equal((await outbox()).length, 0);
+  const { rows: [w] } = await vps.query('SELECT writer_id FROM sync_writer');
+  assert.equal(w.writer_id, writerId);
+  // Sequences on the server moved past the resent ids.
+  const { rows: [{ next }] } = await vps.query("SELECT nextval(pg_get_serial_sequence('customers', 'id'))::int AS next");
+  assert.ok(next > Math.max(...(await customersOn(factory)).map((c) => c.id)));
+
+  // Again: same counts, no duplicates.
+  const second = await rebuildFromFactory(writerId);
+  assert.deepEqual(countsOf(await allSyncedRows(vps)), countsOf(before));
+  assert.deepEqual(await allSyncedRows(vps), before);
+  assert.ok(Object.values(second.deleted).every((n) => n === 0), 'nothing left to prune the second time');
+  await factory.query("DELETE FROM stock WHERE name = 'rebuild probe'");
+  await factory.query("DELETE FROM users WHERE username = 'rebuild-owner'");
+  assert.equal((await syncRound()).state, 'ok');
+});
+
+test('rebuild: a server restored from an older backup gets the newer rows, and loses rows deleted since', async () => {
+  await factory.query("INSERT INTO customers (name) VALUES ('Ali'), ('Bilal'), ('Chand')");
+  assert.equal((await syncRound()).state, 'ok');
+  const ids = Object.fromEntries((await customersOn(factory)).map((c) => [c.name, c.id]));
+
+  // The backup was taken here. Since then the factory renamed Ali, deleted
+  // Bilal and added Dawood, and the server took those changes too...
+  await factory.query("UPDATE customers SET name = 'Ali Khan' WHERE id = $1", [ids.Ali]);
+  await factory.query('DELETE FROM customers WHERE id = $1', [ids.Bilal]);
+  await factory.query("INSERT INTO customers (name) VALUES ('Dawood')");
+  assert.equal((await syncRound()).state, 'ok');
+  // ...then the server was restored from that backup: back to Ali, Bilal, Chand.
+  await vps.query('TRUNCATE customers RESTART IDENTITY CASCADE');
+  await vps.query(
+    "INSERT INTO customers (id, name) VALUES ($1, 'Ali'), ($2, 'Bilal'), ($3, 'Chand')",
+    [ids.Ali, ids.Bilal, ids.Chand]
+  );
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali', 'Bilal', 'Chand']);
+
+  const result = await rebuildFromFactory(crypto.randomUUID());
+  assert.equal(result.deleted.customers, 1, 'Bilal, deleted at the factory after the backup');
+  assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Ali Khan', 'Chand', 'Dawood']);
+  assert.deepEqual(await customersOn(vps), await customersOn(factory));
+});
+
+test('prune: only the registered PC, never a server-only table; uploads wait while the worker is paused', async () => {
+  const prune = (body, key = uploadKey) => call(route()['/sync/prune'], { body, headers: withKey(key) });
+  assert.equal((await prune({ table_name: 'customers', keys: [] }, '0'.repeat(64))).status, 403);
+  assert.equal((await prune({ table_name: 'sync_writer', keys: [] })).status, 409);
+  assert.equal((await prune({ table_name: 'pgmigrations', keys: [] })).status, 409);
+  assert.equal((await prune({ table_name: 'customers', keys: [{ name: 'x' }] })).status, 409, 'a key without the primary key');
+  assert.equal((await prune({ table_name: 'customers' })).status, 400);
+  const { rows: [w] } = await vps.query('SELECT writer_id FROM sync_writer');
+  assert.ok(w.writer_id, 'sync_writer untouched');
+
+  const worker = new SyncWorker({ databaseUrl: factoryUrl, serverUrl: SERVER_URL, uploadKey, log, onStatus: () => {} });
+  worker.start();
+  try {
+    await worker.pause();
+    await factory.query("INSERT INTO customers (name) VALUES ('Paused')");
+    await new Promise((r) => setTimeout(r, 3000));
+    assert.equal((await customersOn(vps)).length, 0, 'nothing uploaded while paused');
+    worker.resume();
+    for (let i = 0; i < 50 && (await customersOn(vps)).length === 0; i++) await new Promise((r) => setTimeout(r, 100));
+    assert.deepEqual((await customersOn(vps)).map((c) => c.name), ['Paused']);
+  } finally {
+    await worker.stop();
+  }
+});
+
+// ---- T2.1: send-only report scheduler on the online server ----
+
+test('send-only scheduler: a due report goes out once, a failed send retries, a racing second process does not double-send, the mirror is never written', async () => {
+  const scheduler = require(path.join(BACKEND_DIR, 'services', 'sendOnlyScheduler'));
+  const sent = [];
+  let failing = false;
+  const send = async (message) => {
+    await new Promise((r) => setTimeout(r, 150)); // n8n round trip
+    if (failing) return { ok: false, error: 'n8n webhook responded with 500' };
+    sent.push(message);
+    return { ok: true, queued: false };
+  };
+  const reports = () => sent.filter((m) => /Report — /.test(m));
+  const digests = () => sent.filter((m) => /FMS Daily Alerts/.test(m));
+  const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d; };
+  const logRows = async (frequency) => (await vps.query(
+    'SELECT frequency, period_key, status, payload FROM report_dispatch_log WHERE frequency = $1', [frequency]
+  )).rows;
+  const mirror = async () => (await vps.query(
+    `SELECT (SELECT count(*)::int FROM reports) AS reports,
+            (SELECT json_agg(r ORDER BY frequency) FROM report_schedules r) AS schedules`
+  )).rows[0];
+
+  await vps.query('DELETE FROM report_dispatch_log');
+  // As synced from the factory: daily report at 21:00. Weekly/monthly off.
+  await vps.query("UPDATE report_schedules SET enabled = (frequency = 'daily'), run_time = '21:00', last_run_at = NULL");
+  const before = await mirror();
+  try {
+    // Digests first. 7:30 is caught up until 10:00; a start at 10:05 sends
+    // only the 10:00 one, never both.
+    await scheduler.tick(at(7, 29), { send });
+    assert.equal(sent.length, 0, 'nothing due at 7:29');
+    await scheduler.tick(at(9, 15), { send });
+    await scheduler.tick(at(9, 16), { send });
+    assert.equal(digests().length, 1);
+    assert.match(digests()[0], /FMS Daily Alerts\* \(7:30 AM\)/);
+    await vps.query("DELETE FROM report_dispatch_log WHERE frequency = 'digest'");
+    await scheduler.tick(at(10, 5), { send });
+    assert.equal(digests().length, 2);
+    assert.match(digests()[1], /\(10:00 AM\)/);
+    assert.equal((await logRows('digest')).length, 1);
+    assert.match((await logRows('digest'))[0].period_key, /^digest:1000:\d{4}-\d{2}-\d{2}$/);
+
+    await scheduler.tick(at(20, 59), { send });
+    assert.equal(reports().length, 0, 'not due before run_time');
+
+    // n8n down at 21:00: nothing recorded, so the next minute tries again.
+    failing = true;
+    await scheduler.tick(at(21, 0), { send });
+    assert.equal((await logRows('daily')).length, 0);
+    failing = false;
+
+    // 21:01, and a second backend (or a restart) ticking in the same minute.
+    await Promise.all([scheduler.tick(at(21, 1), { send }), scheduler.tick(at(21, 1), { send })]);
+    await scheduler.tick(at(21, 2), { send });
+    await scheduler.tick(at(23, 59), { send });
+    assert.equal(reports().length, 1, 'exactly one report message for the day');
+    assert.match(reports()[0], /Report — Daily/);
+    const log = await logRows('daily');
+    assert.equal(log.length, 1);
+    assert.match(log[0].period_key, /^daily:\d{4}-\d{2}-\d{2}$/);
+    assert.equal(log[0].status, 'sent');
+    assert.equal(log[0].payload.message, reports()[0]);
+    assert.equal(digests().length, 2, 'the 10:00 digest was not sent again either');
+
+    assert.deepEqual(await mirror(), before, 'no report row stored, report_schedules untouched');
+
+    // Registered in all four places (§4): no capture trigger on the factory,
+    // ingest refuses it (snapshot: see the snapshot test).
+    const { rowCount: trig } = await factory.query(
+      "SELECT 1 FROM pg_trigger WHERE tgname = 'fms_sync_capture' AND tgrelid = 'report_dispatch_log'::regclass"
+    );
+    assert.equal(trig, 0);
+    const forged = await call(route()['/sync/ingest'], {
+      body: { changes: [{ id: 1, table_name: 'report_dispatch_log', op: 'I', row_data: { id: 9, frequency: 'x', period_key: 'x', status: 'sent' } }] },
+      headers: withKey(),
+    });
+    assert.equal(forged.status, 409);
+  } finally {
+    await vps.query('DELETE FROM report_dispatch_log');
+    await vps.query("UPDATE report_schedules SET enabled = false, run_time = '23:55'");
+  }
+});
+
+// ---- T2.3: freshness label on server-sent messages + history ----
+
+test('server-sent reports say how fresh the data is: stale warning after 2 h, "period incomplete", data as of; the history lists them', async () => {
+  const scheduler = require(path.join(BACKEND_DIR, 'services', 'sendOnlyScheduler'));
+  const ReportsController = require(path.join(BACKEND_DIR, 'controllers', 'ReportsController'));
+  const sent = [];
+  const send = async (message) => { sent.push(message); return { ok: true, queued: false }; };
+  const now = new Date(); now.setHours(21, 30, 0, 0);
+  const ago = (min) => new Date(now.getTime() - min * 60000);
+  const beat = (receivedAt, outbox) => vps.query(
+    `INSERT INTO sync_heartbeat (id, received_at, outbox_count) VALUES (1, $1, $2)
+     ON CONFLICT (id) DO UPDATE SET received_at = $1, outbox_count = $2`, [receivedAt, outbox]
+  );
+  const daily = async () => {
+    await vps.query('DELETE FROM report_dispatch_log');
+    await scheduler.tick(now, { send });
+    return sent.filter((m) => /Report — Daily/.test(m)).at(-1);
+  };
+  await vps.query("UPDATE report_schedules SET enabled = (frequency = 'daily'), run_time = '21:00'");
+  try {
+    // Fresh: uploaded a minute ago.
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(1)]);
+    await vps.query('DELETE FROM sync_heartbeat');
+    let m = await daily();
+    assert.doesNotMatch(m, /Old data|Period incomplete/);
+    assert.match(m, /\n\n_Data as of .+_$/);
+    const asOf = m.match(/_Data as of (.+)_$/)[1];
+
+    // Nothing uploaded for 5 h, but a heartbeat a minute ago said nothing was
+    // waiting: the copy is still complete.
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(300)]);
+    await beat(ago(1), 0);
+    m = await daily();
+    assert.doesNotMatch(m, /Old data|Period incomplete/);
+    assert.equal(m.match(/_Data as of (.+)_$/)[1], asOf, 'data as of = the caught-up heartbeat');
+
+    // Factory off since 3 h ago (last heartbeat then, changes were waiting).
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(185)]);
+    await beat(ago(180), 4);
+    m = await daily();
+    assert.match(m, /^⚠️ \*Old data:\* the factory has not uploaded for 3 h\./);
+    assert.match(m, /⚠️ \*Period incomplete:\* anything entered at the factory after .+ is not included\./);
+    const { rows: [row] } = await vps.query("SELECT payload FROM report_dispatch_log WHERE frequency = 'daily'");
+    assert.equal(new Date(row.payload.dataAsOf).getTime(), ago(185).getTime(), 'dataAsOf stored with what was sent');
+
+    // 30 min behind: not stale, but the period is incomplete.
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [ago(30)]);
+    await vps.query('DELETE FROM sync_heartbeat');
+    m = await daily();
+    assert.doesNotMatch(m, /Old data/);
+    assert.match(m, /Period incomplete/);
+
+    // Digests carry the label too (no period).
+    await vps.query('DELETE FROM report_dispatch_log');
+    const morning = new Date(now); morning.setHours(7, 45, 0, 0);
+    await vps.query('UPDATE sync_writer SET last_ingest_at = $1', [new Date(morning.getTime() - 10 * 3600000)]);
+    await scheduler.tick(morning, { send });
+    const digest = sent.at(-1);
+    assert.match(digest, /^⚠️ \*Old data:\* the factory has not uploaded for 10 h\./);
+    assert.match(digest, /FMS Daily Alerts/);
+    assert.doesNotMatch(digest, /Period incomplete/);
+
+    // History view (GET /api/reports/dispatch-log): the 7:45 digest, then at
+    // 21:30 the daily report and the 10:00 digest (still in its window).
+    await scheduler.tick(now, { send });
+    const list = await call(ReportsController.listDispatchLog, {});
+    assert.equal(list.status, 200);
+    assert.deepEqual(list.body.data.map((r) => r.period_key.replace(/:\d{4}-\d{2}-\d{2}$/, '')).sort(),
+      ['daily', 'digest:0730', 'digest:1000']);
+    const d = list.body.data.find((r) => r.frequency === 'daily');
+    assert.match(d.label, /^Daily — /);
+    assert.equal(d.message, sent.filter((x) => /Report — Daily/.test(x)).at(-1), 'the message as sent');
+    assert.ok(d.data_as_of);
+    assert.equal(list.body.pagination.total, 3);
+  } finally {
+    await vps.query('DELETE FROM report_dispatch_log');
+    await vps.query('DELETE FROM sync_heartbeat');
+    await vps.query("UPDATE report_schedules SET enabled = false, run_time = '23:55'");
+  }
+});
+
+// T2.5. pg_dump / pg_restore come from PATH here (Postgres 16 client tools);
+// the installer ships the Windows ones in tools/ (scripts/fetch-tools.js).
+test('backup: a dump taken while the factory keeps writing restores with matching row counts; a failed or damaged one is never kept', async () => {
+  const { backupNow, restoreDrill, BackupScheduler } = require('../lib/backup');
+  const { levelOf } = require('../lib/status');
+  const dir = path.join(tmpDir, 'backups');
+  const dbs = async () => (await factory.query("SELECT datname FROM pg_database WHERE datname LIKE 'fms_drill_%'")).rows;
+  for (let i = 0; i < 20; i++) await factory.query('INSERT INTO customers (name) VALUES ($1)', [`Before ${i}`]);
+
+  // Writes keep landing while the dump runs; the counts are the dump's own snapshot.
+  let writing = true;
+  const writer = (async () => {
+    for (let i = 0; writing; i++) await factory.query('INSERT INTO customers (name) VALUES ($1)', [`During ${i}`]);
+  })();
+  const r = await backupNow({ databaseUrl: factoryUrl, dir });
+  writing = false;
+  await writer;
+  const counts = JSON.parse(fs.readFileSync(`${r.file}.counts.json`, 'utf8')).counts;
+  assert.ok(counts['public.customers'] >= 20);
+  assert.ok(counts['public.sync_outbox'] >= 20, 'the outbox is backed up too');
+  assert.deepEqual(fs.readdirSync(dir).sort(), [path.basename(r.file), `${path.basename(r.file)}.counts.json`]);
+
+  const drill = await restoreDrill({ databaseUrl: factoryUrl, file: r.file });
+  assert.equal(drill.ok, true, JSON.stringify(drill.mismatches));
+  assert.equal(drill.tables, r.tables);
+  assert.equal(drill.rows, r.rows);
+  const live = Number((await factory.query('SELECT count(*) FROM customers')).rows[0].count);
+  assert.ok(live > counts['public.customers'], `rows written during the dump are not in it (${live} live, ${counts['public.customers']} dumped)`);
+  assert.deepEqual(await dbs(), [], 'the drill database is dropped');
+
+  // A count that doesn't match is reported, not hidden.
+  const wrong = path.join(tmpDir, 'wrong.dump');
+  fs.copyFileSync(r.file, wrong);
+  fs.writeFileSync(`${wrong}.counts.json`, JSON.stringify({ counts: { ...counts, 'public.customers': counts['public.customers'] + 1 } }));
+  const bad = await restoreDrill({ databaseUrl: factoryUrl, file: wrong });
+  assert.equal(bad.ok, false);
+  assert.deepEqual(bad.mismatches, [{ table: 'public.customers', expected: counts['public.customers'] + 1, restored: counts['public.customers'] }]);
+
+  // A damaged dump fails the drill and leaves no drill database.
+  const cut = path.join(tmpDir, 'cut.dump');
+  fs.writeFileSync(cut, fs.readFileSync(r.file).subarray(0, Math.floor(r.bytes / 2)));
+  fs.copyFileSync(`${r.file}.counts.json`, `${cut}.counts.json`);
+  await assert.rejects(restoreDrill({ databaseUrl: factoryUrl, file: cut }), /pg_restore failed/);
+  assert.deepEqual(await dbs(), []);
+
+  // pg_dump missing (or failing): an error, and no file of any kind left.
+  const failDir = path.join(tmpDir, 'backups-fail');
+  process.env.FMS_PG_TOOLS_DIR = path.join(tmpDir, 'no-such-dir');
+  try {
+    await assert.rejects(backupNow({ databaseUrl: factoryUrl, dir: failDir }), /pg_dump failed/);
+  } finally {
+    delete process.env.FMS_PG_TOOLS_DIR;
+  }
+  assert.deepEqual(fs.readdirSync(failDir), []);
+
+  // The scheduler: a backup when due, one more on stop; status says when the
+  // folder shares the database's drive, and when the last attempt failed.
+  const logs2 = [];
+  const sched = new BackupScheduler({
+    databaseUrl: factoryUrl, getDir: () => dir, pgDataDir: dataDir, log: (m) => logs2.push(m), everyMs: 0, firstCheckMs: 0, checkMs: 3600_000,
+  });
+  sched.start();
+  await waitFor(() => logs2.some((m) => m.startsWith('backup OK (scheduled)')), 10_000);
+  await sleep(1100); // names are per second
+  await sched.stop();
+  assert.ok(logs2.some((m) => m.startsWith('backup OK (shutdown)')), logs2.join('\n'));
+  assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.dump')).length, 3);
+  const st = sched.status();
+  assert.equal(st.sameDrive, true);
+  assert.equal(st.lastError, null);
+  assert.deepEqual(levelOf({ state: 'ok', quarantineCount: 0, tablesWithoutPk: [], outboxCount: 0, backup: st }),
+    { level: 'amber', problems: ['Backups are on the same drive as the database — choose a folder on another drive'] });
+  process.env.FMS_PG_TOOLS_DIR = path.join(tmpDir, 'no-such-dir');
+  try {
+    await assert.rejects(sched.run('test'));
+  } finally {
+    delete process.env.FMS_PG_TOOLS_DIR;
+  }
+  assert.match(levelOf({ state: 'ok', quarantineCount: 0, tablesWithoutPk: [], outboxCount: 0, backup: { ...sched.status(), sameDrive: false } }).problems[0],
+    /^Last backup failed: pg_dump failed/);
+});
+
+test('backup: keeps the last 24 h, the newest of 14 days and of 8 weeks, also when the PC is off on Sundays', () => {
+  const { prune, listBackups } = require('../lib/backup');
+  const dir = fs.mkdtempSync(path.join(tmpDir, 'prune-'));
+  const pad = (n) => String(n).padStart(2, '0');
+  const name = (d) => `fms_db-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}00.dump`;
+  const now = new Date(2026, 9, 19, 20, 0, 0); // Monday 19 Oct 2026
+  // 120 days, 4 dumps a day (8:00, 14:00, 20:00 and one at 18:30 on close), none on Sundays.
+  for (let i = 0; i < 120; i++) {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    if (day.getDay() === 0) continue;
+    for (const [h, m] of [[8, 0], [14, 0], [18, 30], [20, 0]]) {
+      const d = new Date(day); d.setHours(h, m);
+      if (d > now) continue;
+      fs.writeFileSync(path.join(dir, name(d)), 'x');
+      fs.writeFileSync(path.join(dir, `${name(d)}.counts.json`), '{}');
+    }
+  }
+  fs.writeFileSync(path.join(dir, 'notes.txt'), 'not ours');
+  prune(dir, now);
+  const kept = listBackups(dir).map((b) => b.name);
+  // Last 24 h: all four of today's (18 Oct is a Sunday, no dumps).
+  const today = kept.filter((n) => n.startsWith('fms_db-2026-10-19'));
+  assert.equal(today.length, 4);
+  const days = new Set(kept.map((n) => n.slice(7, 17)));
+  // 14 newest days that have a dump (Sundays skipped), plus older weekly ones.
+  const daily = [...days].sort().reverse().slice(0, 14);
+  assert.equal(daily.at(-1), '2026-10-03');
+  for (const d of daily.slice(1)) assert.equal(kept.filter((n) => n.startsWith(`fms_db-${d}`)).length, 1, `one dump kept for ${d}`);
+  // Weekly: the newest dump of each of the 8 newest weeks, this one included
+  // (weeks start on Monday) -> the Saturdays back to 5 Sep, all 20:00.
+  const older = [...days].sort().filter((d) => d < '2026-10-03');
+  assert.deepEqual(older, ['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26']);
+  assert.ok(kept.filter((n) => !n.startsWith('fms_db-2026-10-19')).every((n) => n.endsWith('_200000.dump')));
+  // Counts files follow their dump; other files are left alone.
+  const files = fs.readdirSync(dir);
+  assert.equal(files.filter((n) => n.endsWith('.counts.json')).length, kept.length);
+  assert.ok(files.includes('notes.txt'));
+});
+
+test('durability: fsync, synchronous_commit and full_page_writes are logged at start; one turned off makes the status red', async () => {
+  const { checkDurability } = require('../lib/database');
+  const { levelOf } = require('../lib/status');
+  const lines = [];
+  assert.deepEqual(await checkDurability({ databaseUrl: factoryUrl, log: (m) => lines.push(m) }), []);
+  assert.deepEqual(lines, ['postgres durability: fsync=on, full_page_writes=on, synchronous_commit=on']);
+  try {
+    await factory.query('ALTER SYSTEM SET fsync = off');
+    await factory.query('SELECT pg_reload_conf()');
+    await sleep(300);
+    const off = await checkDurability({ databaseUrl: factoryUrl, log: () => {} });
+    assert.deepEqual(off, ['fsync']);
+    assert.deepEqual(levelOf({ state: 'ok', quarantineCount: 0, tablesWithoutPk: [], outboxCount: 0, unsafeSettings: off }),
+      { level: 'red', problems: ['The database is set up unsafely (fsync off): a power cut can lose saved data'] });
+  } finally {
+    await factory.query('ALTER SYSTEM RESET fsync');
+    await factory.query('SELECT pg_reload_conf()');
   }
 });

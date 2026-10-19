@@ -47,9 +47,10 @@ const section = (title, rows, line) => {
 /**
  * Daily digest of everything the dashboard alert panel shows (Layout.jsx
  * allAlerts): low stock, customer debts, payables to sellers, low raw
- * materials — same queries as the dashboard endpoints.
+ * materials — same queries as the dashboard endpoints. SELECTs only, so the
+ * online server's send-only scheduler (T2.1) can build it from the mirror.
  */
-const sendDailyDigest = async (label) => {
+const buildDailyDigest = async (label) => {
   const [stock, debts, payables, raw] = await Promise.all([
     pool.query(
       `SELECT name, quantity, minimum_stock FROM stock
@@ -83,7 +84,9 @@ const sendDailyDigest = async (label) => {
       (r) => `${r.seller_name}: ${formatRs(r.outstanding_debt)}`) +
     section('Low Raw Materials', raw.rows, (r) => `${r.name}: ${Number(r.quantity)}${r.unit || ''}`);
 
-  await sendWhatsApp(`📋 *FMS Daily Alerts* (${label})${body || '\n\n✅ No alerts — all clear.'}`);
+  return `📋 *FMS Daily Alerts* (${label})${body || '\n\n✅ No alerts — all clear.'}`;
 };
 
-module.exports = { alertIfNewlyLow, sendDailyDigest };
+const sendDailyDigest = async (label) => sendWhatsApp(await buildDailyDigest(label));
+
+module.exports = { alertIfNewlyLow, buildDailyDigest, sendDailyDigest };

@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { lockKey } = require('../services/rowVersion');
 const { broadcast } = require('../services/wsServer');
 
 class ProductionController {
@@ -161,6 +162,11 @@ class ProductionController {
           // No stock row was picked when this order was queued — typically a
           // product being produced for the first time. Find an existing stock
           // row for it, or create one now, same as a first-ever stock purchase does.
+          // One at a time per product, or two orders completing at once would
+          // create two stock rows (T3.5).
+          await lockKey(client, productionItem.product_id
+            ? `stock:product:${productionItem.product_id}`
+            : `stock:name:${String(productionItem.product_name).toLowerCase()}`);
           const existing = productionItem.product_id
             ? await client.query('SELECT id FROM stock WHERE product_id = $1', [productionItem.product_id])
             : await client.query('SELECT id FROM stock WHERE LOWER(name) = LOWER($1)', [productionItem.product_name]);

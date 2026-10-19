@@ -7,31 +7,20 @@
 //   5. push every local change to the VPS whenever it's reachable (lib/sync.js)
 //   6. queue WhatsApp alerts locally, send when online (lib/alertRelay.js)
 //   7. update itself from GitHub Releases (electron-updater)
+//   8. FMS menu (Alt): rebuild the online server from this PC's data (T2.8)
+//   9. back up the database every 6 h and on close (lib/backup.js, T2.5)
+// Steps 1-3, 5, 6 and 9 are lib/runtime.js, shared with host.js (the Windows
+// service, T3.1); this file adds the window, setup screens, menu and updates.
+// Once FMS runs as a service on this PC (T3.2), this app only opens a window
+// on it: see bootViewer().
 // The app itself talks over 127.0.0.1 only; internet is needed only for sync.
-const { app, BrowserWindow, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, clipboard, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
-const net = require('net');
-const http = require('http');
-const crypto = require('crypto');
-const { APP_PORT, ALERT_PORT } = require('./lib/ports');
-const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./lib/database');
-const { installSyncCapture } = require('./lib/syncCapture');
-const { SyncWorker } = require('./lib/sync');
-const { registerWriter, downloadSnapshot, importSnapshot } = require('./lib/snapshot');
-const { AlertRelay } = require('./lib/alertRelay');
-const { StatusReporter } = require('./lib/status');
-
-const DEFAULT_SYNC_SERVER = 'https://api.ittefaqbuilder.com';
-
-const STAGED_DIR = path.join(__dirname, 'staged');
-const BACKEND_DIR = path.join(STAGED_DIR, 'backend');
-const FRONTEND_DIR = path.join(STAGED_DIR, 'frontend');
-const APP_ORIGIN = `http://127.0.0.1:${APP_PORT}`;
+const { FactoryRuntime } = require('./lib/runtime');
 
 const userData = app.getPath('userData');
-const pgDataDir = path.join(userData, 'pgdata');
 const logDir = path.join(userData, 'logs');
 fs.mkdirSync(logDir, { recursive: true });
 const logStream = fs.createWriteStream(path.join(logDir, 'fms.log'), { flags: 'a' });
@@ -47,53 +36,36 @@ if (!gotLock) {
   app.quit();
 }
 
-// Per-install secrets, generated once and kept next to the data.
-function loadConfig() {
-  const file = path.join(userData, 'config.json');
-  let cfg = {};
-  try { cfg = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* first run */ }
-  let changed = false;
-  if (!cfg.pgPassword) { cfg.pgPassword = crypto.randomBytes(24).toString('hex'); changed = true; }
-  if (!cfg.jwtSecret) { cfg.jwtSecret = crypto.randomBytes(32).toString('hex'); changed = true; }
-  // writerId + uploadKey come from registering with a setup code (runSetup);
-  // without them, changes still pile up in sync_outbox, never uploaded.
-  if (!cfg.syncServerUrl) { cfg.syncServerUrl = DEFAULT_SYNC_SERVER; changed = true; }
-  // Shared only between the backend and the local alert relay.
-  if (!cfg.relaySecret) { cfg.relaySecret = crypto.randomBytes(24).toString('hex'); changed = true; }
-  if (changed) saveConfig(cfg);
-  return cfg;
+let mainWindow = null;
+let updateReady = null; // version string once an update has downloaded
+let quitting = false;
+
+const runtime = new FactoryRuntime({
+  dataDir: userData,
+  stagedDir: path.join(__dirname, 'staged'),
+  log,
+  forkBackend: (modulePath, { cwd, env }) => utilityProcess.fork(modulePath, [], {
+    cwd, env, stdio: 'pipe', serviceName: 'FMS backend',
+  }),
+  onChange: () => refreshTitle(),
+  onBackendExit: (code) => {
+    if (quitting) return;
+    dialog.showErrorBox('FMS stopped', `The FMS server stopped unexpectedly (code ${code}).\n\nLog: ${path.join(logDir, 'fms.log')}`);
+    app.quit();
+  },
+});
+const APP_ORIGIN = runtime.appOrigin;
+
+// The window title doubles as the sync status line.
+function refreshTitle() {
+  const parts = [runtime.appName, runtime.syncStatusText, updateReady && `Update ${updateReady} will install when FMS is closed`].filter(Boolean);
+  if (mainWindow) mainWindow.setTitle(parts.join('  —  '));
 }
 
-function saveConfig(cfg) {
-  fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify(cfg, null, 2));
-}
-
-// The status bar on every terminal (T1.5) reads this through the backend's
-// GET /status (lib/status.js keeps it current and sends the heartbeat).
-const statusFile = path.join(userData, 'status.json');
-
-// Setup name and logo from Offline Setup on the online dashboard (T1.2): the
-// window title uses the name, and the login screen reads both through the
-// backend's GET /branding, which serves this file.
-const brandingFile = path.join(userData, 'branding.json');
-let appName = 'FMS';
-function applySetup(cfg, setup) {
-  if (setup !== undefined && JSON.stringify(setup) !== JSON.stringify(cfg.setup)) {
-    cfg.setup = setup;
-    saveConfig(cfg);
-    log(`config: setup name ${setup?.name ? `"${setup.name}"` : 'not set'}, ${setup?.logo ? 'own logo' : 'default logo'}`);
-  }
-  appName = cfg.setup?.name || 'FMS';
-  fs.writeFileSync(brandingFile, JSON.stringify({ name: cfg.setup?.name || null, logo: cfg.setup?.logo || null }));
-  refreshTitle();
-}
-
-// First run only: a modal asking for the Owner's one-time setup code. This PC
-// registers as the main PC (its own upload key, never typed by anyone), then
-// copies the server's data into the local database (lib/snapshot.js).
-// Resolves 'imported', 'empty' (testing: no server) or 'cancelled'.
-// "Start empty" never registers, so such a PC never uploads.
-function runSetup({ cfg, databaseUrl }) {
+// First run only: a modal asking for the Owner's one-time setup code
+// (runtime.setupFromServer). Resolves 'imported', 'empty' (testing: no
+// server) or 'cancelled'.
+function runSetup() {
   const CHANNELS = ['setup:defaults', 'setup:import', 'setup:empty'];
   return new Promise((resolve) => {
     const win = new BrowserWindow({
@@ -119,41 +91,11 @@ function runSetup({ cfg, databaseUrl }) {
       resolve(result);
     });
 
-    ipcMain.handle('setup:defaults', () => ({ serverUrl: cfg.syncServerUrl }));
+    ipcMain.handle('setup:defaults', () => ({ serverUrl: runtime.cfg.syncServerUrl }));
     ipcMain.handle('setup:import', async (_e, { serverUrl, code }) => {
       const progress = (msg) => { if (!win.isDestroyed()) win.webContents.send('setup:progress', msg); };
-      const download = () => downloadSnapshot({ serverUrl, uploadKey: cfg.uploadKey });
       try {
-        let snapshot = null;
-        // An earlier attempt may have registered and then failed to download;
-        // its code is used up, so try that key first.
-        if (cfg.uploadKey && cfg.syncServerUrl === serverUrl) {
-          progress('Downloading data from the server…');
-          try {
-            snapshot = await download();
-          } catch (err) {
-            if (!err.notRegistered) throw err;
-            delete cfg.uploadKey;
-            delete cfg.writerId;
-            saveConfig(cfg);
-          }
-        }
-        if (!snapshot) {
-          progress('Registering this computer as the main PC…');
-          const writerId = crypto.randomUUID();
-          const { uploadKey, setup } = await registerWriter({ serverUrl, code, writerId });
-          // Saved straight away: the code is now used up.
-          Object.assign(cfg, { syncServerUrl: serverUrl, writerId, uploadKey });
-          saveConfig(cfg);
-          applySetup(cfg, setup);
-          log(`setup: registered as main PC ${writerId}`);
-          progress('Downloading data from the server…');
-          snapshot = await download();
-        }
-        progress('Saving data on this computer…');
-        await importSnapshot({ databaseUrl, snapshot, log });
-        cfg.setupDone = true;
-        saveConfig(cfg);
+        await runtime.setupFromServer({ serverUrl, code, progress });
         finish('imported');
         return { ok: true };
       } catch (err) {
@@ -162,8 +104,7 @@ function runSetup({ cfg, databaseUrl }) {
       }
     });
     ipcMain.handle('setup:empty', () => {
-      cfg.setupDone = true;
-      saveConfig(cfg);
+      runtime.setupEmpty();
       finish('empty');
       return { ok: true };
     });
@@ -172,67 +113,120 @@ function runSetup({ cfg, databaseUrl }) {
   });
 }
 
-function portIsFree(port) {
-  return new Promise((resolve) => {
-    const srv = net.createServer()
-      .once('error', () => resolve(false))
-      .once('listening', () => srv.close(() => resolve(true)))
-      .listen(port, '127.0.0.1');
+// FMS menu -> "Rebuild the online server…" (T2.8, D17): runtime.rebuildServer
+// with progress in a window that can't be closed while it runs.
+let rebuildWindow = null;
+function runRebuild() {
+  if (rebuildWindow) { rebuildWindow.focus(); return; }
+  const win = new BrowserWindow({
+    parent: mainWindow,
+    modal: true,
+    width: 620,
+    height: 720,
+    resizable: false,
+    minimizable: false,
+    autoHideMenuBar: true,
+    title: 'Rebuild the online server',
+    webPreferences: {
+      preload: path.join(__dirname, 'setup', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
   });
-}
-
-function waitForServer(timeoutMs = 30000) {
-  const started = Date.now();
-  return new Promise((resolve, reject) => {
-    const attempt = () => {
-      const req = http.get(`${APP_ORIGIN}/`, (res) => { res.resume(); resolve(); });
-      req.on('error', () => {
-        if (Date.now() - started > timeoutMs) reject(new Error('backend did not start in time'));
-        else setTimeout(attempt, 300);
-      });
-    };
-    attempt();
-  });
-}
-
-let backend = null;
-let mainWindow = null;
-let syncWorker = null;
-let alertRelay = null;
-let statusReporter = null;
-let lastSync = null;          // SyncWorker's last report, or { state: 'not_registered' }
-let tablesWithoutPk = [];
-let updateReady = null; // version string once an update has downloaded
-let quitting = false;
-
-// The window title doubles as the sync status line.
-let syncStatusText = '';
-function refreshTitle() {
-  const parts = [appName, syncStatusText, updateReady && `Update ${updateReady} will install when FMS is closed`].filter(Boolean);
-  if (mainWindow) mainWindow.setTitle(parts.join('  —  '));
-}
-
-// WhatsApp target etc. come from the server (GET /sync/config), so changing
-// them there reaches the factory without touching this PC. Last known values
-// are kept in config.json for offline starts.
-async function refreshServerConfig(cfg) {
-  try {
-    const res = await fetch(`${cfg.syncServerUrl.replace(/\/$/, '')}/sync/config`, {
-      headers: { 'X-Upload-Key': cfg.uploadKey },
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!res.ok) throw new Error(`server replied ${res.status}`);
-    const { whatsapp, reason, setup } = await res.json();
-    if (JSON.stringify(whatsapp) !== JSON.stringify(cfg.whatsapp) || (reason || null) !== (cfg.whatsappReason || null)) {
-      cfg.whatsapp = whatsapp;
-      cfg.whatsappReason = whatsapp ? null : reason || null;
-      saveConfig(cfg);
-      log(`config: WhatsApp alerts ${whatsapp ? 'enabled' : `not configured on the server (${reason || 'no reason given'})`}`);
+  rebuildWindow = win;
+  let busy = false;
+  win.on('close', (event) => {
+    if (busy) {
+      event.preventDefault();
+      dialog.showMessageBox(win, { type: 'info', message: 'Still sending data to the server.', detail: 'Wait until it says it is done.' });
     }
-    applySetup(cfg, setup);
+  });
+  win.on('closed', () => {
+    ['rebuild:defaults', 'rebuild:run'].forEach((ch) => ipcMain.removeHandler(ch));
+    rebuildWindow = null;
+  });
+
+  ipcMain.handle('rebuild:defaults', () => ({ serverUrl: runtime.cfg.syncServerUrl }));
+  ipcMain.handle('rebuild:run', async (_e, { serverUrl, code }) => {
+    const progress = (msg) => { if (!win.isDestroyed()) win.webContents.send('rebuild:progress', msg); };
+    busy = true;
+    try {
+      const { sent, removed } = await runtime.rebuildServer({ serverUrl, code, progress });
+      return { ok: true, sent, removed };
+    } catch (err) {
+      log(`rebuild: failed: ${err.message}`);
+      return { ok: false, error: err.message };
+    } finally {
+      busy = false;
+    }
+  });
+
+  win.loadFile(path.join(__dirname, 'setup', 'rebuild.html'));
+}
+
+// FMS menu -> Backups (T2.5). The folder should be on a second drive (D10);
+// "Copy … to a USB drive" is the weekly off-site copy (D15).
+async function backupAction(what) {
+  const { backups, cfg } = runtime;
+  const info = (message, detail) => dialog.showMessageBox(mainWindow, { type: 'info', title: 'Backups', message, detail });
+  const fail = (err) => dialog.showMessageBox(mainWindow, { type: 'error', title: 'Backups', message: 'That did not work.', detail: err.message });
+  try {
+    if (what === 'now') {
+      const r = await backups.run('menu');
+      await info('Backup done.', `${r.file}\n${r.tables} tables, ${r.rows} rows`);
+    } else if (what === 'drill') {
+      const r = await backups.drill();
+      if (r.ok) await info('The newest backup restores correctly.', `${path.basename(r.file)}\n${r.tables} tables, ${r.rows} rows — every table's row count matches.`);
+      else await fail(new Error(`Restored, but these tables differ:\n${r.mismatches.map((m) => `${m.table}: ${m.expected} in the backup, ${m.restored} restored`).join('\n')}`));
+    } else if (what === 'copy') {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Copy the newest backup to…', properties: ['openDirectory', 'createDirectory'] });
+      if (canceled || !filePaths[0]) return;
+      await info('Copied.', backups.copyNewest(filePaths[0]));
+    } else if (what === 'folder') {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Keep backups in… (choose a folder on another drive)', defaultPath: runtime.backupDir(), properties: ['openDirectory', 'createDirectory'] });
+      if (canceled || !filePaths[0]) return;
+      cfg.backupDir = filePaths[0];
+      runtime.saveConfig();
+      log(`backup: folder is now ${cfg.backupDir}`);
+      const r = await backups.run('new folder');
+      runtime.statusReporter?.refresh();
+      await info('Backups now go to this folder.', `First backup done:\n${r.file}`);
+    } else if (what === 'open') {
+      fs.mkdirSync(runtime.backupDir(), { recursive: true });
+      await shell.openPath(runtime.backupDir());
+    }
   } catch (err) {
-    log(`config: could not refresh from server (${err.cause?.code || err.message})`);
+    runtime.statusReporter?.refresh();
+    await fail(err);
   }
+}
+
+function setupMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'FMS',
+      submenu: [
+        { label: 'Rebuild the online server…', click: () => runRebuild() },
+        {
+          label: 'Backups',
+          submenu: [
+            { label: 'Back up now', click: () => backupAction('now') },
+            { label: 'Test the newest backup (restore drill)', click: () => backupAction('drill') },
+            { label: 'Copy the newest backup to a USB drive…', click: () => backupAction('copy') },
+            { type: 'separator' },
+            { label: 'Choose the backup folder…', click: () => backupAction('folder') },
+            { label: 'Open the backup folder', click: () => backupAction('open') },
+          ],
+        },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ]));
 }
 
 // Downloads in the background; installs only from our own before-quit, after
@@ -275,67 +269,6 @@ function setupAutoUpdate() {
   setInterval(check, 4 * 3600_000);
 }
 
-function ago(date) {
-  if (!date) return 'never';
-  const mins = Math.round((Date.now() - new Date(date).getTime()) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} days ago`;
-}
-
-function describeSync({ state, pending, quarantined, lastSyncedAt }) {
-  const waiting = pending === 1 ? '1 change waiting' : `${pending} changes waiting`;
-  // Changes the server refused (T1.4); the Owner retries them on the Sync issues page.
-  const setAside = quarantined ? `  —  ${quarantined} change${quarantined === 1 ? '' : 's'} refused by the server (see Sync issues)` : '';
-  return describeSyncState({ state, pending, lastSyncedAt, waiting }) + setAside;
-}
-
-function describeSyncState({ state, pending, lastSyncedAt, waiting }) {
-  if (state === 'ok') return pending ? `Uploading ${waiting}` : `All changes uploaded (last upload ${ago(lastSyncedAt)})`;
-  if (state === 'offline') return `Offline — ${waiting}, will upload when internet is back`;
-  if (state === 'blocked_not_writer') return `NOT UPLOADING: this PC is no longer the registered main PC — ${waiting}`;
-  return `Sync problem — ${waiting} (see log)`;
-}
-
-function startBackend({ databaseUrl, jwtSecret, relaySecret }) {
-  backend = utilityProcess.fork(path.join(BACKEND_DIR, 'server.js'), [], {
-    cwd: BACKEND_DIR,
-    stdio: 'pipe',
-    serviceName: 'FMS backend',
-    env: {
-      ...process.env,
-      NODE_ENV: 'production',
-      DATABASE_URL: databaseUrl,
-      PORT: String(APP_PORT),
-      HOST: '127.0.0.1',
-      JWT_SECRET: jwtSecret,
-      FRONTEND_URL: APP_ORIGIN,
-      FMS_STATIC_DIR: FRONTEND_DIR,
-      // Setup name + logo for the login screen (GET /branding)
-      FMS_BRANDING_FILE: brandingFile,
-      // Sync status for the status bar (GET /status)
-      FMS_STATUS_FILE: statusFile,
-      // Factory-only routes, e.g. retrying changes the server refused (/api/sync-quarantine)
-      FMS_FACTORY: '1',
-      TZ: 'Asia/Karachi',
-      // WhatsApp alerts go to the local relay, which queues them offline.
-      N8N_WEBHOOK_URL: `http://127.0.0.1:${ALERT_PORT}/alert`,
-      N8N_WEBHOOK_SECRET: relaySecret,
-    },
-  });
-  backend.stdout.on('data', (d) => log(`[backend] ${String(d).trimEnd()}`));
-  backend.stderr.on('data', (d) => log(`[backend:err] ${String(d).trimEnd()}`));
-  backend.on('exit', (code) => {
-    backend = null;
-    if (quitting) return;
-    log(`backend exited with code ${code}`);
-    dialog.showErrorBox('FMS stopped', `The FMS server stopped unexpectedly (code ${code}).\n\nLog: ${path.join(logDir, 'fms.log')}`);
-    app.quit();
-  });
-}
-
 const LOADING_HTML = `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
 <html><body style="margin:0;height:100vh;display:grid;place-items:center;font-family:Segoe UI,sans-serif;background:#f5f5f4;color:#292524">
 <div style="text-align:center"><div style="font-size:22px;font-weight:600">FMS</div>
@@ -367,82 +300,66 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-async function boot() {
+// Written by service/install-service.ps1 (T3.2): FMS runs as the Windows
+// service, which owns the database and does the uploads. A second copy here
+// would fight it for the ports, or — worse — run the out-of-date data left in
+// %APPDATA%\FMS. So: just a window on the service's dashboard. No updates
+// either; the service is updated with service/update-service.ps1 (D4).
+const SERVICE_MARKER = process.env.FMS_SERVICE_MARKER
+  || (process.env.PROGRAMDATA ? path.join(process.env.PROGRAMDATA, 'FMS-service.json') : null);
+function serviceInfo() {
+  try { return JSON.parse(fs.readFileSync(SERVICE_MARKER, 'utf8')); } catch { return null; }
+}
+const NOT_RUNNING_HTML = `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
+<html><body style="margin:0;height:100vh;display:grid;place-items:center;font-family:Segoe UI,sans-serif;background:#f5f5f4;color:#292524">
+<div style="text-align:center;max-width:520px"><div style="font-size:22px;font-weight:600">FMS is not answering</div>
+<div style="margin-top:8px;color:#78716c">FMS runs as a Windows service on this PC. It may still be starting; if this stays, restart the PC
+or start the "FMS" service in Services. This window keeps trying.</div></div></body></html>`)}`;
+
+async function bootViewer(svc) {
+  const url = (svc.url || APP_ORIGIN).replace(/\/$/, '');
+  log(`service mode: FMS runs as the Windows service "${svc.serviceName}" (data ${svc.dataDir}); this window only opens ${url}`);
   createWindow();
-  const cfg = loadConfig();
-  applySetup(cfg);
-
-  for (const port of [APP_PORT, ALERT_PORT]) {
-    if (!(await portIsFree(port))) throw new Error(`Port ${port} is already in use by another program.`);
+  let warned = false;
+  for (;;) {
+    try {
+      const res = await fetch(`${url}/branding`, { signal: AbortSignal.timeout(3000) });
+      runtime.appName = (await res.json()).name || 'FMS';
+      break;
+    } catch {
+      if (!warned && mainWindow) { warned = true; mainWindow.loadURL(NOT_RUNNING_HTML); }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
   }
+  refreshTitle();
+  if (mainWindow) await mainWindow.loadURL(`${url}/login`);
+}
 
-  const databaseUrl = await startPostgres({
-    dataDir: pgDataDir,
-    password: cfg.pgPassword,
-    log,
-  });
-  await prepareSchema({ databaseUrl, backendDir: BACKEND_DIR, log });
-  // Before ensureOwner, so even the very first account reaches the VPS.
-  ({ tablesWithoutPk } = await installSyncCapture({ databaseUrl, log }));
+async function boot() {
+  const svc = serviceInfo();
+  if (svc) return bootViewer(svc);
+  // install-service.ps1 copied this folder to the service and left this note:
+  // what is here is out of date and must never run (or upload) again.
+  if (fs.existsSync(path.join(userData, 'MOVED-TO-SERVICE.txt'))) {
+    throw new Error(`The FMS data on this PC was moved to the FMS Windows service, and ${userData} is the old, out-of-date copy, so FMS will not start on it. Reinstall the service (service\\install-service.ps1), or ask for help.`);
+  }
+  createWindow();
+  runtime.loadConfig();
+  runtime.applySetup();
 
-  if (!cfg.setupDone) {
-    const result = await runSetup({ cfg, databaseUrl });
+  await runtime.checkPorts();
+  await runtime.startDatabase();
+
+  if (!runtime.cfg.setupDone) {
+    const result = await runSetup();
     log(`setup: ${result}`);
     if (result === 'cancelled') { app.quit(); return; }
   }
-  // Only creates an account when there are none (i.e. "start empty").
-  const owner = await ensureOwner({ databaseUrl });
 
-  alertRelay = new AlertRelay({
-    databaseUrl,
-    relaySecret: cfg.relaySecret,
-    getTarget: () => cfg.whatsapp || null,
-    // The server's reason for no target (T1.7), or why we don't know one yet
-    getNoTargetReason: () => cfg.whatsappReason
-      || (cfg.uploadKey ? 'no WhatsApp settings received from the server yet' : 'this PC is not registered with the server'),
-    log,
-  });
-  await alertRelay.start();
-
-  startBackend({ databaseUrl, jwtSecret: cfg.jwtSecret, relaySecret: cfg.relaySecret });
-  await waitForServer();
+  const owner = await runtime.startServices();
   if (mainWindow) await mainWindow.loadURL(`${APP_ORIGIN}/login`);
   setupAutoUpdate();
-
-  if (cfg.uploadKey) {
-    syncWorker = new SyncWorker({
-      databaseUrl,
-      serverUrl: cfg.syncServerUrl,
-      uploadKey: cfg.uploadKey,
-      log,
-      onStatus: (status) => {
-        lastSync = status;
-        syncStatusText = describeSync(status);
-        refreshTitle();
-        statusReporter?.refresh();
-      },
-    });
-    syncWorker.start();
-    refreshServerConfig(cfg);
-    setInterval(() => refreshServerConfig(cfg), 3600_000);
-  } else {
-    lastSync = { state: 'not_registered' };
-    syncStatusText = 'Upload to server not set up';
-    refreshTitle();
-    log('sync: this PC is not registered (no uploadKey in config.json), changes are kept locally');
-  }
-  statusReporter = new StatusReporter({
-    databaseUrl,
-    statusFile,
-    getSync: () => lastSync,
-    relay: alertRelay,
-    tablesWithoutPk,
-    upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
-    log,
-    // Replaced by another PC while idle: stop the worker as if an upload had been refused.
-    onNotWriter: (message) => syncWorker?.markNotWriter(message),
-  });
-  statusReporter.start();
+  setupMenu();
 
   if (owner) {
     const { response } = await dialog.showMessageBox(mainWindow, {
@@ -472,24 +389,15 @@ app.whenReady().then(() => gotLock && boot().catch((err) => {
 
 app.on('window-all-closed', () => app.quit());
 
-// Stop the backend, then shut Postgres down cleanly before exiting, so the
-// data directory is never left mid-write.
+// lib/runtime.js stop(): backend, final upload (at most 10 s), closing
+// backup, then a clean Postgres shutdown, before exiting.
 app.on('before-quit', (event) => {
   if (quitting) return;
   quitting = true;
   event.preventDefault();
   (async () => {
     try {
-      // One last upload, at most 10 s, so a sale made just before closing
-      // usually reaches the server now rather than on the next start.
-      if (syncWorker) {
-        await syncWorker.finalUpload(10_000).catch((err) => log(`sync: final upload failed: ${err.message}`));
-        await syncWorker.stop();
-      }
-      if (statusReporter) await statusReporter.stop();
-      if (backend) backend.kill();
-      if (alertRelay) await alertRelay.stop();
-      await stopPostgres({ dataDir: pgDataDir, log });
+      await runtime.stop({ uploadMs: 10_000 });
     } catch (err) {
       log(`shutdown error: ${err.message}`);
     } finally {

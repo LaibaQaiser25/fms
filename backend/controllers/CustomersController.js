@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { VERSION, lockForEdit, editInTransaction } = require('../services/rowVersion');
 
 class CustomersController {
   /**
@@ -40,7 +41,7 @@ class CustomersController {
     try {
       const { search = '', limit = 10 } = req.query;
 
-      let query = 'SELECT * FROM customers';
+      let query = `SELECT *, ${VERSION} FROM customers`;
       let params = [];
 
       if (search) {
@@ -103,7 +104,7 @@ class CustomersController {
       const offset = (page - 1) * limit;
 
       const result = await pool.query(
-        'SELECT * FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+        `SELECT *, ${VERSION} FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
 
@@ -136,7 +137,7 @@ class CustomersController {
       const { id } = req.params;
 
       const result = await pool.query(
-        'SELECT * FROM customers WHERE id = $1',
+        `SELECT *, ${VERSION} FROM customers WHERE id = $1`,
         [id]
       );
 
@@ -162,28 +163,30 @@ class CustomersController {
   static async updateCustomer(req, res) {
     try {
       const { id } = req.params;
-      const { name, phone, address, email } = req.body;
+      const { name, phone, address, email, version } = req.body;
 
-      const result = await pool.query(
-        `UPDATE customers 
-         SET name = COALESCE($1, name),
-             phone = COALESCE($2, phone),
-             address = COALESCE($3, address),
-             email = COALESCE($4, email),
-             updated_at = NOW()
-         WHERE id = $5
-         RETURNING *`,
-        [name || null, phone || null, address || null, email || null, id]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Customer not found' });
-      }
+      // Refused (409) if someone else changed it since `version` was read (T3.5).
+      const row = await editInTransaction(pool, res, async (client) => {
+        await lockForEdit(client, 'customers', id, version, 'Customer');
+        const result = await client.query(
+          `UPDATE customers 
+           SET name = COALESCE($1, name),
+               phone = COALESCE($2, phone),
+               address = COALESCE($3, address),
+               email = COALESCE($4, email),
+               updated_at = NOW()
+           WHERE id = $5
+           RETURNING *, ${VERSION}`,
+          [name || null, phone || null, address || null, email || null, id]
+        );
+        return result.rows[0];
+      });
+      if (!row) return;
 
       res.json({
         success: true,
         message: 'Customer updated',
-        data: result.rows[0]
+        data: row
       });
 
     } catch (error) {

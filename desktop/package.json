@@ -11,7 +11,8 @@
     "stage": "node scripts/stage.js",
     "start": "npm run stage && electron .",
     "start:nostage": "electron .",
-    "dist": "npm run stage && electron-builder --win --publish never"
+    "fetch-tools": "node scripts/fetch-tools.js",
+    "dist": "npm run stage && npm run fetch-tools && electron-builder --win --publish never"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -44,9 +45,12 @@
     "npmRebuild": false,
     "files": [
       "main.js",
+      "host.js",
       "lib/**",
       "setup/**",
+      "service/**",
       "staged/**",
+      "tools/**",
       "package.json"
     ],
     "publish": [

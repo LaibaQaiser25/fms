@@ -29,6 +29,7 @@ class SyncWorker {
     this.timer = null;
     this.running = null;
     this.stopped = false;
+    this.paused = false;
     this.lastError = null;
     this.kickPending = false;
     this.nudgeTimer = null;
@@ -68,7 +69,7 @@ class SyncWorker {
 
   // A write happened: push in PUSH_DELAY_MS, once for the whole burst.
   nudge() {
-    if (this.nudgeTimer || this.stopped) return;
+    if (this.nudgeTimer || this.stopped || this.paused) return;
     this.nudgeTimer = setTimeout(() => {
       this.nudgeTimer = null;
       this.kick();
@@ -78,7 +79,7 @@ class SyncWorker {
   // Run a round now. If one is running, run another right after it, so a
   // change committed during it isn't left for the idle poll.
   kick() {
-    if (this.stopped) return;
+    if (this.stopped || this.paused) return;
     if (this.running) {
       this.kickPending = true;
       return;
@@ -87,8 +88,24 @@ class SyncWorker {
     this.schedule(0);
   }
 
+  // Holds uploads (T2.8: while pruning the server) until resume(); resolves
+  // once a round already under way has finished. Changes keep queueing.
+  async pause() {
+    this.paused = true;
+    clearTimeout(this.timer);
+    clearTimeout(this.nudgeTimer);
+    this.nudgeTimer = null;
+    if (this.running) await this.running.catch(() => {});
+  }
+
+  resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    this.kick();
+  }
+
   schedule(ms) {
-    if (this.stopped) return;
+    if (this.stopped || this.paused) return;
     this.timer = setTimeout(() => {
       this.kickPending = false;
       this.running = this.round()

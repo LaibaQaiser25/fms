@@ -398,6 +398,31 @@ class ReportsController {
   }
 
   /**
+   * GET /api/reports/dispatch-log?page=&limit=
+   * What the online server's send-only scheduler sent to WhatsApp (T2.1, T2.3):
+   * read-only history. Empty on the factory PC, which sends none (T2.2).
+   */
+  static async listDispatchLog(req, res) {
+    try {
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const [list, count] = await Promise.all([
+        pool.query(
+          `SELECT id, frequency, period_key, sent_at, status,
+                  payload->>'label' AS label, payload->>'dataAsOf' AS data_as_of, payload->>'message' AS message
+             FROM report_dispatch_log ORDER BY sent_at DESC, id DESC LIMIT $1 OFFSET $2`,
+          [limit, (page - 1) * limit]
+        ),
+        pool.query('SELECT count(*)::int AS n FROM report_dispatch_log'),
+      ]);
+      res.json({ success: true, data: list.rows, pagination: { page, limit, total: count.rows[0].n, pages: Math.max(1, Math.ceil(count.rows[0].n / limit)) } });
+    } catch (error) {
+      console.error('❌ Error fetching the report dispatch log:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * PUT /api/reports/schedules/:frequency
    * Body: { enabled, runTime, runDayOfWeek?, runDayOfMonth? }
    */

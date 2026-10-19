@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { VERSION, lockForEdit, editInTransaction } = require('../services/rowVersion');
 
 class ProductsController {
   /**
@@ -10,7 +11,7 @@ class ProductsController {
       const { type } = req.query;
       const params = [];
       let query = `
-        SELECT p.*, c.name AS category_name, u.name AS unit
+        SELECT p.*, p.${VERSION}, c.name AS category_name, u.name AS unit
         FROM products p
         LEFT JOIN product_categories c ON c.id = p.category_id
         LEFT JOIN product_units u ON u.id = p.unit_id
@@ -38,7 +39,7 @@ class ProductsController {
       const { q = '', type } = req.query;
       const params = [`%${q}%`];
       let query = `
-        SELECT p.*, c.name AS category_name, u.name AS unit
+        SELECT p.*, p.${VERSION}, c.name AS category_name, u.name AS unit
         FROM products p
         LEFT JOIN product_categories c ON c.id = p.category_id
         LEFT JOIN product_units u ON u.id = p.unit_id
@@ -65,7 +66,7 @@ class ProductsController {
   static async getProductById(req, res) {
     try {
       const result = await pool.query(
-        `SELECT p.*, c.name AS category_name, u.name AS unit
+        `SELECT p.*, p.${VERSION}, c.name AS category_name, u.name AS unit
          FROM products p
          LEFT JOIN product_categories c ON c.id = p.category_id
          LEFT JOIN product_units u ON u.id = p.unit_id
@@ -290,7 +291,7 @@ class ProductsController {
    */
   static async updateProduct(req, res) {
     try {
-      const { name, type, category_id, size, unit, description, quantity } = req.body;
+      const { name, type, category_id, size, unit, description, quantity, version } = req.body;
 
       if (!['stock', 'raw_material'].includes(type)) {
         return res.status(400).json({ error: 'Invalid type' });
@@ -310,28 +311,30 @@ class ProductsController {
         unitId = unitResult.rows[0].id;
       }
 
-      const result = await pool.query(
-        `UPDATE products
-         SET name = $1, type = $2, category_id = $3, size = $4, unit_id = $5, description = $6, quantity = $7, updated_at = NOW()
-         WHERE id = $8
-         RETURNING *`,
-        [
-          name,
-          type,
-          isStock ? (category_id || null) : null,
-          isStock ? (size || null) : null,
-          unitId,
-          description || null,
-          Number(quantity),
-          req.params.id
-        ]
-      );
+      // Refused (409) if someone else changed it since `version` was read (T3.5).
+      const row = await editInTransaction(pool, res, async (client) => {
+        await lockForEdit(client, 'products', req.params.id, version, 'Product');
+        const result = await client.query(
+          `UPDATE products
+           SET name = $1, type = $2, category_id = $3, size = $4, unit_id = $5, description = $6, quantity = $7, updated_at = NOW()
+           WHERE id = $8
+           RETURNING *, ${VERSION}`,
+          [
+            name,
+            type,
+            isStock ? (category_id || null) : null,
+            isStock ? (size || null) : null,
+            unitId,
+            description || null,
+            Number(quantity),
+            req.params.id
+          ]
+        );
+        return result.rows[0];
+      });
+      if (!row) return;
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Product not found' });
-      }
-
-      res.json(result.rows[0]);
+      res.json(row);
     } catch (err) {
       if (err.code === '23505') {
         const isStock = req.body.type !== 'raw_material';
@@ -429,7 +432,7 @@ class ProductsController {
         return res.status(404).json({ error: 'Category not found' });
       }
 
-      res.json(result.rows[0]);
+      res.json(row);
     } catch (err) {
       if (err.code === '23505') {
         return res.status(400).json({ error: 'A category with this name already exists' });
@@ -528,7 +531,7 @@ class ProductsController {
         return res.status(404).json({ error: 'Unit not found' });
       }
 
-      res.json(result.rows[0]);
+      res.json(row);
     } catch (err) {
       if (err.code === '23505') {
         return res.status(400).json({ error: 'A unit with this name already exists' });

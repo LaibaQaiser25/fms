@@ -14,7 +14,7 @@ const BACKLOG_AMBER_SEC = 5 * 60;
 //   { state: 'not_registered' } when this PC has no upload key.
 // relay: an AlertRelay (status() -> relayState etc.), or null.
 // backup: a BackupScheduler (lib/backup.js), or null.
-async function collectStatus({ pool, sync, relay, backup, tablesWithoutPk = [] }) {
+async function collectStatus({ pool, sync, relay, backup, tablesWithoutPk = [], unsafeSettings = [] }) {
   const { rows: [db] } = await pool.query(
     `SELECT (SELECT count(*)::int FROM sync_outbox) AS outbox_count,
             (SELECT COALESCE(EXTRACT(EPOCH FROM now() - min(created_at)), 0)::int FROM sync_outbox) AS oldest_outbox_age,
@@ -37,6 +37,7 @@ async function collectStatus({ pool, sync, relay, backup, tablesWithoutPk = [] }
     whatsappQueued: wa?.whatsappQueued ?? null,
     oldestWhatsappAge: wa?.oldestWhatsappAge ?? null,
     tablesWithoutPk,
+    unsafeSettings,
     backup: bk && { sameDrive: bk.sameDrive, lastBackupAt: bk.lastBackupAt, lastError: bk.lastError },
     generatedAt: new Date().toISOString(),
   };
@@ -54,6 +55,7 @@ function levelOf(s) {
     red.push(`${s.quarantineCount} change${s.quarantineCount === 1 ? ' was' : 's were'} refused by the online server — see Sync issues`);
   }
   if (s.tablesWithoutPk.length) red.push(`Not uploaded at all (no primary key): ${s.tablesWithoutPk.join(', ')}`);
+  if (s.unsafeSettings?.length) red.push(`The database is set up unsafely (${s.unsafeSettings.join(', ')} off): a power cut can lose saved data`);
   if (s.outboxCount > 0 && s.oldestOutboxAge > BACKLOG_AMBER_SEC) {
     amber.push(s.state === 'offline' ? 'No internet — changes are waiting' : 'Changes have been waiting more than 5 minutes');
   }
@@ -76,10 +78,10 @@ function levelOf(s) {
 //   onNotWriter(message): the heartbeat was refused because another PC is now
 //     the registered main PC — so even an idle PC finds out within a minute
 class StatusReporter {
-  constructor({ databaseUrl, statusFile, getSync, relay, backup = null, tablesWithoutPk, upload, log,
+  constructor({ databaseUrl, statusFile, getSync, relay, backup = null, tablesWithoutPk, unsafeSettings = [], upload, log,
     onNotWriter = () => {}, intervalMs = 15_000, heartbeatMs = 60_000 }) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 1 });
-    Object.assign(this, { statusFile, getSync, relay, backup, tablesWithoutPk, upload, log, onNotWriter, intervalMs, heartbeatMs });
+    Object.assign(this, { statusFile, getSync, relay, backup, tablesWithoutPk, unsafeSettings, upload, log, onNotWriter, intervalMs, heartbeatMs });
     this.last = null;
     this.timers = [];
     this.heartbeatFailing = false;
@@ -103,7 +105,7 @@ class StatusReporter {
     if (this.stopped) return;
     try {
       this.last = await collectStatus({
-        pool: this.pool, sync: this.getSync(), relay: this.relay, backup: this.backup, tablesWithoutPk: this.tablesWithoutPk,
+        pool: this.pool, sync: this.getSync(), relay: this.relay, backup: this.backup, tablesWithoutPk: this.tablesWithoutPk, unsafeSettings: this.unsafeSettings,
       });
       const tmp = `${this.statusFile}.tmp`;
       fs.writeFileSync(tmp, JSON.stringify(this.last));

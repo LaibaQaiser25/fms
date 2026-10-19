@@ -1323,3 +1323,23 @@ test('backup: keeps the last 24 h, the newest of 14 days and of 8 weeks, also wh
   assert.equal(files.filter((n) => n.endsWith('.counts.json')).length, kept.length);
   assert.ok(files.includes('notes.txt'));
 });
+
+test('durability: fsync, synchronous_commit and full_page_writes are logged at start; one turned off makes the status red', async () => {
+  const { checkDurability } = require('../lib/database');
+  const { levelOf } = require('../lib/status');
+  const lines = [];
+  assert.deepEqual(await checkDurability({ databaseUrl: factoryUrl, log: (m) => lines.push(m) }), []);
+  assert.deepEqual(lines, ['postgres durability: fsync=on, full_page_writes=on, synchronous_commit=on']);
+  try {
+    await factory.query('ALTER SYSTEM SET fsync = off');
+    await factory.query('SELECT pg_reload_conf()');
+    await sleep(300);
+    const off = await checkDurability({ databaseUrl: factoryUrl, log: () => {} });
+    assert.deepEqual(off, ['fsync']);
+    assert.deepEqual(levelOf({ state: 'ok', quarantineCount: 0, tablesWithoutPk: [], outboxCount: 0, unsafeSettings: off }),
+      { level: 'red', problems: ['The database is set up unsafely (fsync off): a power cut can lose saved data'] });
+  } finally {
+    await factory.query('ALTER SYSTEM RESET fsync');
+    await factory.query('SELECT pg_reload_conf()');
+  }
+});

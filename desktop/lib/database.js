@@ -155,4 +155,21 @@ async function ensureOwner({ databaseUrl }) {
   }
 }
 
-module.exports = { startPostgres, stopPostgres, prepareSchema, ensureOwner };
+// T2.6: the settings that keep committed data safe through a power cut. The
+// embedded server starts with no flags, so they are at their safe defaults;
+// this logs them at every start (the factory PC has no psql to check with)
+// and returns any that are off.
+const DURABILITY = ['fsync', 'synchronous_commit', 'full_page_writes'];
+async function checkDurability({ databaseUrl, log }) {
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    const { rows } = await client.query('SELECT name, setting FROM pg_settings WHERE name = ANY($1) ORDER BY name', [DURABILITY]);
+    log(`postgres durability: ${rows.map((r) => `${r.name}=${r.setting}`).join(', ')}`);
+    return rows.filter((r) => r.setting !== 'on').map((r) => r.name);
+  } finally {
+    await client.end();
+  }
+}
+
+module.exports = { startPostgres, stopPostgres, prepareSchema, ensureOwner, checkDurability };

@@ -207,7 +207,7 @@ Current values: `PROTECTED_TABLES = new Set(['pgmigrations'])`;
 | T2.3 | Report freshness label + history view | T2.1, T1.5 | CODE DONE, CHECKS FAILING | 27/27 `npm test` (stale, fresh, period incomplete, history route); Sent to WhatsApp tab built, not yet seen in a browser; production pending |
 | T2.4 | Health endpoint + n8n watchdog | T1.5 | CODE DONE, CHECKS FAILING | 22/22 `npm test`; watchdog seen on a scratch n8n 2.37.10 (alerts, no repeat, quiet when off, cleared); production deploy + provisioning + real WhatsApp pending |
 | T2.5 | Factory backups + restore drill | T1.10 | CODE DONE, CHECKS FAILING | 29/29 `npm test` (dump during writes → drill matches; damaged / failed never kept; retention); scheduled + on-close backup seen in the real app (Linux, Xvfb); Windows `pg_dump.exe` run + drill on the factory PC pending |
-| T2.6 | UPS + Postgres durability check | — | NOT STARTED | ops |
+| T2.6 | UPS + Postgres durability check | — | CODE DONE, CHECKS FAILING | ops; FMS now logs the three settings at start (seen on Linux) and goes red if one is off (`npm test` 30/30); UPS + the factory log line pending |
 | T2.7 | Non-negative stock | T1.3 | CODE DONE, CHECKS FAILING | 20/20 `npm test` (1 new); checks 1–4 seen on a scratch database; migration 027 + check 2 ✅ on the VPS (17 Oct); factory install (1.0.2) pending |
 | T2.8 | Rebuild the online server from the factory | T1.1, T1.3 | CODE DONE, CHECKS FAILING | 25/25 `npm test` (checks 1–5 in the harness); the app's menu + window need a real run |
 | T3.1 | `desktop/host.js` entry point | T1.5 | NOT STARTED | |
@@ -1504,6 +1504,21 @@ already at their safe defaults (F7) — **do not tune them off**.
 → all `on`.
 
 **Gate:** output recorded, and who installed the UPS.
+
+**Built (19 Oct 2026):** the factory PC has no `psql`, so FMS now checks for itself:
+`checkDurability` (`desktop/lib/database.js`) logs `postgres durability: fsync=on,
+full_page_writes=on, synchronous_commit=on` to `fms.log` at every start, and any that is off makes
+the status bar **red** ("The database is set up unsafely (… off): a power cut can lose saved data").
+The check above is then: that line from `%APPDATA%\FMS\logs\fms.log`.
+
+**Evidence (19 Oct 2026):**
+- `npm test` 30/30 — `durability: …` ✔: the log line with all three `on`; `ALTER SYSTEM SET fsync =
+  off` + reload → `['fsync']` and status red with that message; reset afterwards.
+- Real app on Linux (Xvfb): `postgres durability: fsync=on, full_page_writes=on,
+  synchronous_commit=on`.
+- ⏳ Ops: the UPS (sized for the main PC + monitor + router, with its USB cable so Windows shuts down
+  on low battery: Power Options → Battery → critical action **Shut down**); who installed it; the
+  same log line from the factory PC.
 
 ---
 

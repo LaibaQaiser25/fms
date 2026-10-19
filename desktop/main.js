@@ -18,7 +18,7 @@ const net = require('net');
 const http = require('http');
 const crypto = require('crypto');
 const { APP_PORT, ALERT_PORT } = require('./lib/ports');
-const { startPostgres, stopPostgres, prepareSchema, ensureOwner } = require('./lib/database');
+const { startPostgres, stopPostgres, prepareSchema, ensureOwner, checkDurability } = require('./lib/database');
 const { installSyncCapture } = require('./lib/syncCapture');
 const { SyncWorker } = require('./lib/sync');
 const { registerWriter, downloadSnapshot, importSnapshot } = require('./lib/snapshot');
@@ -338,6 +338,7 @@ let statusReporter = null;
 let backups = null;
 let lastSync = null;          // SyncWorker's last report, or { state: 'not_registered' }
 let tablesWithoutPk = [];
+let unsafeSettings = [];
 let updateReady = null; // version string once an update has downloaded
 let quitting = false;
 
@@ -543,6 +544,7 @@ async function startUploads({ cfg, databaseUrl }) {
     relay: alertRelay,
     backup: backups,
     tablesWithoutPk,
+    unsafeSettings,
     upload: cfg.uploadKey ? { serverUrl: cfg.syncServerUrl, uploadKey: cfg.uploadKey } : null,
     log,
     // Replaced by another PC while idle: stop the worker as if an upload had been refused.
@@ -565,6 +567,7 @@ async function boot() {
     password: cfg.pgPassword,
     log,
   });
+  unsafeSettings = await checkDurability({ databaseUrl, log });
   await prepareSchema({ databaseUrl, backendDir: BACKEND_DIR, log });
   // Before ensureOwner, so even the very first account reaches the VPS.
   ({ tablesWithoutPk } = await installSyncCapture({ databaseUrl, log }));

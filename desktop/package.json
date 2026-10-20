@@ -1,7 +1,7 @@
 {
   "name": "fms-desktop",
   "productName": "FMS",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "FMS offline desktop app for the factory PC (bundled backend + embedded Postgres)",
   "main": "main.js",
   "private": true,

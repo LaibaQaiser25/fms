@@ -50,7 +50,20 @@ const env = {
   FMS_HEALTH_URL: n8nEnv.FMS_HEALTH_URL || 'http://backend:5000/sync/health',
   WATCHDOG_ALERT_URL: n8nEnv.WATCHDOG_ALERT_URL || 'http://localhost:5678/webhook/fms-alert',
 };
+// Optional: the approved Meta template alerts go out as (docs/whatsapp-templates.md).
+// Empty = free-form text, which Meta only delivers inside the 24-hour window.
+Object.assign(env, {
+  WHATSAPP_TEMPLATE_NAME: n8nEnv.WHATSAPP_TEMPLATE_NAME || '',
+  WHATSAPP_TEMPLATE_LANG: n8nEnv.WHATSAPP_TEMPLATE_LANG || 'en',
+});
+const OPTIONAL = new Set(['WHATSAPP_TEMPLATE_NAME']);
+// Both are pasted into the workflow's code as JS strings.
+if (!/^[a-z0-9_]*$/.test(env.WHATSAPP_TEMPLATE_NAME) || !/^[a-z]{2,3}(_[A-Z]{2})?$/.test(env.WHATSAPP_TEMPLATE_LANG)) {
+  console.error('ERROR: WHATSAPP_TEMPLATE_NAME must be lowercase letters/digits/_ (e.g. fms_alert) and WHATSAPP_TEMPLATE_LANG a Meta language code (e.g. en, en_US).');
+  process.exit(1);
+}
 for (const [k, v] of Object.entries(env)) {
+  if (OPTIONAL.has(k)) continue;
   if (!v || v === 'change-me') {
     console.error(`ERROR: missing value for ${k} — fill in ${k === 'SYNC_TOKEN' ? 'backend/.env' : 'deploy/.env.n8n'} first.`);
     process.exit(1);

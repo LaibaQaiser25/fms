@@ -16,9 +16,9 @@ class NotWriter extends Error {}
 
 // Tables ingest refuses to write: the factory never sends these, and must not
 // be able to. Every VPS-only table is here too (SYNC-HARDENING-PLAN.md §4).
-const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log']);
+const PROTECTED_TABLES = new Set(['pgmigrations', 'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log', 'whatsapp_messages']);
 // Server bookkeeping that is never copied to a factory by the snapshot.
-const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log']);
+const VPS_ONLY_TABLES = new Set(['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log', 'whatsapp_messages']);
 
 // The snapshot hands out every business table (password hashes included), so
 // only the PC that registered within the last hour may take it.

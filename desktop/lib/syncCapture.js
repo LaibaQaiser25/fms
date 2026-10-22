@@ -15,6 +15,7 @@ const { Client } = require('pg');
 const EXCLUDED_TABLES = [
   'pgmigrations', 'sync_outbox', 'sync_state', 'whatsapp_outbox', 'whatsapp_dead', 'sync_quarantine',
   'sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log',
+  'whatsapp_messages',
 ];
 
 const SETUP_SQL = `

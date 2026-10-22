@@ -172,6 +172,7 @@ Consequences:
 | `sync_rejected` | VPS | migration 025 (T1.3) | ✅ | ✅ | ✅ |
 | `sync_heartbeat` | VPS | migration 026 (T1.5) | ✅ | ✅ | ✅ |
 | `report_dispatch_log` | VPS | migration 028 (T2.1) | ✅ | ✅ | ✅ |
+| `whatsapp_messages` | VPS | migration 029 (written by n8n, docs/whatsapp-alerts.md) | ✅ | ✅ | ✅ |
 | `whatsapp_dead` | factory | `alertRelay.js` (T1.6) | — | — | ✅ |
 | `sync_quarantine` | factory | `syncCapture.js` (T1.4) | — | — | ✅ |
 

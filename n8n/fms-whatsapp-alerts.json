@@ -24,7 +24,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Turns FMS's free-text {message} into the Meta request(s) to send.\n// With WHATSAPP_TEMPLATE_NAME set: the approved utility template\n// (docs/whatsapp-templates.md), which Meta delivers even when the owner has\n// not messaged the business number in the last 24 h. Free-form text is only\n// delivered inside that window and is otherwise dropped after Meta has\n// already said 200 (code 131047), so FMS thinks it was sent.\n// Template values may not hold newlines/tabs or 4+ spaces, and the whole body\n// must stay under 1024 characters: the first line becomes the title, the\n// rest are joined into one line, and a long report goes out as parts \"(1/3)\"...\n// With WHATSAPP_TEMPLATE_NAME empty: one free-form text, as before.\nconst TEMPLATE = '{{ $env.WHATSAPP_TEMPLATE_NAME }}'.trim();\nconst LANG = '{{ $env.WHATSAPP_TEMPLATE_LANG }}'.trim() || 'en';\nconst TO = '{{ $env.WHATSAPP_TO_NUMBER }}';\nconst MAX_TITLE = 60;\nconst MAX_BODY = 800; // + title + the template's own ~90 characters < 1024\n\nconst message = String(($input.first().json.body || {}).message || '').trim();\nif (!message) throw new Error('No message in the request body');\n\nif (!TEMPLATE) {\n  return [{ json: { payload: { messaging_product: 'whatsapp', to: TO, type: 'text', text: { body: message } } } }];\n}\n\nconst clean = (s) => s.replace(/\\s+/g, ' ').trim();\nconst cut = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);\nlet lines = message.split(/\\r?\\n/).map(clean).filter(Boolean);\n\n// The factory relay puts \"(Delayed: from …)\" on top of a late alert: keep it,\n// but take the title from the line after it.\nconst notes = [];\nwhile (lines.length > 1 && /^\\(Delayed/i.test(lines[0])) notes.push(lines.shift());\nlet title = 'Notice';\nif (lines.length > 1) title = lines.shift().replace(/\\*/g, '').trim() || title;\nlines = notes.concat(lines);\n\n// Greedy split on line boundaries; a single over-long line is cut. A\n// \"• \" line needs no \" | \" in front: the bullet already separates it.\nconst parts = [];\nlet cur = '';\nfor (let line of lines) {\n  while (line.length > MAX_BODY) {\n    if (cur) { parts.push(cur); cur = ''; }\n    parts.push(line.slice(0, MAX_BODY));\n    line = line.slice(MAX_BODY);\n  }\n  if (!line) continue;\n  const next = cur ? `${cur}${line.startsWith(\"•\") ? \" \" : \" | \"}${line}` : line;\n  if (next.length > MAX_BODY) { parts.push(cur); cur = line; } else cur = next;\n}\nif (cur) parts.push(cur);\nif (parts.length === 0) parts.push('-');\n\nreturn parts.map((body, i) => {\n  const suffix = parts.length > 1 ? ` (${i + 1}/${parts.length})` : '';\n  return {\n    json: {\n      payload: {\n        messaging_product: 'whatsapp',\n        to: TO,\n        type: 'template',\n        template: {\n          name: TEMPLATE,\n          language: { code: LANG },\n          components: [{\n            type: 'body',\n            parameters: [\n              { type: 'text', text: cut(title, MAX_TITLE - suffix.length) + suffix },\n              { type: 'text', text: body },\n            ],\n          }],\n        },\n      },\n    },\n  };\n});"
+        "jsCode": "// Turns FMS's free-text {message} into the Meta request(s) to send.\n// With WHATSAPP_TEMPLATE_NAME set: the approved utility template (docs/\n// whatsapp-alerts.md, \"Templates\"), which Meta delivers even when the owner\n// has not messaged the business number in the last 24 h. Free-form text is only\n// delivered inside that window and is otherwise dropped after Meta has\n// already said 200 (code 131047), so FMS thinks it was sent.\n// Template values may not hold newlines/tabs or 4+ spaces, and the whole body\n// must stay under 1024 characters: the first line becomes the title, the\n// rest are joined into one line, and a long report goes out as parts \"(1/3)\"...\n// With WHATSAPP_TEMPLATE_NAME empty: one free-form text, as before.\n// Every request carries \"<title> @ <time>\" as biz_opaque_callback_data, which\n// Meta hands back with the delivery status, so the status workflow\n// (n8n/fms-whatsapp-status.json) can say which alert failed.\nconst TEMPLATE = '{{ $env.WHATSAPP_TEMPLATE_NAME }}'.trim();\nconst LANG = '{{ $env.WHATSAPP_TEMPLATE_LANG }}'.trim() || 'en';\nconst TO = '{{ $env.WHATSAPP_TO_NUMBER }}';\nconst MAX_TITLE = 60;\nconst MAX_BODY = 800; // + title + the template's own ~90 characters < 1024\n\nconst message = String(($input.first().json.body || {}).message || '').trim();\nif (!message) throw new Error('No message in the request body');\n\nconst clean = (s) => s.replace(/\\s+/g, ' ').trim();\nconst cut = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);\nlet lines = message.split(/\\r?\\n/).map(clean).filter(Boolean);\n\n// The factory relay puts \"(Delayed: from …)\" on top of a late alert, and the\n// status workflow \"(Missed: first sent …)\" on a resent one: keep it, but take\n// the title from the line after it.\nconst notes = [];\nwhile (lines.length > 1 && /^\\((Delayed|Missed)/i.test(lines[0])) notes.push(lines.shift());\nlet title = 'Notice';\nif (lines.length > 1) title = lines.shift().replace(/\\*/g, '').trim() || title;\nlines = notes.concat(lines);\n\nconst sentAt = new Date().toLocaleString('en-PK', {\n  timeZone: 'Asia/Karachi', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',\n});\nconst tag = (t) => cut(`${t} @ ${sentAt}`, 200);\n\n// Besides the request: title and resend (free-form text), saved in\n// whatsapp_messages by \"Remember sent\" so a failed one can be sent again.\nif (!TEMPLATE) {\n  return [{ json: {\n    payload: {\n      messaging_product: 'whatsapp', to: TO, type: 'text', text: { body: message },\n      biz_opaque_callback_data: tag(title),\n    },\n    title,\n    resend: message,\n  } }];\n}\n\n// Greedy split on line boundaries; a single over-long line is cut. A\n// \"• \" line needs no \" | \" in front: the bullet already separates it.\nconst parts = [];\nlet cur = '';\nfor (let line of lines) {\n  while (line.length > MAX_BODY) {\n    if (cur) { parts.push(cur); cur = ''; }\n    parts.push(line.slice(0, MAX_BODY));\n    line = line.slice(MAX_BODY);\n  }\n  if (!line) continue;\n  const next = cur ? `${cur}${line.startsWith('•') ? ' ' : ' | '}${line}` : line;\n  if (next.length > MAX_BODY) { parts.push(cur); cur = line; } else cur = next;\n}\nif (cur) parts.push(cur);\nif (parts.length === 0) parts.push('-');\n\nreturn parts.map((body, i) => {\n  const suffix = parts.length > 1 ? ` (${i + 1}/${parts.length})` : '';\n  const partTitle = cut(title, MAX_TITLE - suffix.length) + suffix;\n  return {\n    json: {\n      payload: {\n        messaging_product: 'whatsapp',\n        to: TO,\n        type: 'template',\n        template: {\n          name: TEMPLATE,\n          language: { code: LANG },\n          components: [{\n            type: 'body',\n            parameters: [\n              { type: 'text', text: partTitle },\n              { type: 'text', text: body },\n            ],\n          }],\n        },\n        biz_opaque_callback_data: tag(partTitle),\n      },\n      title: partTitle,\n      resend: `*${partTitle}*\\n${body}`,\n    },\n  };\n});"
       },
       "id": "1a2b3c4d-0004-4000-8000-000000000004",
       "name": "Build Meta Request",
@@ -64,6 +64,27 @@
     },
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "-- What Meta accepted, so n8n/fms-whatsapp-status.json can record what\n-- happened to it and resend it if it failed. Never fails the request: a\n-- missing table (migration 029 not deployed yet) only loses the tracking.\nINSERT INTO whatsapp_messages (wamid, title, message) VALUES ($1, $2, $3)\nON CONFLICT (wamid) DO UPDATE SET title = EXCLUDED.title, message = EXCLUDED.message\nRETURNING wamid",
+        "options": {
+          "queryReplacement": "={{ [$json.messages && $json.messages[0] ? $json.messages[0].id : null, $('Build Meta Request').item.json.title, $('Build Meta Request').item.json.resend] }}"
+        }
+      },
+      "id": "1a2b3c4d-0005-4000-8000-000000000005",
+      "name": "Remember sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [940, 300],
+      "credentials": {
+        "postgres": {
+          "id": "fms-postgres",
+          "name": "FMS Postgres"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "respondWith": "json",
         "responseBody": "={\n  \"status\": \"sent\",\n  \"whatsappMessageId\": ($json.messages && $json.messages[0] && $json.messages[0].id) || null\n}",
         "options": {}
@@ -72,7 +93,7 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [940, 300]
+      "position": [1180, 300]
     }
   ],
   "connections": {
@@ -99,6 +120,17 @@
       ]
     },
     "Send WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Remember sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remember sent": {
       "main": [
         [
           {

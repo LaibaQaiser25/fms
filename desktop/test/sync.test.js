@@ -353,7 +353,7 @@ test('the snapshot needs read-only mode and a registration less than an hour old
     const snap = await call(route()['/sync/snapshot'], { headers: withKey() });
     assert.equal(snap.status, 200, JSON.stringify(snap.body));
     assert.ok('customers' in snap.body.tables);
-    for (const t of ['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log', 'pgmigrations']) {
+    for (const t of ['sync_writer', 'setup_code', 'offline_setup', 'sync_rejected', 'sync_heartbeat', 'report_dispatch_log', 'whatsapp_messages', 'pgmigrations']) {
       assert.ok(!(t in snap.body.tables), `${t} is not in the snapshot`);
     }
 

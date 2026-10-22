@@ -52,7 +52,16 @@ fi
 echo "==> Ensuring an API key exists"
 # Reuse an existing key labelled 'fms-deploy' if present
 EXISTING=$(curl -s -b "$COOKIE_JAR" "${N8N_BASE}/rest/api-keys")
-KEY_ID=$(echo "$EXISTING" | grep -o '"id":"[^"]*","label":"fms-deploy"' | head -1 | sed 's/"id":"//;s/","label".*//')
+# Parsed as JSON: newer n8n puts other fields between "id" and "label", and
+# lists the keys under data.items instead of data. No key yet = empty.
+KEY_ID=$(echo "$EXISTING" | node -e '
+  let s = ""; process.stdin.on("data", (d) => { s += d; }).on("end", () => {
+    try {
+      const d = JSON.parse(s).data;
+      const k = (Array.isArray(d) ? d : (d && d.items) || []).find((x) => x.label === "fms-deploy");
+      process.stdout.write(k ? k.id : "");
+    } catch { /* not JSON: no key to reuse */ }
+  });')
 RAW_KEY=""
 if [ -n "$KEY_ID" ]; then
   # api key values are only shown once at creation; if we can't read it back we
@@ -61,7 +70,7 @@ if [ -n "$KEY_ID" ]; then
 fi
 CREATED=$(curl -s -b "$COOKIE_JAR" -X POST "${N8N_BASE}/rest/api-keys" \
   -H 'Content-Type: application/json' \
-  -d '{"label":"fms-deploy","scopes":["credential:create","credential:read","credential:update","credential:delete","workflow:activate","workflow:read","workflow:update","workflow:list"],"expiresAt":null}')
+  -d '{"label":"fms-deploy","scopes":["credential:create","credential:read","credential:update","credential:delete","workflow:create","workflow:activate","workflow:read","workflow:update","workflow:list"],"expiresAt":null}')
 RAW_KEY=$(echo "$CREATED" | sed -n 's/.*"rawApiKey":"\([^"]*\)".*/\1/p')
 if [ -z "$RAW_KEY" ]; then
   echo "ERROR: could not create API key. Response: $CREATED"

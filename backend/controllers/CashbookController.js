@@ -369,6 +369,56 @@ class CashbookController {
   }
 
   /**
+   * Who makes up the Receivable / Payable cards: every customer who still owes
+   * us, or every seller we still owe, with their balance. Same ledger maths and
+   * same optional as-of date as fetchBalances, so the rows add up to the card.
+   * GET /api/cashbook/balances/receivable?asOf=YYYY-MM-DD
+   * GET /api/cashbook/balances/payable?asOf=YYYY-MM-DD
+   */
+  static async getBalanceDetails(req, res) {
+    const SIDES = {
+      receivable: { ledger: 'customer_ledger', key: 'customer_id', parties: 'customers' },
+      payable: { ledger: 'purchase_ledger', key: 'seller_id', parties: 'sellers' }
+    };
+    const side = SIDES[req.params.side];
+    if (!side) {
+      return res.status(400).json({ error: 'side must be receivable or payable' });
+    }
+
+    try {
+      // Table/column names come from the whitelist above, never from the request
+      const result = await pool.query(
+        `WITH balances AS (
+           SELECT ${side.key} AS party_id, SUM(debit) - SUM(credit) AS balance
+           FROM ${side.ledger}
+           WHERE ($1::date IS NULL OR created_at::date <= $1::date)
+           GROUP BY ${side.key}
+         )
+         SELECT b.party_id, p.name, p.phone, b.balance
+         FROM balances b
+         LEFT JOIN ${side.parties} p ON p.id = b.party_id
+         WHERE b.balance > 0.01
+         ORDER BY b.balance DESC`,
+        [req.query.asOf || null]
+      );
+
+      res.json({
+        success: true,
+        data: result.rows.map(r => ({
+          partyId: r.party_id,
+          name: r.name,
+          phone: r.phone,
+          balance: Number(r.balance)
+        }))
+      });
+
+    } catch (error) {
+      console.error('❌ Error fetching cashbook balance details:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
    * Distinct payment types present in the cashbook, for the filter dropdown
    * GET /api/cashbook/payment-types
    */

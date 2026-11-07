@@ -4,6 +4,8 @@ import * as cashbookApi from '../api/cashbookApi';
 import expenseAPI from '../api/expenseApi';
 import { Pagination } from './shared/UIComponents';
 import { Skeleton, SkeletonStatCard, SkeletonTable } from './shared/Skeleton';
+import CashbookDetailModal from './CashbookDetailModal';
+import { formatCurrency, formatDate, filterParams } from './cashbookUtils';
 
 const LIMIT = 25;
 
@@ -28,21 +30,6 @@ const TYPE_BADGE = {
   expense: 'bg-orange-100 text-[var(--color-payment)]'
 };
 
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 })
-    .format(Number(amount) || 0);
-
-// entry_date arrives as a plain 'YYYY-MM-DD' string — parse the parts rather
-// than new Date(str), which would treat it as UTC and shift the day
-const formatDate = (value) => {
-  if (!value) return '-';
-  const [y, m, d] = String(value).split('-').map(Number);
-  if (!y || !m || !d) return value;
-  return new Date(y, m - 1, d).toLocaleDateString('en-PK', {
-    day: '2-digit', month: 'short', year: 'numeric'
-  });
-};
-
 function Cashbook() {
   const [entries, setEntries] = useState([]);
   const [totals, setTotals] = useState(null);
@@ -59,6 +46,8 @@ function Cashbook() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
+  // Which summary card's details are open: sale | purchase | expense | net | receivable | payable
+  const [detail, setDetail] = useState(null);
 
   // Feed the typed search into the query a beat later, so every keystroke
   // doesn't fire its own request
@@ -85,13 +74,7 @@ function Cashbook() {
     setLoading(true);
     setError('');
     try {
-      const params = { page, limit: LIMIT, sortBy, order };
-      if (filters.startDate) params.startDate = filters.startDate;
-      if (filters.endDate) params.endDate = filters.endDate;
-      if (filters.types.length > 0) params.type = filters.types.join(',');
-      if (filters.categoryId) params.categoryId = filters.categoryId;
-      if (filters.paymentType) params.paymentType = filters.paymentType;
-      if (filters.search) params.search = filters.search;
+      const params = { ...filterParams(filters), page, limit: LIMIT, sortBy, order };
 
       const response = await cashbookApi.getCashbook(params);
       setEntries(response.data.data || []);
@@ -166,23 +149,23 @@ function Cashbook() {
     </th>
   );
 
-  const SummaryCard = ({ icon, label, value, tone, count }) => (
-    <div className="bg-white rounded-lg shadow-md p-5">
+  const SummaryCard = ({ icon, label, value, tone, count, onClick }) => (
+    <button type="button" onClick={onClick} title="View details" className="bg-white rounded-lg shadow-md p-5 w-full text-left cursor-pointer transition hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-text-accent)]">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-gray-600">{label}</p>
         {icon}
       </div>
       <p className={`text-2xl font-bold mt-2 ${tone.text}`}>{formatCurrency(value)}</p>
       {count !== undefined && (
-        <p className="text-xs text-gray-500 mt-1">{count} {count === 1 ? 'entry' : 'entries'}</p>
+        <p className="text-xs text-gray-500 mt-1">{count} {count === 1 ? 'entry' : 'entries'} · View details</p>
       )}
-    </div>
+    </button>
   );
 
   // Balances are a position, not a flow, so they only follow the end date —
   // "as of" that day, or right now when no end date is set
-  const BalanceCard = ({ icon, label, sublabel, value, parties, partyNoun, background }) => (
-    <div className={`rounded-lg shadow-md p-5 ${background}`}>
+  const BalanceCard = ({ icon, label, sublabel, value, parties, partyNoun, background, onClick }) => (
+    <button type="button" onClick={onClick} title="View details" className={`rounded-lg shadow-md p-5 ${background} w-full text-left cursor-pointer transition hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-text-accent)]`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-white">{label}</p>
@@ -195,8 +178,9 @@ function Cashbook() {
         across {parties ?? 0} {parties === 1 ? partyNoun : `${partyNoun}s`}
         {' · as of '}
         {filters.endDate ? formatDate(filters.endDate) : 'today'}
+        {' · View details'}
       </p>
-    </div>
+    </button>
   );
 
   const net = totals?.net ?? 0;
@@ -222,6 +206,7 @@ function Cashbook() {
             label="Cash In — Sales"
             value={totals?.salesIn}
             count={totals?.counts?.sales}
+            onClick={() => setDetail('sale')}
             tone={{ text: 'text-[var(--color-sale)]' }}
           />
           <SummaryCard
@@ -229,6 +214,7 @@ function Cashbook() {
             label="Cash Out — Purchases"
             value={totals?.purchasesOut}
             count={totals?.counts?.purchases}
+            onClick={() => setDetail('purchase')}
             tone={{ text: 'text-[var(--color-purchase)]' }}
           />
           <SummaryCard
@@ -236,18 +222,19 @@ function Cashbook() {
             label="Cash Out — Expenses"
             value={totals?.expensesOut}
             count={totals?.counts?.expenses}
+            onClick={() => setDetail('expense')}
             tone={{ text: 'text-[var(--color-payment)]' }}
           />
-          <div className={`rounded-lg shadow-md p-5 ${net >= 0 ? 'bg-gray-800' : 'bg-red-600'}`}>
+          <button type="button" onClick={() => setDetail('net')} title="View details" className={`rounded-lg shadow-md p-5 ${net >= 0 ? 'bg-gray-800' : 'bg-red-600'} w-full text-left cursor-pointer transition hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-text-accent)]`}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-white/90">Net Cash In-hand</p>
               <Wallet size={20} className="text-white/90" />
             </div>
             <p className="text-2xl font-bold mt-2 text-white">{formatCurrency(net)}</p>
             <p className="text-xs text-white/80 mt-1">
-              {totalEntries} {totalEntries === 1 ? 'entry' : 'entries'} in view
+              {totalEntries} {totalEntries === 1 ? 'entry' : 'entries'} in view · View details
             </p>
-          </div>
+          </button>
         </div>
         )}
 
@@ -268,6 +255,7 @@ function Cashbook() {
             value={balances?.receivable}
             parties={balances?.customersOwing}
             partyNoun="customer"
+            onClick={() => setDetail('receivable')}
             background="bg-[var(--color-receivable-bg)]"
           />
           <BalanceCard
@@ -277,6 +265,7 @@ function Cashbook() {
             value={balances?.payable}
             parties={balances?.sellersOwed}
             partyNoun="seller"
+            onClick={() => setDetail('payable')}
             background="bg-[var(--color-payable-bg)]"
           />
         </div>
@@ -451,6 +440,15 @@ function Cashbook() {
           </>
         )}
       </div>
+
+      <CashbookDetailModal
+        kind={detail}
+        filters={filters}
+        totals={totals}
+        balances={balances}
+        onOpen={setDetail}
+        onClose={() => setDetail(null)}
+      />
     </div>
   );
 }

@@ -8,7 +8,10 @@ router.get('/summary', CashbookController.getCashbookSummary);
 // Distinct payment types, for the filter dropdown
 router.get('/payment-types', CashbookController.getPaymentTypes);
 
+// Per-customer / per-seller breakdown of the Receivable and Payable cards
+router.get('/balances/:side', CashbookController.getBalanceDetails);
+
 // Cashbook entries + totals
-router.get('/', CashbookController.getCashbook);
+router.get('/',CashbookController.getCashbook);
 
 module.exports = router;

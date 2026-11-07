@@ -34,18 +34,6 @@ const { startCronJobs } = require('./services/cronJobs');
 const { initWebSocketServer } = require('./services/wsServer');
 const http = require('http');
 
-
-
-let nlpSearch;
-try {
-  nlpSearch = require('./routes/nlp-search');
-  console.log('✅ NLP Search module loaded successfully');
-} catch (err) {
-  console.error('❌ Error loading NLP Search module:', err.message);
-  nlpSearch = null;
-}
-
-
 const app = express();
 
 // The VPS is always behind the Cloudflare Tunnel (cloudflared on the VPS
@@ -175,14 +163,6 @@ if (process.env.REPORT_SENDER_MODE === 'send_only') {
   console.log('🔒 READ_ONLY_MODE: writes blocked, cron jobs not started');
 } else {
   startCronJobs(); // Start the cron jobs when the server starts
-}
-
-// NLP routes with error handling
-if (typeof nlpSearch === 'function') {
-  app.use('/api/nlp', nlpSearch);
-  console.log('✅ NLP route mounted at /api/nlp');
-} else {
-  console.warn('⚠️  NLP route not available - module failed to load or is disabled');
 }
 
 // A plain http.Server wrapping the Express app, instead of app.listen()

@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, Download, List, Truck } from 'lucide-react';
+import { MinimizeButton, MinimizedDock } from '../../shared/Minimizable';
+import { useMinimize } from '../../shared/useMinimize';
 import * as purchaseInvoiceApi from '../../../api/purchaseInvoiceApi';
 import * as gatePassApi from '../../../api/gatePassApi';
 import GatePassModal from '../../GatePass/GatePassModal';
 
 function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
+  const { minimized, minimize, restore } = useMinimize();
   const [currentInvoiceId, setCurrentInvoiceId] = useState(invoiceId);
   const [invoice, setInvoice] = useState(null);
   const [items, setItems] = useState([]);
@@ -151,7 +154,8 @@ function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <>
+    <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${minimized ? 'hidden' : ''}`}>
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
@@ -178,8 +182,11 @@ function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
             >
               <List className="w-5 h-5 text-gray-700" />
             </button>
+            <MinimizeButton onClick={minimize} iconClassName="w-6 h-6 text-gray-600" />
             <button
               onClick={onClose}
+              title="Close"
+              aria-label="Close"
               className="p-1 hover:bg-gray-100 rounded"
             >
               <X className="w-6 h-6 text-gray-600" />
@@ -351,6 +358,8 @@ function PurchaseInvoiceModal({ invoiceId, sellerId, onClose }) {
         {showGatePass && <GatePassModal passId={gatePassId} onClose={() => setShowGatePass(false)} />}
       </div>
     </div>
+    <MinimizedDock minimized={minimized} title="Purchase Invoice" onRestore={restore} onClose={onClose} />
+    </>
   );
 }
 

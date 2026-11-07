@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Pencil, Trash2, Check } from 'lucide-react';
+import { MinimizeButton, MinimizedDock } from '../../shared/Minimizable';
+import { useMinimize } from '../../shared/useMinimize';
 import { useAuth } from '../../../context/AuthContext';
 import * as purchaseLedgerApi from '../../../api/purchaseLedgerApi';
 
@@ -10,6 +12,7 @@ import * as purchaseLedgerApi from '../../../api/purchaseLedgerApi';
 const LINKED_TYPES = ['purchase', 'payment'];
 
 function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
+  const { minimized, minimize, restore } = useMinimize();
   const [ledgerData, setLedgerData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -131,7 +134,8 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
   const { seller, history, summary } = ledgerData;
 
   return (
-    <div className="fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <>
+    <div className={`fixed inset-0 bg-white/10 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${minimized ? 'hidden' : ''}`}>
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
@@ -139,12 +143,17 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
             <h2 className="text-2xl font-bold text-gray-800">Ledger History</h2>
             <p className="text-sm text-gray-600">{seller?.name}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded"
-          >
-            <X className="w-6 h-6 text-gray-600" />
-          </button>
+          <div className="flex items-center gap-1">
+            <MinimizeButton onClick={minimize} iconClassName="w-6 h-6 text-gray-600" />
+            <button
+              onClick={onClose}
+              title="Close"
+              aria-label="Close"
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <X className="w-6 h-6 text-gray-600" />
+            </button>
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -333,6 +342,8 @@ function PurchaseLedgerHistoryModal({ sellerId, onClose }) {
         </div>
       </div>
     </div>
+    <MinimizedDock minimized={minimized} title="Ledger History" onRestore={restore} onClose={onClose} />
+    </>
   );
 }
 

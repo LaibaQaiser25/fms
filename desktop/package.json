@@ -24,7 +24,6 @@
     "embedded-postgres": "16.14.0-beta.17",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.1",
-    "groq-sdk": "^1.1.2",
     "jsonwebtoken": "^9.0.3",
     "jwks-rsa": "^4.0.1",
     "jwt-decode": "^4.0.0",

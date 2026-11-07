@@ -1,16 +1,13 @@
-import { Bell, AlertCircle, Search, LogOut, User, Palette, Menu, X } from 'lucide-react';
+import { Bell, AlertCircle, LogOut, User, Palette, Menu } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { PANEL_STYLE, ACCENT_GRADIENT_STYLE } from '../theme';
-import { API_BASE_URL } from '../config';
+import SyncStatusIndicator from './SyncStatusIndicator';
 
-export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, setSearchResults, setSearchSQL, onOpenMobileMenu, collapsed, onToggleCollapse }) {
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
+export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, setShowAlertsDropdown, onOpenMobileMenu, collapsed, onToggleCollapse }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -30,31 +27,6 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const handleSearch = async () => {
-    if (!query.trim()) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/nlp/nlp-search`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-      });
-
-      if (!res.ok) {
-        console.error('Server error:', res.status);
-        return;
-      }
-
-      const data = await res.json();
-      setSearchResults(data.data || []);
-      setSearchSQL(data.sql || '');
-    } catch (e) {
-      console.error('Search failed:', e);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -131,45 +103,10 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
           </div>
         </Link>
 
-        {/* Search — full inline bar from md up; collapses to an icon that
-            opens a dropdown search field on smaller screens so the header
-            row never wraps or overflows horizontally. */}
-        <div className="hidden md:block flex-1 mx-6 lg:mx-10 max-w-[560px] relative">
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder='Try: "gross profit for cement" or "unpaid invoices this month"'
-            className="w-full px-4 py-2.5 pr-10 rounded-lg focus:outline-none text-sm font-medium text-white placeholder-white/30 transition-all duration-200"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.07)',
-            }}
-            onFocus={e => { e.target.style.border = '1px solid color-mix(in srgb, var(--color-text-accent) 50%, transparent)'; }}
-            onBlur={e => { e.target.style.border = '1px solid rgba(255,255,255,0.07)'; }}
-          />
-          <button
-            onClick={handleSearch}
-            disabled={loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 transition-all duration-200"
-            style={{ color: 'rgba(255,255,255,0.6)' }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-accent)'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
-          >
-            <Search className="w-4 h-4" />
-          </button>
-        </div>
+        {/* Spacer — pushes the controls below to the right edge */}
+        <div className="flex-1" />
 
-        {/* Search toggle — mobile/tablet only */}
-        <button
-          type="button"
-          onClick={() => setShowMobileSearch(prev => !prev)}
-          aria-label={showMobileSearch ? 'Close search' : 'Open search'}
-          className="md:hidden ml-auto shrink-0 p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors"
-        >
-          {showMobileSearch ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-        </button>
+        <SyncStatusIndicator />
 
         {/* Theme toggle — only rendered post-login via Layout/ProtectedRoute, never on public pages */}
         <button
@@ -283,38 +220,6 @@ export default function DashboardHeader({ allAlerts = [], showAlertsDropdown, se
         </div>
       </div>
 
-      {/* Mobile search dropdown — the inline bar above is hidden below md.
-          Absolutely positioned so it overlays below the header instead of
-          growing the fixed nav's own height (which sidebar/main assume is
-          a constant 76px). */}
-      {showMobileSearch && (
-        <div
-          className="md:hidden absolute left-0 right-0 top-full px-3 py-3"
-          style={{ background: 'var(--nav-bg)', borderBottom: 'var(--nav-border-width) solid var(--nav-border-color)' }}
-        >
-          <input
-            type="text"
-            autoFocus
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder='Try: "gross profit for cement"'
-            className="w-full px-4 py-2.5 pr-10 rounded-lg focus:outline-none text-sm font-medium text-white placeholder-white/30"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.07)',
-            }}
-          />
-          <button
-            onClick={handleSearch}
-            disabled={loading}
-            className="absolute right-5 top-1/2 -translate-y-1/2"
-            style={{ color: 'rgba(255,255,255,0.6)' }}
-          >
-            <Search className="w-4 h-4" />
-          </button>
-        </div>
-      )}
     </nav>
   );
 }

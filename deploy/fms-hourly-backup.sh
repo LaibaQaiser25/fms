@@ -23,6 +23,8 @@ set -uo pipefail
 export PATH="$PATH:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 GH="${GH_BIN:-$(command -v gh || echo /usr/bin/gh)}"
 REPO="${FMS_REPO:-hanzla46/fms-db-backups}"
+MIRROR="${FMS_MIRROR_REPO:-LaibaQaiser25/fms}"   # second destination; set to "" to disable
+KEEP_MIRROR="${FMS_KEEP_MIRROR:-2}"
 BACKUP_DIR="${FMS_BACKUP_DIR:-$HOME/fms-backups}"
 KEEP_LOCAL="${FMS_KEEP_LOCAL:-24}"     # 24 hourly dumps = 1 day local
 KEEP_REMOTE=2                          # newest two releases only
@@ -114,6 +116,43 @@ for ((i=KEEP_REMOTE; i<${#ordered[@]}; i++)); do
   pruned=$((pruned+1)); log "pruned $old"
 done
 
+# --- 4b. mirror to the FMS repo's releases (best-effort second destination) --
+# The primary copy already succeeded above; a mirror failure is logged and
+# alerted but does not fail the run, or it would mask a good backup.
+mirrored=0
+if [[ -n "$MIRROR" ]]; then
+  if "$GH" repo view "$MIRROR" >/dev/null 2>&1; then
+    m_existing=$("$GH" release view "$tag" --repo "$MIRROR" --json assets \
+      -q ".assets[] | select(.name == \"$name\") | .size" 2>/dev/null)
+    if [[ "$m_existing" == "$size" ]]; then
+      log "mirror OK skip $MIRROR/$tag"
+    elif "$GH" release create "$tag" "$final" --repo "$MIRROR" \
+        --title "$tag" --notes "FMS fms_db dump $(ts) — mirror" >/dev/null 2>&1; then
+      m_got=$("$GH" release view "$tag" --repo "$MIRROR" --json assets \
+        -q ".assets[] | select(.name == \"$name\") | .size" 2>/dev/null)
+      if [[ "$m_got" == "$size" ]]; then
+        mirrored=1; log "mirrored $MIRROR/$tag"
+      else
+        "$GH" release delete "$tag" --repo "$MIRROR" --yes --cleanup-tag >/dev/null 2>&1
+        log "WARN mirror verify failed for $MIRROR/$tag"
+      fi
+    else
+      log "WARN mirror upload failed for $MIRROR/$tag (primary copy is intact)"
+    fi
+
+    # mirror retention: same second-last rule, independently
+    mapfile -t m_ordered < <("$GH" release list --repo "$MIRROR" --limit 100 --json tagName \
+      -q '.[].tagName' 2>/dev/null | grep -E '^fms_db-[0-9]{8}-[0-9]{6}$' | sort -r)
+    for ((i=KEEP_MIRROR; i<${#m_ordered[@]}; i++)); do
+      [[ "${m_ordered[$i]}" == "$tag" ]] && continue
+      "$GH" release delete "${m_ordered[$i]}" --repo "$MIRROR" --yes --cleanup-tag \
+        >/dev/null 2>&1 && log "mirror pruned $MIRROR/${m_ordered[$i]}"
+    done
+  else
+    log "WARN mirror repo $MIRROR not reachable with current gh auth — skipped"
+  fi
+fi
+
 # --- 5. local rotation -----------------------------------------------------
 mapfile -t local_dumps < <(ls -1t "$BACKUP_DIR"/fms_db-*.dump 2>/dev/null)
 for ((i=KEEP_LOCAL; i<${#local_dumps[@]}; i++)); do
@@ -123,5 +162,5 @@ done
 # --- 6. destructive step happened: prove the newest release still exists ---
 survivors=$("$GH" release list --repo "$REPO" --limit 10 --json tagName -q '.[].tagName' 2>/dev/null | wc -l)
 (( survivors >= 1 )) || fail_out "no releases left after pruning — retention went wrong"
-log "OK complete tag=$tag size=$size pruned=$pruned remote_kept=$survivors local_kept=$(ls -1 "$BACKUP_DIR"/fms_db-*.dump | wc -l)"
+log "OK complete tag=$tag size=$size pruned=$pruned remote_kept=$survivors mirrored=$mirrored local_kept=$(ls -1 "$BACKUP_DIR"/fms_db-*.dump | wc -l)"
 exit 0

@@ -251,7 +251,13 @@ itself up as a writer. T1.10 switches it back on.
 
 ### T0.2 — VPS nightly backup + restore drill
 
-**Status:** CODE DONE, CHECKS FAILING — production backup, drill and cron done on 16 Oct 2026 (the cron ran by itself on 17 Oct: `2026-10-17 02:30:03 +0200 backup OK: fms_db-2026-10-17.dump (128K)`; crontab line now `30 2 * * * bash $HOME/fms/deploy/backup-db.sh`);
+**Status:** CODE DONE, CHECKS FAILING — production backup, drill and cron done on 16 Oct 2026 (the cron ran by itself on 17 Oct: `2026-10-17 02:30:03 +0200 backup OK: fms_db-2026-10-17.dump (128K)`).
+
+> **2026-11-19 — superseded.** The nightly `30 2 * * * backup-db.sh` cron was replaced by
+> **`deploy/fms-hourly-backup.sh` on `0 * * * *`**, which dumps hourly, verifies the dump reads
+> back, uploads it as a GitHub release asset to the private repo `hanzla46/fms-db-backups`, and
+> keeps exactly two releases (deleting the second-last each run). `backup-db.sh` is kept for its
+> `--drill` mode only.
 still open: a dump on the owner's PC (check 4), and the Owner accepting check 3 from the
 throwaway run (or running it on production)
 

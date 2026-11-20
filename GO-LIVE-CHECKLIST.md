@@ -8,7 +8,7 @@ order they can actually be done. Each step names the plan check it settles (e.g.
 T1.1, check 4). Paste what you see at each ✍️ into the task's *Evidence* in the plan (or hand it
 to Claude to record). A task becomes `DONE` only when all its checks are observed.
 
-**Who:** 🖥 = on the VPS (`ssh myuser@158.220.94.68`, then `cd ~/fms`) · 🌐 = online dashboard
+**Who:** 🖥 = on the VPS (`ssh myuser@140.238.103.173`, then `cd ~/fms`) · 🌐 = online dashboard
 (app.ittefaqbuilder.com) as the Owner · 🏭 = the factory PC · 🪟 = a Windows machine with the repo.
 
 **Ground rules**
@@ -43,9 +43,9 @@ Usage: `vpsql <<< "SELECT now();"`
       `db` is down). Repeat on production only if you accept ~30 s with the database stopped:
       `sg docker -c "docker compose stop db"; bash deploy/backup-db.sh; ls ~/fms-backups | grep partial; sg docker -c "docker compose start db"`
       → `backup FAILED: pg_dump failed`, no `.partial`. ✍️ (or write "accepted from throwaway run")
-- [ ] **A4 · T0.2-4** 🖥 `crontab -e`, add `30 2 * * * bash ~/fms/deploy/backup-db.sh`;
+- [ ] **A4 · T0.2-4** 🖥 `crontab -e`, add `0 * * * * bash ~/fms/deploy/fms-hourly-backup.sh`  (offsite to hanzla46/vps-backups);
       `crontab -l` shows it. On the owner's PC (PowerShell):
-      `scp "myuser@158.220.94.68:fms-backups/fms_db-*.dump" D:\fms-backups\` → a dump exists there. ✍️
+      `scp "myuser@140.238.103.173:fms-backups/fms_db-*.dump" D:\fms-backups\` → a dump exists there. ✍️
 - [ ] **A5 · T0.1** 🖥 `cp -p backend/.env backend/.env.bak-$(date +%F)`, set
       `READ_ONLY_MODE=false` in `backend/.env`, then `sg docker -c "docker compose up -d backend"`.
   - [ ] **T0.1-1** `sg docker -c "docker compose logs --tail=50 backend" | grep -E "Cron jobs started|READ_ONLY"`
@@ -69,7 +69,7 @@ Usage: `vpsql <<< "SELECT now();"`
       → `sharp ok` (the logo resizer loads in the Alpine image).
 - [ ] **B4 · T0.3-1** 🖥 `curl -s -o /dev/null -w "%{http_code}\n" $API/testautodeployment` → `404`. ✍️
 - [ ] **B4b** 🖥 the nightly backup now exists at `~/fms/deploy/backup-db.sh`: simplify the crontab
-      line added in A4 to `30 2 * * * bash ~/fms/deploy/backup-db.sh` (`crontab -e`).
+      line added in A4 to `0 * * * * bash ~/fms/deploy/fms-hourly-backup.sh`  (offsite to hanzla46/vps-backups) (`crontab -e`).
 - [ ] **B5** 🖥 `sg docker -c "docker compose logs --tail=80 backend"` → no `⚠️⚠️⚠️ N8N_PUBLIC_WEBHOOK_URL`
       warning (it is set), no crash loop; `docker compose ps backend` → `Up`.
 
@@ -178,7 +178,7 @@ Usage: `vpsql <<< "SELECT now();"`
       `dist` now also runs `fetch-tools` (internet needed once: `pg_dump.exe`, `pg_restore.exe`,
       `node.exe`, ~95 MB, each checked against a pinned SHA-256 — a mismatch stops the build).
 - [ ] **D4** Upload (PowerShell, in `desktop/`), `latest.yml` last:
-      `scp dist/FMS-Setup-1.0.2.exe dist/FMS-Setup-1.0.2.exe.blockmap dist/latest.yml myuser@158.220.94.68:~/fms/downloads/`
+      `scp dist/FMS-Setup-1.0.2.exe dist/FMS-Setup-1.0.2.exe.blockmap dist/latest.yml myuser@140.238.103.173:~/fms/downloads/`
       → https://api.ittefaqbuilder.com/downloads shows version 1.0.2. ✍️
 
 ## E. Go-live (same sitting — a setup code and the snapshot both expire after 1 hour)

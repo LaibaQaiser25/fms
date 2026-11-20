@@ -271,7 +271,7 @@ throwaway run (or running it on production)
 - `--drill`: restores the newest dump into a throwaway database, compares every table's row count
   with `fms_db`, then drops it.
 
-Schedule it nightly in the VPS crontab (`30 2 * * * bash ~/fms/deploy/backup-db.sh`). Pull the
+~~Schedule it nightly in the VPS crontab (`30 2 * * * bash ~/fms/deploy/backup-db.sh`).~~ (superseded 2026-11-19 by the hourly offsite job — see above) Pull the
 dumps to the owner's PC weekly (D15):
 `scp "<user>@<vps-ip>:fms-backups/fms_db-*.dump" D:\fms-backups\`.
 

@@ -2,8 +2,13 @@
 
 A complete, production-ready Factory Management System with integrated business modules. Built with React, Node.js, Express, and PostgreSQL.
 
-## Rebuilding the host
+## Recovery
 
-If this box is lost, follow [`deploy/DISASTER-RECOVERY.md`](deploy/DISASTER-RECOVERY.md).
-Everything needed is in GitHub: code here, data and secrets in the private repo
-`hanzla46/vps-backups` (releases tagged `fms_db-*` and `config-*`).
+| If… | Read |
+|---|---|
+| FMS is broken or missing | [`deploy/DISASTER-RECOVERY.md`](deploy/DISASTER-RECOVERY.md) |
+| the whole server is gone | the `box-doc-*` release in `hanzla46/vps-backups` |
+
+Data and secrets live in the private repo `hanzla46/vps-backups` as release
+assets (`fms_db-*` hourly, `config-*` daily). Nothing needed for a rebuild lives
+only on the server.

@@ -1,91 +1,46 @@
-# Disaster recovery — rebuild the whole box from GitHub only
+# Restoring FMS
 
-Assumes the VPS is **gone**: no disk, no SSH, no data. All you have is the
-`hanzla46` GitHub account and the passwords in your password manager.
+Recovery for the Factory Management System: `api.ittefaqbuilder.com` (backend),
+`n8n.ittefaqbuilder.com`, and the Windows desktop updater. Everything needed is
+in GitHub; nothing lives only on the host.
 
-Everything below is in **private GitHub release assets**. Nothing needed for a
-rebuild lives only on the dead machine.
+**Backups:** private repo `hanzla46/vps-backups`
+• `fms_db-*` — hourly, custom-format `pg_dump` of `fms_db`
+• `config-*` — daily, carries `backend/.env` and `deploy/.env.n8n`
+
+The whole-machine rebuild (provisioning, Caddy, tunnels, DNS, restore order across
+all services) is documented separately in the `box-doc-*` release of the same repo.
 
 ---
 
-## 1. What is where
+## Stack
 
-| Asset | Repo | Cadence | Restores |
-|---|---|---|---|
-**Everything is in one private repo: `hanzla46/vps-backups`** — one release per
-run, tagged by component.
-
-| Tag prefix | Cadence | Restores |
+| Container | Image | Notes |
 |---|---|---|
-| `hermes-*` | daily 02:05 | agent config, skills, memory, sessions |
-| `fms_db-*` | hourly | `fms_db` dump |
-| `samaanbox-*` | daily 03:15 | encrypted dump **+ its age key** |
-| `wordpress-*` | daily 03:15 | MySQL DB, `wp-content`, compose + php.ini |
-| `config-*` | daily 03:15 | every `.env`, Caddyfile, tunnel creds, systemd units |
-| `ecom-*` | daily 03:15 | supplier catalogues, harvested data, eBay pipeline |
+| `fms-backend-1` | `fms-backend` (**built locally**) | `node:24-alpine`, multi-arch |
+| `fms-db-1` | `postgres:16-alpine` | volume `fms_pg_data` |
+| `fms-n8n-1` | `docker.n8n.io/n8nio/n8n:2.37.10` | volume `fms_n8n_data` (SQLite) |
 
-List what exists:
-
-```bash
-gh release list -R hanzla46/vps-backups -L 30
-```
-
-**Images, containers and volumes are NOT backed up** — they are rebuilt from
-public registries and from the code repos (`fms`, `SamaanBox`). That is by
-design: architecture-bound binaries must never be restored onto a new host.
+`fms/downloads` is a bind mount holding the Windows installers served to
+customers — it is the electron-updater channel, not a build artefact.
 
 ---
 
-## 2. Provision a new box
+## 1. Code and config
 
 ```bash
-# Ubuntu 24.04 arm64 (any provider). Same user, same uid.
-sudo useradd -u 1001 -m -s /bin/bash myuser
-sudo usermod -aG sudo myuser
-echo 'myuser ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/90-myuser
+git clone https://github.com/LaibaQaiser25/fms.git /opt/fms
+# mirror if the collaborator account is unavailable:
+# git clone https://github.com/hanzla46/fms-mirror.git /opt/fms
 
-# timezone first — every cron is CET
-sudo timedatectl set-timezone Europe/Berlin
-
-sudo apt update && sudo apt install -y build-essential python3-dev python3-venv \
-  git curl zstd age jq ffmpeg tesseract-ocr ripgrep postgresql-client-16 \
-  caddy cloudflared unzip
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker myuser
-
-# Node 22 at the path samaanbox-app.service hardcodes
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-sudo mkdir -p /opt/node22/bin && sudo ln -sf "$(command -v node)" /opt/node22/bin/node
-
-sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
-sudo mkswap /swapfile && sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-
-# GitHub access
-gh auth login
-```
-
----
-
-## 3. Restore the config layer
-
-```bash
 gh release download config-<LATEST> -R hanzla46/vps-backups -D /tmp/cfg --clobber
-cd /tmp/cfg
-
-sudo tar -xzpf env-files.tar.gz      -C /                    # /etc/samaanbox-*.env
-sudo tar -xzpf proxy-and-units.tar.gz -C /                   # Caddyfile, units
-sudo tar -xzpf app-envs-root.tar.gz  -C /opt/samaanbox/      # CustomApp/.env
-sudo tar -xzpf app-envs.tar.gz       -C /opt/fms/            # backend/.env, deploy/.env.n8n
-tar -xzpf cloudflared-creds.tar.gz   -C ~                    # ~/.cloudflared
-tar -xzpf systemd-user.tar.gz        -C ~                    # ~/.config/systemd/user
-sudo systemctl daemon-reload
+cd /tmp/cfg && tar -xzpf app-envs.tar.gz -C /opt/fms/     # backend/.env + deploy/.env.n8n
+chmod 600 /opt/fms/backend/.env /opt/fms/deploy/.env.n8n
 ```
 
-`app-envs.tar.gz` contains `deploy/.env.n8n` — **without `N8N_ENCRYPTION_KEY`
-every n8n credential is permanently unreadable.** It is in this archive; verify
-it after extracting:
+⚠️ **`deploy/.env.n8n` holds `N8N_ENCRYPTION_KEY`.** Without it every n8n
+credential — Shopify, Meta WhatsApp, anything stored in a workflow — is
+permanently unreadable. Confirm before starting n8n:
 
 ```bash
 grep -c N8N_ENCRYPTION_KEY /opt/fms/deploy/.env.n8n   # must print 1
@@ -93,94 +48,107 @@ grep -c N8N_ENCRYPTION_KEY /opt/fms/deploy/.env.n8n   # must print 1
 
 ---
 
-## 4. Restore the applications
+## 2. Database
 
 ```bash
-# --- code ---------------------------------------------------------------
-git clone https://github.com/LaibaQaiser25/fms.git /opt/fms
-git clone https://github.com/hanzla46/SamaanBox.git /opt/samaanbox/SamaanBox
-```
-
-Restore the `~/.cloudflared`, env and unit files **after** the clone (the clone
-does not carry them).
-
-```bash
-# --- FMS ----------------------------------------------------------------
 cd /opt/fms
 docker compose up -d db
+# wait for the real start, not pg_isready — the entrypoint restarts once after
+# initdb and a restore inside that window dies with "database system is shutting down"
+for i in $(seq 1 90); do
+  docker compose logs db 2>&1 | grep -q 'database system is ready to accept connections' && break
+  sleep 2
+done
+sleep 4
+
 gh release download <newest fms_db-*> -R hanzla46/vps-backups -D /tmp/fms --clobber
-docker exec -i fms-db-1 sh -c 'exec pg_restore -U fms_app -d fms_db --no-owner --no-privileges -Fc' \
-  < /tmp/fms/*.dump
-docker run --rm -v fms_n8n_data:/data -v /tmp/fms:/in alpine:3 \
-  sh -c 'cd /data && tar -xzf /in/fms_n8n_data-*.tar.gz'      # if present
-docker compose build backend
-docker compose up -d
-
-# --- SamaanBox ----------------------------------------------------------
-cd /opt/samaanbox/SamaanBox/CustomApp
-npm ci && npm run build
-cd /opt/samaanbox/SamaanBox
-gh release download <newest samaanbox-*> -R hanzla46/vps-backups -D /tmp/sb --clobber
-cd /tmp/sb && unzip -o age-key-material.zip -d key
-age -d -i key/identity.txt -o /tmp/samaanbox.dump <timestamp>.dump.enc
-# NOTE: swap the postgis image for an arm64-capable tag first (see §6)
-docker compose -f CustomApp/deploy/production.compose.yml up -d db
-docker exec -i samaanbox-marketplace-db sh -c \
-  'exec pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-privileges -Fc' < /tmp/samaanbox.dump
-sudo systemctl enable --now samaanbox-app samaanbox-backup.timer
-
-# --- WordPress ----------------------------------------------------------
-gh release download <newest wordpress-*> -R hanzla46/vps-backups -D /tmp/wp --clobber
-mkdir -p ~/wordpress-site && tar -xzf /tmp/wp/wp-site-config.tar.gz -C ~/wordpress-site
-cd ~/wordpress-site && docker compose up -d db
-sleep 20
-docker exec -i mysite-db sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" wordpress' < /tmp/wp/wordpress.sql
-docker run --rm -v wordpress-site_wordpress_data:/data -v /tmp/wp:/in alpine:3 \
-  sh -c 'cd /data && tar -xzf /in/wp-content.tar.gz'
-docker compose up -d
+docker exec -i fms-db-1 sh -c \
+  'exec pg_restore -U fms_app -d fms_db --no-owner --no-privileges -Fc' < /tmp/fms/*.dump
 ```
 
----
-
-## 5. Hermes
+Verify: **39 public tables**, and `pgmigrations` count matches the code:
 
 ```bash
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
-gh release download <newest hermes-backup-*> -R hanzla46/vps-backups
-hermes import hermes-backup-*.zip
-hermes doctor
-sudo loginctl enable-linger myuser
-systemctl --user daemon-reload && systemctl --user enable --now hermes-gateway
+docker exec fms-db-1 psql -U fms_app -d fms_db -tAc \
+  "select count(*) from information_schema.tables where table_schema='public';"
+docker exec fms-db-1 psql -U fms_app -d fms_db -tAc "select count(*) from pgmigrations;"
 ```
 
-WhatsApp will ask for a QR re-scan — `journalctl --user -u hermes-gateway -f`.
-Copy `~/.config/gh` from a working machine or `gh auth login` again.
+---
+
+## 3. n8n
+
+```bash
+docker run --rm -v fms_n8n_data:/data -v /tmp/fms:/in alpine:3 \
+  sh -c 'cd /data && tar -xzf /in/fms_n8n_data-*.tar.gz'
+```
+
+The n8n version **must match** the one that wrote the SQLite volume — its
+migrations are one-way. `docker-compose.yml` pins `2.37.10`; do not change it to
+`latest` before restoring.
 
 ---
 
-## 6. Things that must be re-decided, not restored
+## 4. Build and start
 
-- **Docker image tags.** `postgis/postgis:16-3.4` has no arm64 build — use
-  `imresamu/postgis:16-3.5-alpine`. n8n must stay pinned to the version the
-  dump came from.
-- **TLS.** Caddy re-issues automatically once DNS points at the new IP.
-- **DNS.** `app.samaanbox.com` is a direct A record — repoint it. Cloudflare
-  tunnels need no change (credentials are in the config archive).
-- **GUI / RustDesk.** Not part of the backup. Reinstall if wanted.
-- **Chrome profiles / browser logins.** Never backed up (credentials are
-  keyring-bound). Re-login by hand.
+```bash
+cd /opt/fms
+docker compose build backend      # locally built; needs node:24-alpine (multi-arch)
+( cd frontend && npm ci && npm run build )
+docker compose up -d
+```
+
+Health:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5000/api/health   # 401 = up
+curl -s -o /dev/null -w '%{http_code}\n' https://api.ittefaqbuilder.com/api/health
+```
 
 ---
 
-## 7. Gaps — be honest about these
+## 5. Desktop update channel
 
-- **FMS code** lives in `LaibaQaiser25/fms`, with a mirror at
-  `hanzla46/fms-mirror` (pushed manually — may lag).
-- **WordPress plugins** live in `wp-content` (backed up). **Elementor Pro** is a
-  licensed plugin — reactivating it needs the licence key.
-- **The e-commerce research folders** (`~/tiktok-suppliers`, `~/ebay-ukds`) are
-  *not* in any backup. The harvested supplier catalogues cannot be re-scraped.
-  This is the largest remaining DR gap.
-- **Hermes skills and `state.db`** are inside the `hermes-*` release. Fine.
-- Last verified restore drills: WordPress release downloaded and opened
-  (2026-11-20); SamaanBox key decrypted its dump (2026-11-20).
+`~/fms/downloads` must hold `FMS-Setup-*.exe`, the `.blockmap` and `latest.yml`.
+If the box is gone, restore them from the previous host's copy or rebuild the
+installer — **without `latest.yml` every installed desktop app fails to update.**
+
+```bash
+curl -sI https://api.ittefaqbuilder.com/downloads/latest.yml | head -1   # 200
+```
+
+---
+
+## 6. Cron, tunnel and the deploy pipeline
+
+```bash
+crontab -e   # add:
+# 0 * * * * bash /home/myuser/fms/deploy/fms-hourly-backup.sh >/dev/null 2>&1
+```
+
+The `fms` Cloudflare tunnel (`178e058c-…`) serves `api.` and `n8n.`; its
+credentials come from the `config-*` release (`cloudflared-creds.tar.gz`), so no
+re-auth is needed. Only **one** origin may run at a time.
+
+The repo's GitHub Action deploys on push to `main`. It needs four repo secrets —
+`VPS_HOST` must be updated to the new address:
+
+```bash
+gh secret set VPS_HOST -R LaibaQaiser25/fms --body "<new-ip>"
+gh run list -R LaibaQaiser25/fms -L 3
+```
+
+The workflow has a `concurrency` group (`fms-vps-deploy`, no cancel) so two quick
+pushes queue instead of racing. Two parallel deploys once left the backend
+half-created and the API down for an hour — do not remove that guard.
+
+---
+
+## Pitfalls
+
+- **`latest` on n8n** — one-way SQLite migrations; always pin.
+- **`pg_restore --exit-on-error`** is fine for plain Postgres, but for PostGIS
+  images the pre-installed extensions raise `already exists`. FMS uses plain
+  Postgres, so strict mode is safe here.
+- **`.env.bak-*` files** in `backend/` are untracked local copies; do not commit
+  them, and do not assume they exist on a fresh clone.

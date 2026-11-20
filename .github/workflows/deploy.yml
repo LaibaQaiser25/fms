@@ -11,6 +11,14 @@ on:
       - 'deploy/**'
   workflow_dispatch: # allow manual trigger from the Actions tab
 
+# Two pushes seconds apart used to start two deploys against the same host and
+# collide ("removal of container ... is already in progress"), leaving the
+# backend half-created and the API down. Serialise them instead of racing:
+# queue at most one pending run, never cancel one that is mid-deploy.
+concurrency:
+  group: fms-vps-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Pull + rebuild backend on VPS

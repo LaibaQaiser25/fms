@@ -48,7 +48,7 @@ services:
     # 127.0.0.1:5000 out to the public tunnel URL.
 
   n8n:
-    image: docker.n8n.io/n8nio/n8n
+    image: docker.n8n.io/n8nio/n8n:2.37.10
     restart: unless-stopped
     env_file:
       - deploy/.env.n8n

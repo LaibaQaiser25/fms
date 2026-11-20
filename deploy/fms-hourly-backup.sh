@@ -87,11 +87,18 @@ else
     fail_out "upload failed for $tag: $(echo "$out" | tail -3 | tr '\n' ' ')"
   fi
 
-  got=$("$GH" release view "$tag" --repo "$REPO" --json assets \
-    -q ".assets[] | select(.name == \"$name\") | .size" 2>/dev/null)
+  # Verify with retries: GitHub's release *asset* list can lag a few seconds
+  # behind `release create` returning. A single immediate read can come back
+  # empty, which previously deleted a perfectly good upload.
+  got=""
+  for attempt in 1 2 3 4 5 6; do
+    got=$("$GH" release view "$tag" --repo "$REPO" --json assets \
+      -q ".assets[] | select(.name == \"$name\") | .size" 2>/dev/null)
+    [[ "$got" == "$size" ]] && break
+    sleep $(( attempt * 2 ))
+  done
   if [[ "$got" != "$size" ]]; then
-    "$GH" release delete "$tag" --repo "$REPO" --yes --cleanup-tag >/dev/null 2>&1
-    fail_out "verification failed for $tag (asset '$got' != local $size) — release removed"
+    fail_out "verification failed for $tag (asset '$got' != local $size) — release kept, will retry next run"
   fi
   log "uploaded $tag size=$size"
 fi

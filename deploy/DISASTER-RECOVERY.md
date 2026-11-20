@@ -12,11 +12,23 @@ rebuild lives only on the dead machine.
 
 | Asset | Repo | Cadence | Restores |
 |---|---|---|---|
-| Hermes state | `hanzla46/hermes-backups` | daily 02:00 / 02:05 | agent config, skills, memory, sessions, WhatsApp link |
-| FMS database | `hanzla46/fms-db-backups` (+ mirror `LaibaQaiser25/fms`) | hourly | `fms_db` |
-| SamaanBox DB | `hanzla46/samaanbox-backups` | daily 03:15 | encrypted `samaanbox` dump **and its age key** |
-| WordPress | `hanzla46/wordpress-site-backups` | daily 03:15 | MySQL DB, `wp-content` volume, compose + php.ini |
-| Box config | `hanzla46/vps-config-backups` | daily 03:15 | every `.env`, Caddyfile, tunnel creds, systemd units |
+**Everything is in one private repo: `hanzla46/vps-backups`** — one release per
+run, tagged by component.
+
+| Tag prefix | Cadence | Restores |
+|---|---|---|
+| `hermes-*` | daily 02:05 | agent config, skills, memory, sessions |
+| `fms_db-*` | hourly | `fms_db` dump |
+| `samaanbox-*` | daily 03:15 | encrypted dump **+ its age key** |
+| `wordpress-*` | daily 03:15 | MySQL DB, `wp-content`, compose + php.ini |
+| `config-*` | daily 03:15 | every `.env`, Caddyfile, tunnel creds, systemd units |
+| `ecom-*` | daily 03:15 | supplier catalogues, harvested data, eBay pipeline |
+
+List what exists:
+
+```bash
+gh release list -R hanzla46/vps-backups -L 30
+```
 
 **Images, containers and volumes are NOT backed up** — they are rebuilt from
 public registries and from the code repos (`fms`, `SamaanBox`). That is by
@@ -59,7 +71,7 @@ gh auth login
 ## 3. Restore the config layer
 
 ```bash
-gh release download config-<LATEST> -R hanzla46/vps-config-backups -D /tmp/cfg --clobber
+gh release download config-<LATEST> -R hanzla46/vps-backups -D /tmp/cfg --clobber
 cd /tmp/cfg
 
 sudo tar -xzpf env-files.tar.gz      -C /                    # /etc/samaanbox-*.env
@@ -96,7 +108,7 @@ does not carry them).
 # --- FMS ----------------------------------------------------------------
 cd /opt/fms
 docker compose up -d db
-gh release download <newest fms_db-*> -R hanzla46/fms-db-backups -D /tmp/fms --clobber
+gh release download <newest fms_db-*> -R hanzla46/vps-backups -D /tmp/fms --clobber
 docker exec -i fms-db-1 sh -c 'exec pg_restore -U fms_app -d fms_db --no-owner --no-privileges -Fc' \
   < /tmp/fms/*.dump
 docker run --rm -v fms_n8n_data:/data -v /tmp/fms:/in alpine:3 \
@@ -108,7 +120,7 @@ docker compose up -d
 cd /opt/samaanbox/SamaanBox/CustomApp
 npm ci && npm run build
 cd /opt/samaanbox/SamaanBox
-gh release download <newest samaanbox-*> -R hanzla46/samaanbox-backups -D /tmp/sb --clobber
+gh release download <newest samaanbox-*> -R hanzla46/vps-backups -D /tmp/sb --clobber
 cd /tmp/sb && unzip -o age-key-material.zip -d key
 age -d -i key/identity.txt -o /tmp/samaanbox.dump <timestamp>.dump.enc
 # NOTE: swap the postgis image for an arm64-capable tag first (see §6)
@@ -118,7 +130,7 @@ docker exec -i samaanbox-marketplace-db sh -c \
 sudo systemctl enable --now samaanbox-app samaanbox-backup.timer
 
 # --- WordPress ----------------------------------------------------------
-gh release download <newest wordpress-*> -R hanzla46/wordpress-site-backups -D /tmp/wp --clobber
+gh release download <newest wordpress-*> -R hanzla46/vps-backups -D /tmp/wp --clobber
 mkdir -p ~/wordpress-site && tar -xzf /tmp/wp/wp-site-config.tar.gz -C ~/wordpress-site
 cd ~/wordpress-site && docker compose up -d db
 sleep 20
@@ -134,7 +146,7 @@ docker compose up -d
 
 ```bash
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
-gh release download <newest hermes-backup-*> -R hanzla46/hermes-backups
+gh release download <newest hermes-backup-*> -R hanzla46/vps-backups
 hermes import hermes-backup-*.zip
 hermes doctor
 sudo loginctl enable-linger myuser
@@ -162,13 +174,13 @@ Copy `~/.config/gh` from a working machine or `gh auth login` again.
 
 ## 7. Gaps — be honest about these
 
-- **FMS code** lives in `LaibaQaiser25/fms`. If that collaborator account goes
-  away, the source is unrecoverable from here. Mirror it to `hanzla46`.
+- **FMS code** lives in `LaibaQaiser25/fms`, with a mirror at
+  `hanzla46/fms-mirror` (pushed manually — may lag).
 - **WordPress plugins** live in `wp-content` (backed up). **Elementor Pro** is a
   licensed plugin — reactivating it needs the licence key.
 - **The e-commerce research folders** (`~/tiktok-suppliers`, `~/ebay-ukds`) are
   *not* in any backup. The harvested supplier catalogues cannot be re-scraped.
   This is the largest remaining DR gap.
-- **Hermes skills** are in `hermes-backups`; **Hermes state.db** too. Fine.
+- **Hermes skills and `state.db`** are inside the `hermes-*` release. Fine.
 - Last verified restore drills: WordPress release downloaded and opened
   (2026-11-20); SamaanBox key decrypted its dump (2026-11-20).

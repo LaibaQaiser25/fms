@@ -34,9 +34,15 @@ git clone https://github.com/LaibaQaiser25/fms.git /opt/fms
 # git clone https://github.com/hanzla46/fms-mirror.git /opt/fms
 
 gh release download config-<LATEST> -R hanzla46/vps-backups -D /tmp/cfg --clobber
-cd /tmp/cfg && tar -xzpf app-envs.tar.gz -C /opt/fms/     # backend/.env + deploy/.env.n8n
-chmod 600 /opt/fms/backend/.env /opt/fms/deploy/.env.n8n
+cd /tmp/cfg && tar -xzpf app-envs.tar.gz -C /opt/fms/     # .env + backend/.env + deploy/.env.n8n
+chmod 600 /opt/fms/.env /opt/fms/backend/.env /opt/fms/deploy/.env.n8n
 ```
+
+⚠️ **`/opt/fms/.env` is required.** It holds the compose-level `POSTGRES_PASSWORD`
+that `docker-compose.yml` interpolates as `${POSTGRES_PASSWORD}`. It is not in git
+and not in `backend/.env`; without it `docker compose up -d db` aborts with
+*"POSTGRES_PASSWORD variable is not set"* and the database restarts in a loop.
+A DR drill on 2026-11-21 caught exactly this.
 
 ⚠️ **`deploy/.env.n8n` holds `N8N_ENCRYPTION_KEY`.** Without it every n8n
 credential — Shopify, Meta WhatsApp, anything stored in a workflow — is
